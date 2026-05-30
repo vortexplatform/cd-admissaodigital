@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OtpService } from './otp.service';
 import { EmailService } from './email.service';
@@ -38,8 +38,17 @@ export class AuthService {
 
     const type = this.detectType(identifier);
     const { user, isNewUser } = await this.users.findOrCreate(identifier, type);
+    const session = await this.users.findSessionById(user.id);
+    if (!session) throw new NotFoundException('Usuário não encontrado.');
 
     const accessToken = this.jwt.sign({ sub: user.id, identifier });
-    return { accessToken, user, isNewUser };
+    return { accessToken, ...session, isNewUser };
+  }
+
+  async getSession(userId: number) {
+    const session = await this.users.findSessionById(userId);
+    if (!session) throw new NotFoundException('Usuário não encontrado.');
+
+    return session;
   }
 }

@@ -23,6 +23,7 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   candidato Candidato?
+  empresas  EmpresaUsuario[]
 
   requisicoesCriadas   RequisicaoVaga[] @relation("RequisicaoCriadaPor")
   requisicoesAprovadas RequisicaoVaga[] @relation("RequisicaoAprovadaPor")
@@ -31,15 +32,15 @@ model User {
 }
 
 model Candidato {
-  id             Int      @id @default(autoincrement())
-  userId         Int?     @unique
-  cpf            String   @unique
-  dataNascimento DateTime @db.Date
+  id             Int              @id @default(autoincrement())
+  userId         Int?             @unique
+  cpf            String           @unique
+  dataNascimento DateTime         @db.Date
   nome           String?
   email          String?
   telefone       String?
-  user       User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
-  requisicoes RequisicaoVaga[]
+  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requisicoes    RequisicaoVaga[]
 
   @@map("candidato")
 }
@@ -54,6 +55,30 @@ model CodeOtp {
 
   @@index([identifier])
   @@map("codeotp")
+}
+
+model Empresa {
+  id                  Int              @id @default(autoincrement())
+  nome                String
+  codigoEmpresaSenior String           @unique @map("codigo_empresa_senior")
+  requisicoes         RequisicaoVaga[]
+  usuarios            EmpresaUsuario[]
+
+  @@map("empresa")
+}
+
+model EmpresaUsuario {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  empresaId Int      @map("empresa_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, empresaId])
+  @@index([empresaId])
+  @@map("empresa_usuario")
 }
 
 enum StatusRequisicaoVaga {
@@ -96,30 +121,35 @@ model RequisicaoVaga {
   tipo   TipoRequisicaoVaga   @default(NOVA_VAGA)
   status StatusRequisicaoVaga @default(RASCUNHO)
 
-  empresa     Int?
-  filial      Int?
-  cargo       String?
-  centroCusto String?
-  escala      String?
-  sindicato   String?
+  empresaId       Int?     @map("empresa")
+  empresa         Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  filial          Int?
+  filialNome      String?  @map("filial_nome")
+  cargo           String?
+  cargoNome       String?  @map("cargo_nome")
+  centroCusto     String?
+  ccustoNome      String?  @map("ccusto_nome")
+  escala          String?
+  descricaoEscala String?  @map("descricao_escala")
+  sindicato       String?
 
   dataPrevistaAdmissao DateTime? @db.Date
 
   motivoAbertura String?
   observacao     String?
 
-  codigoRequisicaoSenior String?
-  codigoCandidatoSenior  String?
+  codigoRequisicaoSenior  String?
+  codigoCandidatoSenior   String?
   codigoColaboradorSenior String?
 
-  aprovadoEm          DateTime?
-  integradoSeniorEm   DateTime?
+  aprovadoEm        DateTime?
+  integradoSeniorEm DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([candidatoId])
   @@index([status])
-  @@index([empresa, filial])
+  @@index([empresaId, filial], map: "requisicao_vaga_empresa_filial_idx")
   @@map("requisicao_vaga")
 }

@@ -4,7 +4,7 @@ import { OTPInput, REGEXP_ONLY_DIGITS } from 'input-otp';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import ThemeToggle from '@/components/ThemeToggle';
-import { useAuth, type User } from '@/context/AuthContext';
+import { useAuth, type AuthSession } from '@/context/AuthContext';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -70,14 +70,11 @@ export default function OtpPage() {
     setIsLoading(true);
     setError('');
     try {
-      const { data } = await api.post<{ accessToken: string; user: User }>(
-        '/auth/verify-otp',
-        {
-          identifier,
-          code,
-        },
-      );
-      login(data.accessToken, data.user);
+      const { data } = await api.post<AuthSession & { accessToken: string }>('/auth/verify-otp', {
+        identifier,
+        code,
+      });
+      login(data.accessToken, data);
       navigate('/');
     } catch {
       setError('Código inválido ou expirado. Tente novamente.');
@@ -94,7 +91,8 @@ export default function OtpPage() {
         <CardHeader className="text-center">
           <CardTitle className="font-display text-2xl">Verificação</CardTitle>
           <CardDescription>
-            Código enviado para <span className="font-medium text-foreground">{maskIdentifier(identifier)}</span>.
+            Código enviado para{' '}
+            <span className="font-medium text-foreground">{maskIdentifier(identifier)}</span>.
             <br />
             Digite os 6 dígitos abaixo.
           </CardDescription>

@@ -21,7 +21,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  me(@Request() req: { user: Express.User }) {
-    return req.user;
+  me(@Request() req: { user: { id: number } }) {
+    return this.auth.getSession(req.user.id);
   }
 }

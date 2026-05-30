@@ -9,6 +9,7 @@ import {
   FileSignature,
   LayoutDashboard,
   LogOut,
+  Settings2,
   ScanLine,
   ShieldCheck,
   UserRoundCheck,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import EmpresaSelector from '@/components/EmpresaSelector';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth, type User } from '@/context/AuthContext';
 
@@ -33,24 +35,53 @@ const rhMetrics = [
 ];
 
 const rhQueue = [
-  { title: 'Analista Fiscal Jr.', company: 'Filial 03', status: 'Aguardando documentos', priority: 'Alta' },
-  { title: 'Auxiliar de Logística', company: 'Matriz', status: 'Assinatura enviada', priority: 'Média' },
+  {
+    title: 'Analista Fiscal Jr.',
+    company: 'Filial 03',
+    status: 'Aguardando documentos',
+    priority: 'Alta',
+  },
+  {
+    title: 'Auxiliar de Logística',
+    company: 'Matriz',
+    status: 'Assinatura enviada',
+    priority: 'Média',
+  },
   { title: 'Coordenador de Loja', company: 'Filial 12', status: 'Revisão RH', priority: 'Normal' },
 ];
 
 const candidateSteps = [
   { label: 'Perfil', description: 'Dados pessoais confirmados', done: true, icon: UserRoundCheck },
-  { label: 'Documentos', description: 'Envio de arquivos obrigatórios', done: false, active: true, icon: ClipboardCheck },
+  {
+    label: 'Documentos',
+    description: 'Envio de arquivos obrigatórios',
+    done: false,
+    active: true,
+    icon: ClipboardCheck,
+  },
   { label: 'Assinatura', description: 'Contratos e declarações', done: false, icon: FileSignature },
   { label: 'Revisão RH', description: 'Validação final da equipe', done: false, icon: BadgeCheck },
-  { label: 'Integração', description: 'Preparação para o primeiro dia', done: false, icon: Building2 },
+  {
+    label: 'Integração',
+    description: 'Preparação para o primeiro dia',
+    done: false,
+    icon: Building2,
+  },
 ];
 
 function getDisplayName(user: User) {
   return user.nome?.trim().split(' ')[0] || 'Usuário';
 }
 
-function AppHeader({ identifier, title, description, onLogout }: HomeProps & { title: string; description: string }) {
+function AppHeader({
+  user,
+  identifier,
+  title,
+  description,
+  onLogout,
+}: HomeProps & { title: string; description: string }) {
+  const isRhEnvironment = ['RH', 'ADMIN'].includes(user.role);
+
   return (
     <header className="flex flex-col gap-4 border-b bg-card/95 px-4 py-4 shadow-sm backdrop-blur lg:flex-row lg:items-center lg:justify-between lg:px-8">
       <div className="flex items-center gap-3">
@@ -64,10 +95,14 @@ function AppHeader({ identifier, title, description, onLogout }: HomeProps & { t
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="rounded-lg border bg-background px-3 py-2 text-sm">
-          <p className="font-medium leading-none">{title}</p>
-          <p className="mt-1 max-w-[220px] truncate text-xs text-muted-foreground">{identifier}</p>
-        </div>
+        {isRhEnvironment ? (
+          <EmpresaSelector />
+        ) : (
+          <div className="rounded-lg border bg-background px-3 py-2 text-sm">
+            <p className="font-medium leading-none">{title}</p>
+            <p className="mt-1 max-w-[220px] truncate text-xs text-muted-foreground">{identifier}</p>
+          </div>
+        )}
         <ThemeToggle />
         <Button type="button" variant="outline" onClick={onLogout} className="justify-start">
           <LogOut className="h-4 w-4" />
@@ -79,6 +114,11 @@ function AppHeader({ identifier, title, description, onLogout }: HomeProps & { t
 }
 
 function RhHome({ user, identifier, onLogout }: HomeProps) {
+  const navigate = useNavigate();
+  const configItems = ['Requisições'];
+
+  if (user.role === 'ADMIN') configItems.push('Empresa');
+
   return (
     <div className="app-surface min-h-screen text-foreground">
       <AppHeader
@@ -91,33 +131,80 @@ function RhHome({ user, identifier, onLogout }: HomeProps) {
 
       <div className="grid lg:grid-cols-[16rem_1fr]">
         <aside className="hidden border-r bg-card/70 p-5 lg:block">
-          <nav className="space-y-1 text-sm">
-            {['Visão geral', 'Requisições', 'Candidatos', 'Pendências'].map((item, index) => (
-              <button
-                key={item}
-                className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition ${
-                  index === 0 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                <span>{item}</span>
-                {index === 2 && <span className="rounded-full bg-background/80 px-2 py-0.5 text-xs text-foreground">7</span>}
-              </button>
-            ))}
+          <nav className="space-y-5 text-sm">
+            <div>
+              <div className="mb-2 flex items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <span>Processos</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              {['Visão geral', 'Candidatos', 'Pendências'].map((item, index) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    if (item === 'Candidatos') navigate('/candidatos');
+                  }}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition ${
+                    index === 0
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  <span>{item}</span>
+                  {item === 'Candidatos' && (
+                    <span className="rounded-full bg-background/80 px-2 py-0.5 text-xs text-foreground">
+                      7
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <span>Configurações</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              {configItems.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    if (item === 'Requisições') navigate('/requisicoes');
+                    if (item === 'Empresa') navigate('/empresas');
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
+                  <span className="flex items-center gap-2">
+                    {item === 'Requisições' && <BriefcaseBusiness className="h-4 w-4" />}
+                    {item === 'Empresa' && <Settings2 className="h-4 w-4" />}
+                    {item}
+                  </span>
+                </button>
+              ))}
+            </div>
           </nav>
         </aside>
 
         <main className="px-4 py-6 lg:px-8">
           <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-primary">Resumo executivo</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-primary">
+                Resumo executivo
+              </p>
               <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight lg:text-4xl">
                 Bom trabalho, {getDisplayName(user)}.
               </h1>
               <p className="mt-2 max-w-2xl text-muted-foreground">
-                Acompanhe requisições, pendências documentais e integrações em uma visão objetiva para tomada de decisão.
+                Acompanhe requisições, pendências documentais e integrações em uma visão objetiva
+                para tomada de decisão.
               </p>
             </div>
-            <Button type="button" className="w-full sm:w-auto">
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              onClick={() => navigate('/requisicoes')}
+            >
               Nova requisição
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -135,7 +222,9 @@ function RhHome({ user, identifier, onLogout }: HomeProps) {
                     </span>
                   </CardHeader>
                   <CardContent>
-                    <p className="font-display text-3xl font-semibold tracking-tight">{metric.value}</p>
+                    <p className="font-display text-3xl font-semibold tracking-tight">
+                      {metric.value}
+                    </p>
                     <p className="mt-1 text-sm text-muted-foreground">{metric.detail}</p>
                   </CardContent>
                 </Card>
@@ -217,7 +306,8 @@ function CandidateHome({ user, identifier, onLogout }: HomeProps) {
                 {getDisplayName(user)}, continue sua admissão com segurança.
               </CardTitle>
               <CardDescription className="max-w-2xl text-base">
-                Organize os documentos necessários e acompanhe cada validação em um fluxo simples, transparente e com status sempre visível.
+                Organize os documentos necessários e acompanhe cada validação em um fluxo simples,
+                transparente e com status sempre visível.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
@@ -226,7 +316,9 @@ function CandidateHome({ user, identifier, onLogout }: HomeProps) {
                 <ArrowRight className="h-4 w-4" />
               </Button>
               <div className="rounded-xl border bg-background px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Canal de acesso</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Canal de acesso
+                </p>
                 <p className="truncate text-sm font-medium">{identifier}</p>
               </div>
             </CardContent>

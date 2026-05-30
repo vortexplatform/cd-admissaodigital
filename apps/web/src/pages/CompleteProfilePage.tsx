@@ -86,13 +86,23 @@ export default function CompleteProfilePage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="nome">Nome completo</Label>
-              <Input id="nome" autoComplete="name" placeholder="Seu nome completo" {...register('nome')} />
+              <Input
+                id="nome"
+                autoComplete="name"
+                placeholder="Seu nome completo"
+                {...register('nome')}
+              />
               {errors.nome && <p className="text-sm text-destructive">{errors.nome.message}</p>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="cpf">CPF</Label>
-              <Input id="cpf" inputMode="numeric" placeholder="000.000.000-00" {...register('cpf')} />
+              <Input
+                id="cpf"
+                inputMode="numeric"
+                placeholder="000.000.000-00"
+                {...register('cpf')}
+              />
               {errors.cpf && <p className="text-sm text-destructive">{errors.cpf.message}</p>}
             </div>
 

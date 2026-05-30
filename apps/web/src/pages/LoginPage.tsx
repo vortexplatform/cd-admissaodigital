@@ -13,7 +13,10 @@ import api from '@/lib/api';
 
 const emailSchema = z.object({ identifier: z.string().email('E-mail inválido') });
 const phoneSchema = z.object({
-  identifier: z.string().min(10, 'Telefone inválido').regex(/^\+?[\d\s\-()]+$/, 'Telefone inválido'),
+  identifier: z
+    .string()
+    .min(10, 'Telefone inválido')
+    .regex(/^\+?[\d\s\-()]+$/, 'Telefone inválido'),
 });
 
 type FormValues = { identifier: string };
@@ -54,7 +57,9 @@ function IdentifierForm({ type }: { type: 'email' | 'phone' }) {
           autoComplete={type === 'email' ? 'email' : 'tel'}
           {...register('identifier')}
         />
-        {errors.identifier && <p className="text-sm text-destructive">{errors.identifier.message}</p>}
+        {errors.identifier && (
+          <p className="text-sm text-destructive">{errors.identifier.message}</p>
+        )}
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" className="w-full" disabled={isLoading}>
@@ -71,7 +76,9 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm shadow-corporate">
         <CardHeader className="text-center">
           <CardTitle className="font-display text-2xl">Admissão Digital</CardTitle>
-          <CardDescription>Entre com seu e-mail ou telefone para receber um código de acesso.</CardDescription>
+          <CardDescription>
+            Entre com seu e-mail ou telefone para receber um código de acesso.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="email">
