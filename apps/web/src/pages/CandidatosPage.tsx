@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Edit3, Eye, Plus, Trash2, UserRound } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Edit3, Eye, ListChecks, Plus, Trash2, UserRound, UserRoundPlus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import AsyncSelect from 'react-select/async';
+import type { StylesConfig } from 'react-select';
 import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import api from '@/lib/api';
 
 const statusLabels: Record<string, string> = {
@@ -38,7 +41,18 @@ const tabs = [
   { key: 'recusados', label: 'Recusados' },
 ] as const;
 
+const statusCandidaturaList = [
+  'INSCRITO',
+  'EM_ANALISE',
+  'ENTREVISTA',
+  'APROVADO',
+  'REPROVADO',
+  'DESISTIU',
+  'CANCELADO',
+] as const;
+
 type TabKey = (typeof tabs)[number]['key'];
+type StatusCandidatura = (typeof statusCandidaturaList)[number];
 
 interface Empresa {
   id: number;
@@ -68,6 +82,81 @@ interface Candidato {
   telefone: string | null;
   candidaturas: CandidaturaResumo[];
 }
+
+interface RequisicaoDisponivel {
+  id: number;
+  quantidadeVagas: number;
+  vagasDisponiveis: number;
+  empresa: Empresa | null;
+  filialNome: string | null;
+  postoTrabalho: string | null;
+  postoTrabalhoNome: string | null;
+  cargo: string | null;
+  cargoNome: string | null;
+  ccustoNome: string | null;
+  dataPrevistaAdmissao: string | null;
+}
+
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface RequisicaoOption extends SelectOption {
+  requisicao: RequisicaoDisponivel;
+}
+
+interface PaginatedCandidatosResponse {
+  data: Candidato[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+const pageSize = 20;
+
+const selectStyles: StylesConfig<SelectOption, false> = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 40,
+    borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
+    borderRadius: 'calc(var(--radius) - 2px)',
+    backgroundColor: 'hsl(var(--background))',
+    boxShadow: state.isFocused ? '0 0 0 1px hsl(var(--ring))' : 'none',
+    ':hover': { borderColor: 'hsl(var(--ring))' },
+  }),
+  menu: (base) => ({
+    ...base,
+    zIndex: 60,
+    overflow: 'hidden',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: 'var(--radius)',
+    backgroundColor: 'hsl(var(--popover))',
+    color: 'hsl(var(--popover-foreground))',
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? 'hsl(var(--primary))'
+      : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'transparent',
+    color: state.isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+  }),
+  placeholder: (base) => ({ ...base, color: 'hsl(var(--muted-foreground))' }),
+  singleValue: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
+  input: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
+};
+
+const fetchPaginatedCandidatos = (currentPage: number, nome: string) =>
+  api.get<PaginatedCandidatosResponse>('/candidatos', {
+    params: {
+      page: currentPage,
+      limit: pageSize,
+      ...(nome ? { nome } : {}),
+    },
+  });
 
 const toDateInputValue = (value: string | null) => (value ? value.slice(0, 10) : '');
 
@@ -113,23 +202,78 @@ const getSla = (candidatura: CandidaturaResumo | null) => {
   };
 };
 
+const formatRequisicaoOption = (requisicao: RequisicaoDisponivel): RequisicaoOption => ({
+  value: String(requisicao.id),
+  label: `#${requisicao.id} - ${requisicao.postoTrabalho ?? 'Posto não informado'} - ${requisicao.postoTrabalhoNome ?? requisicao.cargoNome ?? requisicao.cargo ?? 'Descrição não informada'}`,
+  requisicao,
+});
+
 export default function CandidatosPage() {
   const navigate = useNavigate();
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>('todos');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1, limit: pageSize });
+  const [statusModalCandidato, setStatusModalCandidato] = useState<Candidato | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<StatusCandidatura>('INSCRITO');
+  const [linkModalCandidato, setLinkModalCandidato] = useState<Candidato | null>(null);
+  const [selectedRequisicao, setSelectedRequisicao] = useState<RequisicaoOption | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingAction, setIsSavingAction] = useState(false);
   const [error, setError] = useState('');
-
-  const loadCandidatos = async () => {
-    const { data } = await api.get<Candidato[]>('/candidatos');
-    setCandidatos(data);
-  };
+  const [modalError, setModalError] = useState('');
+  const requisicaoSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    loadCandidatos()
-      .catch(() => setError('Não foi possível carregar os candidatos.'))
-      .finally(() => setIsLoading(false));
-  }, []);
+    const timeout = setTimeout(() => {
+      setPage(1);
+      setDebouncedSearchTerm(searchTerm);
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let isCurrentRequest = true;
+    const trimmedNome = debouncedSearchTerm.trim();
+
+    if (trimmedNome && trimmedNome.length < 3) {
+      setCandidatos([]);
+      setPagination({ total: 0, totalPages: 1, limit: pageSize });
+      setIsLoading(false);
+      return () => {
+        isCurrentRequest = false;
+      };
+    }
+
+    setIsLoading(true);
+    setError('');
+    fetchPaginatedCandidatos(page, trimmedNome)
+      .then(({ data }) => {
+        if (!isCurrentRequest) return;
+        setCandidatos(data.data);
+        setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
+      })
+      .catch(() => {
+        if (isCurrentRequest) setError('Não foi possível carregar os candidatos.');
+      })
+      .finally(() => {
+        if (isCurrentRequest) setIsLoading(false);
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [page, debouncedSearchTerm]);
+
+  useEffect(
+    () => () => {
+      if (requisicaoSearchTimeout.current) clearTimeout(requisicaoSearchTimeout.current);
+    },
+    [],
+  );
 
   const counts = useMemo(
     () => ({
@@ -165,9 +309,110 @@ export default function CandidatosPage() {
     setError('');
     try {
       await api.delete(`/candidatos/${candidato.id}`);
-      await loadCandidatos();
+      const trimmedNome = debouncedSearchTerm.trim();
+      const { data } = await fetchPaginatedCandidatos(page, trimmedNome);
+      setCandidatos(data.data);
+      setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
     } catch {
       setError('Não foi possível excluir o candidato.');
+    }
+  };
+
+  const hasShortSearchTerm = Boolean(searchTerm.trim()) && searchTerm.trim().length < 3;
+  const firstItem = pagination.total === 0 ? 0 : (page - 1) * pagination.limit + 1;
+  const lastItem = Math.min(page * pagination.limit, pagination.total);
+
+  const reloadCurrentPage = async () => {
+    const trimmedNome = debouncedSearchTerm.trim();
+    const { data } = await fetchPaginatedCandidatos(page, trimmedNome);
+    setCandidatos(data.data);
+    setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
+  };
+
+  const openStatusModal = (candidato: Candidato) => {
+    const candidatura = getCurrentCandidatura(candidato);
+    if (!candidatura) return;
+
+    setStatusModalCandidato(candidato);
+    setSelectedStatus(candidatura.status as StatusCandidatura);
+    setModalError('');
+  };
+
+  const closeModals = (force = false) => {
+    if (isSavingAction && !force) return;
+
+    setStatusModalCandidato(null);
+    setLinkModalCandidato(null);
+    setSelectedRequisicao(null);
+    setModalError('');
+  };
+
+  const updateCandidaturaStatus = async () => {
+    const candidatura = statusModalCandidato ? getCurrentCandidatura(statusModalCandidato) : null;
+    if (!candidatura) return;
+
+    setIsSavingAction(true);
+    setModalError('');
+    try {
+      await api.patch(`/candidaturas/${candidatura.id}/status`, { status: selectedStatus });
+      await reloadCurrentPage();
+      closeModals(true);
+    } catch {
+      setModalError('Não foi possível atualizar a situação do candidato.');
+    } finally {
+      setIsSavingAction(false);
+    }
+  };
+
+  const openLinkModal = (candidato: Candidato) => {
+    setLinkModalCandidato(candidato);
+    setSelectedRequisicao(null);
+    setModalError('');
+  };
+
+  const loadRequisicaoOptions = (
+    inputValue: string,
+    callback: (options: RequisicaoOption[]) => void,
+  ) => {
+    if (!linkModalCandidato) {
+      callback([]);
+      return;
+    }
+
+    if (requisicaoSearchTimeout.current) clearTimeout(requisicaoSearchTimeout.current);
+
+    requisicaoSearchTimeout.current = setTimeout(() => {
+      api
+        .get<RequisicaoDisponivel[]>('/requisicoes/disponiveis', {
+          params: {
+            candidatoId: linkModalCandidato.id,
+            limit: 20,
+            q: inputValue.trim() || undefined,
+          },
+        })
+        .then(({ data }) => callback(data.map(formatRequisicaoOption)))
+        .catch(() => {
+          setModalError('Não foi possível carregar as requisições disponíveis.');
+          callback([]);
+        });
+    }, 350);
+  };
+
+  const vincularCandidato = async () => {
+    if (!linkModalCandidato || !selectedRequisicao) return;
+
+    setIsSavingAction(true);
+    setModalError('');
+    try {
+      await api.post(`/requisicoes/${selectedRequisicao.value}/candidaturas`, {
+        candidatoId: linkModalCandidato.id,
+      });
+      await reloadCurrentPage();
+      closeModals(true);
+    } catch {
+      setModalError('Não foi possível vincular o candidato à requisição.');
+    } finally {
+      setIsSavingAction(false);
     }
   };
 
@@ -176,7 +421,7 @@ export default function CandidatosPage() {
       <PageHeader
         eyebrow="Admissão digital"
         title="Candidatos"
-        description={`${candidatos.length} ativo(s) · ${counts['em-analise']} em análise · ${counts.aguardando} aguardando ação`}
+        description={`${pagination.total} candidato(s) encontrado(s) · ${counts['em-analise']} em análise nesta página · ${counts.aguardando} aguardando ação nesta página`}
         actions={
           <Button
             type="button"
@@ -197,6 +442,16 @@ export default function CandidatosPage() {
               <CardDescription>
                 Empresa, etapa e SLA vêm da candidatura mais recente vinculada.
               </CardDescription>
+            </div>
+            <div className="w-full lg:max-w-sm">
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Buscar candidato por nome"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Digite ao menos 3 letras para pesquisar por nome.
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               {tabs.map((tab) => (
@@ -219,6 +474,11 @@ export default function CandidatosPage() {
         </CardHeader>
         <CardContent className="p-0">
           {error && <p className="border-b px-5 py-3 text-sm text-destructive">{error}</p>}
+          {hasShortSearchTerm && (
+            <p className="border-b px-5 py-3 text-sm text-muted-foreground">
+              Digite ao menos 3 letras para buscar por nome.
+            </p>
+          )}
           {isLoading ? (
             <p className="p-6 text-sm text-muted-foreground">Carregando candidatos...</p>
           ) : filteredCandidatos.length === 0 ? (
@@ -232,7 +492,7 @@ export default function CandidatosPage() {
           ) : (
             <div className="overflow-x-auto">
               <div className="min-w-[860px]">
-                <div className="grid grid-cols-[2fr_1.4fr_1.6fr_8rem_13rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[2fr_1.4fr_1.6fr_8rem_16rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <span>Candidato</span>
                   <span>Empresa</span>
                   <span>Etapa</span>
@@ -249,7 +509,7 @@ export default function CandidatosPage() {
                     return (
                       <div
                         key={candidato.id}
-                        className={`grid grid-cols-[2fr_1.4fr_1.6fr_8rem_13rem] gap-4 px-5 py-4 ${
+                        className={`grid grid-cols-[2fr_1.4fr_1.6fr_8rem_16rem] gap-4 px-5 py-4 ${
                           sla.urgent ? 'bg-yellow-100/70 dark:bg-yellow-950/30' : 'bg-background'
                         }`}
                       >
@@ -296,6 +556,26 @@ export default function CandidatosPage() {
                             type="button"
                             variant="outline"
                             size="sm"
+                            title="Vincular a uma requisição"
+                            onClick={() => openLinkModal(candidato)}
+                          >
+                            <UserRoundPlus className="h-4 w-4" />
+                          </Button>
+                          {candidatura && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              title="Alterar situação"
+                              onClick={() => openStatusModal(candidato)}
+                            >
+                              <ListChecks className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
                             onClick={() => navigate(`/candidatos/${candidato.id}`)}
                           >
                             <Eye className="h-4 w-4" />
@@ -326,8 +606,155 @@ export default function CandidatosPage() {
               </div>
             </div>
           )}
+          {!isLoading && !hasShortSearchTerm && pagination.total > 0 && (
+            <div className="flex flex-col gap-3 border-t px-5 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Exibindo {firstItem}-{lastItem} de {pagination.total} candidato(s)
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="min-w-24 text-center text-xs font-semibold uppercase tracking-wide">
+                  Página {page} de {pagination.totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= pagination.totalPages}
+                  onClick={() => setPage((current) => Math.min(current + 1, pagination.totalPages))}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {statusModalCandidato && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-md rounded-2xl border bg-background shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                  Alterar situação
+                </p>
+                <h2 className="mt-1 font-display text-xl font-semibold">
+                  {statusModalCandidato.nome || formatCpf(statusModalCandidato.cpf)}
+                </h2>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => closeModals()}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <label className="space-y-2">
+                <span className="text-sm font-medium">Situação na requisição</span>
+                <select
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  value={selectedStatus}
+                  onChange={(event) => setSelectedStatus(event.target.value as StatusCandidatura)}
+                >
+                  {statusCandidaturaList.map((status) => (
+                    <option key={status} value={status}>
+                      {statusLabels[status]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {modalError && <p className="text-sm text-destructive">{modalError}</p>}
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => closeModals()}
+                disabled={isSavingAction}
+              >
+                Cancelar
+              </Button>
+              <Button type="button" onClick={updateCandidaturaStatus} disabled={isSavingAction}>
+                {isSavingAction ? 'Salvando...' : 'Salvar situação'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {linkModalCandidato && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-xl rounded-2xl border bg-background shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                  Vincular a requisição
+                </p>
+                <h2 className="mt-1 font-display text-xl font-semibold">
+                  {linkModalCandidato.nome || formatCpf(linkModalCandidato.cpf)}
+                </h2>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => closeModals()}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <label className="space-y-2">
+                <span className="text-sm font-medium">Buscar requisição com vaga disponível</span>
+                <AsyncSelect<RequisicaoOption, false>
+                  cacheOptions
+                  defaultOptions
+                  loadOptions={loadRequisicaoOptions}
+                  loadingMessage={() => 'Buscando requisições...'}
+                  noOptionsMessage={({ inputValue }) =>
+                    inputValue.trim()
+                      ? 'Nenhuma requisição disponível encontrada'
+                      : 'Nenhuma requisição aberta com vaga disponível'
+                  }
+                  placeholder="Digite cargo, empresa, filial, setor ou nº da requisição"
+                  styles={selectStyles as unknown as StylesConfig<RequisicaoOption, false>}
+                  value={selectedRequisicao}
+                  onChange={setSelectedRequisicao}
+                />
+              </label>
+              {selectedRequisicao && (
+                <div className="rounded-xl border bg-muted/35 p-3 text-sm">
+                  <p className="font-semibold">{selectedRequisicao.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {selectedRequisicao.requisicao.filialNome ?? 'Filial não informada'} ·{' '}
+                    {selectedRequisicao.requisicao.ccustoNome ?? 'Setor não informado'}
+                  </p>
+                </div>
+              )}
+              {modalError && <p className="text-sm text-destructive">{modalError}</p>}
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => closeModals()}
+                disabled={isSavingAction}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={vincularCandidato}
+                disabled={!selectedRequisicao || isSavingAction}
+              >
+                {isSavingAction ? 'Vinculando...' : 'Confirmar vínculo'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

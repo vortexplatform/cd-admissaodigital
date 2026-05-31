@@ -26,8 +26,12 @@ export class CandidatosController {
   }
 
   @Get()
-  findAll() {
-    return this.candidatos.findAll();
+  findAll(
+    @Query('nome') nome?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.candidatos.findPaginated({ nome, page, limit });
   }
 
   @Get('search')

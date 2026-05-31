@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, StatusCandidatura } from '@prisma/client';
+import { Prisma, StatusCandidatura, StatusRequisicaoVaga } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCandidaturaDto } from './dto/create-candidatura.dto';
 import { UpdateCandidaturaStatusDto } from './dto/update-candidatura-status.dto';
@@ -25,12 +25,21 @@ export class CandidaturasService {
     await this.ensureCandidatoExists(dto.candidatoId);
 
     try {
-      return await this.prisma.candidatura.create({
-        data: {
-          requisicaoId,
-          candidatoId: dto.candidatoId,
-        },
-        include: candidaturaInclude,
+      return await this.prisma.$transaction(async (tx) => {
+        const candidatura = await tx.candidatura.create({
+          data: {
+            requisicaoId,
+            candidatoId: dto.candidatoId,
+          },
+          include: candidaturaInclude,
+        });
+
+        await tx.requisicaoVaga.update({
+          where: { id: requisicaoId },
+          data: { status: StatusRequisicaoVaga.AGUARDANDO_CANDIDATO },
+        });
+
+        return candidatura;
       });
     } catch (error) {
       this.handlePrismaError(error);
@@ -72,8 +81,22 @@ export class CandidaturasService {
   }
 
   async remove(id: number) {
-    await this.findOne(id);
-    await this.prisma.candidatura.delete({ where: { id } });
+    const candidatura = await this.findOne(id);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.candidatura.delete({ where: { id } });
+
+      const candidaturasRestantes = await tx.candidatura.count({
+        where: { requisicaoId: candidatura.requisicaoId },
+      });
+
+      if (candidaturasRestantes > 0) return;
+
+      await tx.requisicaoVaga.update({
+        where: { id: candidatura.requisicaoId },
+        data: { status: StatusRequisicaoVaga.ABERTA },
+      });
+    });
 
     return { deleted: true };
   }

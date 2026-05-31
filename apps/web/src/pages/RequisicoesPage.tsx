@@ -10,6 +10,7 @@ import {
   Plus,
   Trash2,
   UserRoundPlus,
+  UsersRound,
   X,
 } from 'lucide-react';
 import PageHeader from '@/components/layout/PageHeader';
@@ -24,6 +25,7 @@ import {
   labels,
   optionalNumber,
   statusCandidaturaList,
+  statusList,
   toDateInputValue,
 } from './requisicoes.model';
 
@@ -96,7 +98,9 @@ export default function RequisicoesPage() {
   const [filialFilter, setFilialFilter] = useState<SelectOption | null>(null);
   const [cargoFilter, setCargoFilter] = useState<SelectOption | null>(null);
   const [setorFilter, setSetorFilter] = useState<SelectOption | null>(null);
+  const [statusFilter, setStatusFilter] = useState<SelectOption | null>(null);
   const [linkModalRequisicao, setLinkModalRequisicao] = useState<Requisicao | null>(null);
+  const [candidatosModalRequisicao, setCandidatosModalRequisicao] = useState<Requisicao | null>(null);
   const [selectedCandidato, setSelectedCandidato] = useState<CandidatoSearchOption | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLinking, setIsLinking] = useState(false);
@@ -108,18 +112,21 @@ export default function RequisicoesPage() {
   const filialOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.filialNome));
   const cargoOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.cargoNome));
   const setorOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.ccustoNome));
+  const statusOptions = statusList.map((status) => ({ value: status, label: labels[status] }));
   const filteredRequisicoes = requisicoes.filter((requisicao) => {
     if (filialFilter && requisicao.filialNome !== filialFilter.value) return false;
     if (cargoFilter && requisicao.cargoNome !== cargoFilter.value) return false;
     if (setorFilter && requisicao.ccustoNome !== setorFilter.value) return false;
+    if (statusFilter && requisicao.status !== statusFilter.value) return false;
 
     return true;
   });
-  const hasActiveFilters = Boolean(filialFilter || cargoFilter || setorFilter);
+  const hasActiveFilters = Boolean(filialFilter || cargoFilter || setorFilter || statusFilter);
 
   const loadData = async () => {
     const requisicoesResponse = await api.get<Requisicao[]>('/requisicoes');
     setRequisicoes(requisicoesResponse.data);
+    return requisicoesResponse.data;
   };
 
   useEffect(() => {
@@ -219,7 +226,12 @@ export default function RequisicoesPage() {
     setError('');
     try {
       await api.patch(`/candidaturas/${candidatura.id}/status`, { status });
-      await loadData();
+      const updatedRequisicoes = await loadData();
+      if (candidatosModalRequisicao) {
+        setCandidatosModalRequisicao(
+          updatedRequisicoes.find((item) => item.id === candidatosModalRequisicao.id) ?? null,
+        );
+      }
     } catch {
       setError('Não foi possível atualizar a candidatura.');
     }
@@ -234,7 +246,12 @@ export default function RequisicoesPage() {
     setRemovingCandidaturaId(candidatura.id);
     try {
       await api.delete(`/candidaturas/${candidatura.id}`);
-      await loadData();
+      const updatedRequisicoes = await loadData();
+      if (candidatosModalRequisicao) {
+        setCandidatosModalRequisicao(
+          updatedRequisicoes.find((item) => item.id === candidatosModalRequisicao.id) ?? null,
+        );
+      }
     } catch {
       setError('Não foi possível remover o vínculo do candidato.');
     } finally {
@@ -291,6 +308,7 @@ export default function RequisicoesPage() {
                       setFilialFilter(null);
                       setCargoFilter(null);
                       setSetorFilter(null);
+                      setStatusFilter(null);
                     }}
                   >
                     <X className="h-4 w-4" />
@@ -298,7 +316,7 @@ export default function RequisicoesPage() {
                   </Button>
                 )}
               </div>
-              <div className="grid gap-3 lg:grid-cols-3">
+              <div className="grid gap-3 lg:grid-cols-4">
                 <FilterSelect
                   label="Filial"
                   options={filialOptions}
@@ -316,6 +334,12 @@ export default function RequisicoesPage() {
                   options={setorOptions}
                   value={setorFilter}
                   onChange={setSetorFilter}
+                />
+                <FilterSelect
+                  label="Status"
+                  options={statusOptions}
+                  value={statusFilter}
+                  onChange={setStatusFilter}
                 />
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
@@ -348,124 +372,77 @@ export default function RequisicoesPage() {
               {filteredRequisicoes.map((requisicao, index) => (
                 <article
                   key={requisicao.id}
-                  className="group grid gap-4 rounded-2xl border bg-background/92 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg xl:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)_minmax(20rem,0.9fr)]"
+                  className="group grid gap-4 rounded-2xl border bg-background/92 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
                   style={{ animation: `fade-slide-up 420ms ease ${index * 45}ms both` }}
                 >
                   <div className="min-w-0">
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        Req #{requisicao.id}
-                      </span>
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span
                         className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusTone[requisicao.status] ?? 'border-blue-300 bg-blue-500/10 text-blue-700 dark:text-blue-200'}`}
                       >
                         {labels[requisicao.status]}
                       </span>
-                    </div>
-                    <h2 className="font-display text-2xl font-semibold tracking-tight">
-                      {requisicao.cargoNome ?? requisicao.cargo ?? 'Cargo não informado'}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {labels[requisicao.tipo]} · {requisicao.quantidadeVagas} vaga(s)
-                    </p>
-                    <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                      <span>{requisicao.empresa?.nome ?? 'Empresa não vinculada'}</span>
-                      <span>{requisicao.filialNome ?? 'Filial não informada'}</span>
-                      <span>{requisicao.postoTrabalhoNome ?? 'Posto não informado'}</span>
-                      <span>{requisicao.ccustoNome ?? 'Centro de custo não informado'}</span>
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarDays className="h-4 w-4" />
-                        {toDateInputValue(requisicao.dataPrevistaAdmissao) || 'Sem data prevista'}
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        Criada em {toDateInputValue(requisicao.createdAt) || 'data não informada'}
                       </span>
                     </div>
+                    <h2 className="truncate font-display text-base font-semibold tracking-tight sm:text-lg">
+                      {formatRequisicaoResumo(requisicao)}
+                    </h2>
                   </div>
 
-                  <div className="rounded-2xl border border-dashed bg-muted/35 p-3">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Candidatos
-                    </p>
-                    {requisicao.candidaturas.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nenhum candidato vinculado.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {requisicao.candidaturas.map((candidatura) => (
-                          <div key={candidatura.id} className="rounded-xl border bg-background p-2">
-                            <p className="text-sm font-semibold">
-                              {candidatura.candidato.nome || formatCpf(candidatura.candidato.cpf)}
-                            </p>
-                            <div className="mt-2 flex gap-2">
-                              <select
-                                className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs"
-                                value={candidatura.status}
-                                onChange={(event) =>
-                                  atualizarStatusCandidatura(
-                                    candidatura,
-                                    event.target.value as StatusCandidatura,
-                                  )
-                                }
-                              >
-                                {statusCandidaturaList.map((status) => (
-                                  <option key={status} value={status}>
-                                    {labels[status]}
-                                  </option>
-                                ))}
-                              </select>
-                              {candidatura.status === 'INSCRITO' && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 px-2 text-xs text-destructive hover:text-destructive"
-                                  disabled={removingCandidaturaId === candidatura.id}
-                                  onClick={() => removerVinculoCandidato(candidatura)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  Remover
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col justify-between gap-3">
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
                     <Button
                       type="button"
                       variant="outline"
-                      className="justify-center"
+                      size="icon"
+                      aria-label="Ver requisição"
+                      title="Ver"
+                      onClick={() => navigate(`/requisicoes/${requisicao.id}`)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Editar requisição"
+                      title="Editar"
+                      onClick={() => navigate(`/requisicoes/${requisicao.id}/editar`)}
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Excluir requisição"
+                      title="Excluir"
+                      onClick={() => removeRequisicao(requisicao)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Vincular candidato"
+                      title="Vincular candidato"
                       onClick={() => openLinkModal(requisicao)}
                     >
                       <UserRoundPlus className="h-4 w-4" />
-                      Vincular candidato
                     </Button>
-                    <div className="grid grid-cols-3 gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => navigate(`/requisicoes/${requisicao.id}`)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        Ver
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => navigate(`/requisicoes/${requisicao.id}/editar`)}
-                      >
-                        <Edit3 className="h-4 w-4" />
-                        Editar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => removeRequisicao(requisicao)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Excluir
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label={`Visualizar ${requisicao.candidaturas.length} candidato(s) vinculado(s)`}
+                      title={`Candidatos vinculados (${requisicao.candidaturas.length})`}
+                      onClick={() => setCandidatosModalRequisicao(requisicao)}
+                    >
+                      <UsersRound className="h-4 w-4" />
+                    </Button>
                   </div>
                 </article>
               ))}
@@ -473,6 +450,80 @@ export default function RequisicoesPage() {
           )}
         </div>
       </section>
+
+      {candidatosModalRequisicao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-[1.5rem] border bg-background shadow-2xl">
+            <div className="border-b bg-muted/50 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    Candidatos vinculados
+                  </p>
+                  <h2 className="mt-1 font-display text-xl font-semibold">
+                    {formatRequisicaoResumo(candidatosModalRequisicao)}
+                  </h2>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCandidatosModalRequisicao(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3 p-5">
+              {candidatosModalRequisicao.candidaturas.length === 0 ? (
+                <p className="rounded-2xl border border-dashed bg-muted/35 p-4 text-sm text-muted-foreground">
+                  Nenhum candidato vinculado.
+                </p>
+              ) : (
+                candidatosModalRequisicao.candidaturas.map((candidatura) => (
+                  <div key={candidatura.id} className="rounded-2xl border bg-card p-3">
+                    <p className="text-sm font-semibold">
+                      {candidatura.candidato.nome || formatCpf(candidatura.candidato.cpf)}
+                    </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                      <select
+                        className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs"
+                        value={candidatura.status}
+                        onChange={(event) =>
+                          atualizarStatusCandidatura(
+                            candidatura,
+                            event.target.value as StatusCandidatura,
+                          )
+                        }
+                      >
+                        {statusCandidaturaList.map((status) => (
+                          <option key={status} value={status}>
+                            {labels[status]}
+                          </option>
+                        ))}
+                      </select>
+                      {candidatura.status === 'INSCRITO' && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 text-destructive hover:text-destructive"
+                          disabled={removingCandidaturaId === candidatura.id}
+                          onClick={() => removerVinculoCandidato(candidatura)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remover
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {linkModalRequisicao && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
@@ -608,6 +659,14 @@ function FilterSelect({
       />
     </label>
   );
+}
+
+function formatRequisicaoResumo(requisicao: Requisicao) {
+  const filialCodigo = requisicao.filial == null ? '--' : String(requisicao.filial).padStart(2, '0');
+  const setorNome = requisicao.ccustoNome ?? 'Setor não informado';
+  const cargoNome = requisicao.cargoNome ?? requisicao.cargo ?? 'Cargo não informado';
+
+  return `#${requisicao.id} - LJ ${filialCodigo} - ${setorNome} - ${cargoNome}`;
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {

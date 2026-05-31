@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -28,6 +29,15 @@ export class RequisicoesController {
   @Get()
   findAll() {
     return this.requisicoes.findAll();
+  }
+
+  @Get('disponiveis')
+  findDisponiveis(
+    @Query('candidatoId') candidatoId?: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.requisicoes.findDisponiveis({ candidatoId, q, limit });
   }
 
   @Get(':id')

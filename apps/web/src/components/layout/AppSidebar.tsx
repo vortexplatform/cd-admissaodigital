@@ -25,6 +25,10 @@ export default function AppSidebar() {
             <LayoutDashboard className="h-4 w-4" />
             Visão geral
           </NavLink>
+          <NavLink to="/requisicoes" className={linkClass}>
+            <BriefcaseBusiness className="h-4 w-4" />
+            Requisições
+          </NavLink>
           <NavLink to="/candidatos" className={linkClass}>
             <UserRound className="h-4 w-4" />
             Candidatos
@@ -42,10 +46,6 @@ export default function AppSidebar() {
             <span>Configurações</span>
             <span className="h-px flex-1 bg-border" />
           </div>
-          <NavLink to="/requisicoes" className={linkClass}>
-            <BriefcaseBusiness className="h-4 w-4" />
-            Requisições
-          </NavLink>
           {isAdmin && (
             <>
               <NavLink to="/empresas" className={linkClass}>
