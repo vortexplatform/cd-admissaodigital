@@ -1,21 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowLeft,
-  BriefcaseBusiness,
-  Building2,
-  Edit3,
-  Eye,
-  LogOut,
-  Plus,
-  Trash2,
-  UserRound,
-} from 'lucide-react';
+import { Edit3, Eye, Plus, Trash2, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import EmpresaSelector from '@/components/EmpresaSelector';
-import ThemeToggle from '@/components/ThemeToggle';
-import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
 
 const statusLabels: Record<string, string> = {
@@ -33,6 +21,13 @@ const statusLabels: Record<string, string> = {
   CANCELADA: 'Cancelada',
   REPROVADA: 'Reprovada',
   ERRO_INTEGRACAO: 'Erro integração',
+  INSCRITO: 'Inscrito',
+  EM_ANALISE: 'Em análise',
+  ENTREVISTA: 'Entrevista',
+  APROVADO: 'Aprovado',
+  REPROVADO: 'Reprovado',
+  DESISTIU: 'Desistiu',
+  CANCELADO: 'Cancelado',
 };
 
 const tabs = [
@@ -52,9 +47,15 @@ interface Empresa {
 
 interface RequisicaoResumo {
   id: number;
-  status: string;
   empresa: Empresa | null;
   dataPrevistaAdmissao: string | null;
+  createdAt: string;
+}
+
+interface CandidaturaResumo {
+  id: number;
+  status: string;
+  requisicao: RequisicaoResumo;
   createdAt: string;
 }
 
@@ -65,7 +66,7 @@ interface Candidato {
   nome: string | null;
   email: string | null;
   telefone: string | null;
-  requisicoes: RequisicaoResumo[];
+  candidaturas: CandidaturaResumo[];
 }
 
 const toDateInputValue = (value: string | null) => (value ? value.slice(0, 10) : '');
@@ -84,22 +85,22 @@ const getInitials = (candidato: Candidato) => {
   return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
 };
 
-const getCurrentRequisicao = (candidato: Candidato) => candidato.requisicoes[0] ?? null;
+const getCurrentCandidatura = (candidato: Candidato) => candidato.candidaturas[0] ?? null;
 
 const getTabForStatus = (status?: string): TabKey => {
-  if (!status || status === 'ABERTA' || status === 'AGUARDANDO_CANDIDATO') return 'aguardando';
-  if (status === 'APROVADA' || status === 'INTEGRADA_SENIOR') return 'aprovados';
-  if (status === 'REPROVADA' || status === 'CANCELADA' || status === 'ERRO_INTEGRACAO')
-    return 'recusados';
+  if (!status || status === 'INSCRITO') return 'aguardando';
+  if (status === 'APROVADO') return 'aprovados';
+  if (status === 'REPROVADO' || status === 'CANCELADO' || status === 'DESISTIU') return 'recusados';
   return 'em-analise';
 };
 
-const getSla = (requisicao: RequisicaoResumo | null) => {
-  if (!requisicao?.dataPrevistaAdmissao) return { label: '-', urgent: false, progress: 35 };
+const getSla = (candidatura: CandidaturaResumo | null) => {
+  if (!candidatura?.requisicao.dataPrevistaAdmissao)
+    return { label: '-', urgent: false, progress: 35 };
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(requisicao.dataPrevistaAdmissao);
+  const dueDate = new Date(candidatura.requisicao.dataPrevistaAdmissao);
   dueDate.setHours(0, 0, 0, 0);
   const days = Math.ceil((dueDate.getTime() - today.getTime()) / 86_400_000);
 
@@ -114,7 +115,6 @@ const getSla = (requisicao: RequisicaoResumo | null) => {
 
 export default function CandidatosPage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>('todos');
   const [isLoading, setIsLoading] = useState(true);
@@ -135,16 +135,16 @@ export default function CandidatosPage() {
     () => ({
       todos: candidatos.length,
       aguardando: candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentRequisicao(candidato)?.status) === 'aguardando',
+        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'aguardando',
       ).length,
       'em-analise': candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentRequisicao(candidato)?.status) === 'em-analise',
+        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'em-analise',
       ).length,
       aprovados: candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentRequisicao(candidato)?.status) === 'aprovados',
+        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'aprovados',
       ).length,
       recusados: candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentRequisicao(candidato)?.status) === 'recusados',
+        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'recusados',
       ).length,
     }),
     [candidatos],
@@ -152,11 +152,11 @@ export default function CandidatosPage() {
 
   const filteredCandidatos = candidatos.filter((candidato) => {
     if (activeTab === 'todos') return true;
-    return getTabForStatus(getCurrentRequisicao(candidato)?.status) === activeTab;
+    return getTabForStatus(getCurrentCandidatura(candidato)?.status) === activeTab;
   });
 
   const removeCandidato = async (candidato: Candidato) => {
-    if (candidato.requisicoes.length > 0) return;
+    if (candidato.candidaturas.length > 0) return;
 
     const title = candidato.nome ?? formatCpf(candidato.cpf);
     const confirmed = window.confirm(`Excluir o candidato "${title}"?`);
@@ -171,274 +171,163 @@ export default function CandidatosPage() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   return (
-    <div className="app-surface min-h-screen text-foreground">
-      <header className="flex flex-col gap-4 border-b bg-card/95 px-4 py-4 shadow-sm backdrop-blur lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <UserRound className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="font-display text-lg font-semibold leading-none">Candidatos</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Cadastro e acompanhamento de admissões
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <EmpresaSelector />
-          <ThemeToggle />
-          <Button type="button" variant="outline" onClick={handleLogout} className="justify-start">
-            <LogOut className="h-4 w-4" />
-            Sair
+    <>
+      <PageHeader
+        eyebrow="Admissão digital"
+        title="Candidatos"
+        description={`${candidatos.length} ativo(s) · ${counts['em-analise']} em análise · ${counts.aguardando} aguardando ação`}
+        actions={
+          <Button
+            type="button"
+            onClick={() => navigate('/candidatos/novo')}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4" />
+            Candidato
           </Button>
-        </div>
-      </header>
+        }
+      />
 
-      <div className="grid lg:grid-cols-[16rem_1fr]">
-        <aside className="hidden border-r bg-card/70 p-5 lg:block">
-          <nav className="space-y-5 text-sm">
+      <Card className="overflow-hidden shadow-corporate">
+        <CardHeader className="border-b">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="mb-2 flex items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Processos</span>
-                <span className="h-px flex-1 bg-border" />
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/')}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Visão geral
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between rounded-lg bg-primary px-3 py-2.5 text-left text-primary-foreground"
-              >
-                <span>Candidatos</span>
-                <span className="rounded-full bg-background/80 px-2 py-0.5 text-xs text-foreground">
-                  {candidatos.length}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                Pendências
-              </button>
+              <CardTitle>Fila de candidatos</CardTitle>
+              <CardDescription>
+                Empresa, etapa e SLA vêm da candidatura mais recente vinculada.
+              </CardDescription>
             </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Configurações</span>
-                <span className="h-px flex-1 bg-border" />
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/requisicoes')}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                <BriefcaseBusiness className="h-4 w-4" />
-                Requisições
-              </button>
-              {user?.role === 'ADMIN' && (
+            <div className="flex flex-wrap gap-2">
+              {tabs.map((tab) => (
                 <button
+                  key={tab.key}
                   type="button"
-                  onClick={() => navigate('/empresas')}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+                    activeTab === tab.key
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background hover:bg-muted'
+                  }`}
                 >
-                  <Building2 className="h-4 w-4" />
-                  Empresa
+                  {tab.label}
+                  <span className="ml-1 text-xs opacity-75">· {counts[tab.key]}</span>
                 </button>
-              )}
+              ))}
             </div>
-          </nav>
-        </aside>
-
-        <main className="px-4 py-6 lg:px-8">
-          <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-primary">
-                Admissão digital
-              </p>
-              <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight lg:text-4xl">
-                Candidatos
-              </h1>
-              <p className="mt-2 max-w-2xl text-muted-foreground">
-                {candidatos.length} ativo(s) · {counts['em-analise']} em análise ·{' '}
-                {counts.aguardando} aguardando ação
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {error && <p className="border-b px-5 py-3 text-sm text-destructive">{error}</p>}
+          {isLoading ? (
+            <p className="p-6 text-sm text-muted-foreground">Carregando candidatos...</p>
+          ) : filteredCandidatos.length === 0 ? (
+            <div className="m-6 rounded-xl border border-dashed bg-background p-8 text-center">
+              <UserRound className="mx-auto h-8 w-8 text-muted-foreground" />
+              <p className="mt-3 font-semibold">Nenhum candidato encontrado</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Cadastre um candidato ou altere o filtro selecionado.
               </p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/')}
-                className="w-full sm:w-auto lg:hidden"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Voltar
-              </Button>
-              <Button
-                type="button"
-                onClick={() => navigate('/candidatos/novo')}
-                className="w-full sm:w-auto"
-              >
-                <Plus className="h-4 w-4" />
-                Candidato
-              </Button>
-            </div>
-          </section>
-
-          <Card className="overflow-hidden shadow-corporate">
-            <CardHeader className="border-b">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <CardTitle>Fila de candidatos</CardTitle>
-                  <CardDescription>
-                    Empresa, etapa e SLA vêm da requisição mais recente vinculada.
-                  </CardDescription>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="min-w-[860px]">
+                <div className="grid grid-cols-[2fr_1.4fr_1.6fr_8rem_13rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>Candidato</span>
+                  <span>Empresa</span>
+                  <span>Etapa</span>
+                  <span>SLA</span>
+                  <span className="text-right">Ações</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setActiveTab(tab.key)}
-                      className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
-                        activeTab === tab.key
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-background hover:bg-muted'
-                      }`}
-                    >
-                      {tab.label}
-                      <span className="ml-1 text-xs opacity-75">· {counts[tab.key]}</span>
-                    </button>
-                  ))}
+                <div className="divide-y">
+                  {filteredCandidatos.map((candidato) => {
+                    const candidatura = getCurrentCandidatura(candidato);
+                    const sla = getSla(candidatura);
+                    const status = candidatura?.status;
+                    const canDelete = candidato.candidaturas.length === 0;
+
+                    return (
+                      <div
+                        key={candidato.id}
+                        className={`grid grid-cols-[2fr_1.4fr_1.6fr_8rem_13rem] gap-4 px-5 py-4 ${
+                          sla.urgent ? 'bg-yellow-100/70 dark:bg-yellow-950/30' : 'bg-background'
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 bg-background font-semibold">
+                            {getInitials(candidato)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold">
+                              {candidato.nome || 'Nome não informado'}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {formatCpf(candidato.cpf)} ·{' '}
+                              {candidato.email ?? candidato.telefone ?? 'sem contato'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="self-center text-sm">
+                          <p className="font-medium">
+                            {candidatura?.requisicao.empresa?.nome ?? 'Sem candidatura'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Nascimento: {toDateInputValue(candidato.dataNascimento)}
+                          </p>
+                        </div>
+                        <div className="self-center">
+                          <p className="mb-2 text-sm font-medium">
+                            {status ? statusLabels[status] : 'Aguardando vínculo'}
+                          </p>
+                          <div className="h-2.5 rounded-full border bg-background">
+                            <div
+                              className="h-full rounded-full bg-primary"
+                              style={{ width: `${sla.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div
+                          className={`self-center font-display text-lg font-semibold ${sla.urgent ? 'text-destructive' : ''}`}
+                        >
+                          {sla.label}
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/candidatos/${candidato.id}`)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/candidatos/${candidato.id}/editar`)}
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          {canDelete && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeCandidato(candidato)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {error && <p className="border-b px-5 py-3 text-sm text-destructive">{error}</p>}
-              {isLoading ? (
-                <p className="p-6 text-sm text-muted-foreground">Carregando candidatos...</p>
-              ) : filteredCandidatos.length === 0 ? (
-                <div className="m-6 rounded-xl border border-dashed bg-background p-8 text-center">
-                  <UserRound className="mx-auto h-8 w-8 text-muted-foreground" />
-                  <p className="mt-3 font-semibold">Nenhum candidato encontrado</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Cadastre um candidato ou altere o filtro selecionado.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <div className="min-w-[860px]">
-                    <div className="grid grid-cols-[2fr_1.4fr_1.6fr_8rem_13rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <span>Candidato</span>
-                      <span>Empresa</span>
-                      <span>Etapa</span>
-                      <span>SLA</span>
-                      <span className="text-right">Ações</span>
-                    </div>
-                    <div className="divide-y">
-                      {filteredCandidatos.map((candidato) => {
-                        const requisicao = getCurrentRequisicao(candidato);
-                        const sla = getSla(requisicao);
-                        const status = requisicao?.status;
-                        const canDelete = candidato.requisicoes.length === 0;
-
-                        return (
-                          <div
-                            key={candidato.id}
-                            className={`grid grid-cols-[2fr_1.4fr_1.6fr_8rem_13rem] gap-4 px-5 py-4 ${
-                              sla.urgent
-                                ? 'bg-yellow-100/70 dark:bg-yellow-950/30'
-                                : 'bg-background'
-                            }`}
-                          >
-                            <div className="flex min-w-0 items-center gap-3">
-                              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 bg-background font-semibold">
-                                {getInitials(candidato)}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="truncate font-semibold">
-                                  {candidato.nome || 'Nome não informado'}
-                                </p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {formatCpf(candidato.cpf)} ·{' '}
-                                  {candidato.email ?? candidato.telefone ?? 'sem contato'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="self-center text-sm">
-                              <p className="font-medium">
-                                {requisicao?.empresa?.nome ?? 'Sem requisição'}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Nascimento: {toDateInputValue(candidato.dataNascimento)}
-                              </p>
-                            </div>
-                            <div className="self-center">
-                              <p className="mb-2 text-sm font-medium">
-                                {status ? statusLabels[status] : 'Aguardando vínculo'}
-                              </p>
-                              <div className="h-2.5 rounded-full border bg-background">
-                                <div
-                                  className="h-full rounded-full bg-primary"
-                                  style={{ width: `${sla.progress}%` }}
-                                />
-                              </div>
-                            </div>
-                            <div
-                              className={`self-center font-display text-lg font-semibold ${sla.urgent ? 'text-destructive' : ''}`}
-                            >
-                              {sla.label}
-                            </div>
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => navigate(`/candidatos/${candidato.id}`)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => navigate(`/candidatos/${candidato.id}/editar`)}
-                              >
-                                <Edit3 className="h-4 w-4" />
-                              </Button>
-                              {canDelete && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => removeCandidato(candidato)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }

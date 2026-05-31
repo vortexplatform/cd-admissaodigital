@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OTPInput, REGEXP_ONLY_DIGITS } from 'input-otp';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth, type AuthSession } from '@/context/AuthContext';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -70,11 +69,11 @@ export default function OtpPage() {
     setIsLoading(true);
     setError('');
     try {
-      const { data } = await api.post<AuthSession & { accessToken: string }>('/auth/verify-otp', {
+      const { data } = await api.post<AuthSession>('/auth/verify-otp', {
         identifier,
         code,
       });
-      login(data.accessToken, data);
+      login(data);
       navigate('/');
     } catch {
       setError('Código inválido ou expirado. Tente novamente.');
@@ -85,72 +84,69 @@ export default function OtpPage() {
   };
 
   return (
-    <div className="app-surface relative flex min-h-screen items-center justify-center p-4 pt-16">
-      <ThemeToggle className="absolute right-4 top-4 shadow-corporate" />
-      <Card className="w-full max-w-sm shadow-corporate">
-        <CardHeader className="text-center">
-          <CardTitle className="font-display text-2xl">Verificação</CardTitle>
-          <CardDescription>
-            Código enviado para{' '}
-            <span className="font-medium text-foreground">{maskIdentifier(identifier)}</span>.
-            <br />
-            Digite os 6 dígitos abaixo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <OTPInput
-            maxLength={6}
-            pattern={REGEXP_ONLY_DIGITS}
-            value={otp}
-            onChange={setOtp}
-            onComplete={handleComplete}
-            disabled={isLoading}
-            containerClassName="flex justify-center gap-2"
-            render={({ slots }) => (
-              <>
-                {slots.map((slot, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'flex h-12 w-10 items-center justify-center rounded-md border text-lg font-semibold transition-all',
-                      slot.isActive ? 'border-primary ring-1 ring-primary' : 'border-input',
-                      slot.char ? 'bg-background' : 'bg-muted/50',
-                    )}
-                  >
-                    {slot.char ?? <span className="text-muted-foreground">·</span>}
-                  </div>
-                ))}
-              </>
-            )}
-          />
+    <Card className="w-full max-w-sm shadow-corporate">
+      <CardHeader className="text-center">
+        <CardTitle className="font-display text-2xl">Verificação</CardTitle>
+        <CardDescription>
+          Código enviado para{' '}
+          <span className="font-medium text-foreground">{maskIdentifier(identifier)}</span>.
+          <br />
+          Digite os 6 dígitos abaixo.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <OTPInput
+          maxLength={6}
+          pattern={REGEXP_ONLY_DIGITS}
+          value={otp}
+          onChange={setOtp}
+          onComplete={handleComplete}
+          disabled={isLoading}
+          containerClassName="flex justify-center gap-2"
+          render={({ slots }) => (
+            <>
+              {slots.map((slot, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    'flex h-12 w-10 items-center justify-center rounded-md border text-lg font-semibold transition-all',
+                    slot.isActive ? 'border-primary ring-1 ring-primary' : 'border-input',
+                    slot.char ? 'bg-background' : 'bg-muted/50',
+                  )}
+                >
+                  {slot.char ?? <span className="text-muted-foreground">·</span>}
+                </div>
+              ))}
+            </>
+          )}
+        />
 
-          {error && <p className="text-sm text-destructive text-center">{error}</p>}
+        {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
-          <div className="text-center">
-            {countdown > 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Reenviar código em <span className="font-medium">{countdown}s</span>
-              </p>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={handleResend}>
-                Reenviar código
-              </Button>
-            )}
-          </div>
+        <div className="text-center">
+          {countdown > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Reenviar código em <span className="font-medium">{countdown}s</span>
+            </p>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={handleResend}>
+              Reenviar código
+            </Button>
+          )}
+        </div>
 
-          <Button
-            className="w-full"
-            onClick={() => otp.length === 6 && handleComplete(otp)}
-            disabled={otp.length < 6 || isLoading}
-          >
-            {isLoading ? 'Verificando...' : 'Confirmar'}
-          </Button>
+        <Button
+          className="w-full"
+          onClick={() => otp.length === 6 && handleComplete(otp)}
+          disabled={otp.length < 6 || isLoading}
+        >
+          {isLoading ? 'Verificando...' : 'Confirmar'}
+        </Button>
 
-          <Button variant="ghost" className="w-full" onClick={() => navigate('/login')}>
-            Voltar
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+        <Button variant="ghost" className="w-full" onClick={() => navigate('/login')}>
+          Voltar
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

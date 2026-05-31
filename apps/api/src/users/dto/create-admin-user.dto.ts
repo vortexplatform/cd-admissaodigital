@@ -18,7 +18,7 @@ export class CreateAdminUserDto {
 
   @IsOptional()
   @IsEnum(Role)
-  role?: Role.RH | Role.ADMIN;
+  role?: Role;
 
   @IsInt()
   empresaId!: number;

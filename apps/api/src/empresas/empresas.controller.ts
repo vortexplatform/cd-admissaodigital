@@ -42,10 +42,7 @@ export class EmpresasController {
   }
 
   @Post(':id/usuarios')
-  vincularUsuario(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: VincularUsuarioEmpresaDto,
-  ) {
+  vincularUsuario(@Param('id', ParseIntPipe) id: number, @Body() dto: VincularUsuarioEmpresaDto) {
     return this.empresas.vincularUsuario(id, dto.userId);
   }
 

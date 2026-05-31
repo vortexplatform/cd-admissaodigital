@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -27,6 +28,11 @@ export class CandidatosController {
   @Get()
   findAll() {
     return this.candidatos.findAll();
+  }
+
+  @Get('search')
+  search(@Query('nome') nome?: string, @Query('limit') limit?: string) {
+    return this.candidatos.searchByNome(nome, limit);
   }
 
   @Get(':id')

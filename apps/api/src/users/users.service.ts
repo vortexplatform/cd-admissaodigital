@@ -52,6 +52,9 @@ export class UsersService {
 
     const empresa = await this.prisma.empresa.findUnique({ where: { id: dto.empresaId } });
     if (!empresa) throw new BadRequestException('Empresa não encontrada.');
+    if (dto.role && dto.role !== Role.RH && dto.role !== Role.ADMIN) {
+      throw new BadRequestException('Apenas usuários RH ou ADMIN podem ser criados por esta tela.');
+    }
 
     return this.prisma.user.create({
       data: {

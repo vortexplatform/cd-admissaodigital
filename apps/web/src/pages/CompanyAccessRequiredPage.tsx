@@ -9,8 +9,8 @@ export default function CompanyAccessRequiredPage() {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -24,8 +24,8 @@ export default function CompanyAccessRequiredPage() {
           </div>
           <CardTitle className="font-display text-2xl">Empresa não vinculada</CardTitle>
           <CardDescription>
-            Seu usuário {user?.role === 'ADMIN' ? 'administrador' : 'de RH'} precisa estar
-            vinculado a uma empresa para acessar o sistema.
+            Seu usuário {user?.role === 'ADMIN' ? 'administrador' : 'de RH'} precisa estar vinculado
+            a uma empresa para acessar o sistema.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-center">

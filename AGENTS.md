@@ -21,6 +21,7 @@
 - Prisma CLI reads `apps/api/.env`; keep a local `DATABASE_URL` there even when root env files exist.
 - Run raw Prisma commands from `apps/api`, not `apps/api/prisma`; migrations live in `apps/api/prisma/migrations` and `0_baseline` is the consolidated baseline.
 - Local `migrate dev` expects the database user to have `CREATEDB` for Prisma's shadow database.
+- Production PostgreSQL must apply the candidate search preparation migration before importing 100k+ candidates: enable `unaccent` and `pg_trgm`, create `immutable_unaccent(text)`, and keep the `candidato_nome_trgm_idx` GIN trigram index for fast name lookup.
 
 ## API Notes
 

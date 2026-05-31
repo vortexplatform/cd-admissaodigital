@@ -10,8 +10,12 @@ import { CreateCandidatoDto } from './dto/create-candidato.dto';
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
 
 const candidatoInclude = {
-  requisicoes: {
-    include: { empresa: true },
+  candidaturas: {
+    include: {
+      requisicao: {
+        include: { empresa: true },
+      },
+    },
     orderBy: { createdAt: 'desc' },
   },
 } satisfies Prisma.CandidatoInclude;
@@ -19,6 +23,15 @@ const candidatoInclude = {
 const cleanString = (value?: string) => value?.trim() || undefined;
 
 const normalizeCpf = (value?: string) => value?.replace(/\D/g, '') || undefined;
+
+const normalizeSearchTerm = (value?: string) => value?.trim().replace(/\s+/g, ' ') || '';
+
+const clampSearchLimit = (value?: string) => {
+  const limit = Number(value);
+  if (!Number.isFinite(limit)) return 20;
+
+  return Math.min(Math.max(Math.trunc(limit), 1), 50);
+};
 
 const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   cpf: normalizeCpf(dto.cpf),
@@ -50,6 +63,39 @@ export class CandidatosService {
     });
   }
 
+  async searchByNome(nome?: string, limit?: string) {
+    const term = normalizeSearchTerm(nome);
+    if (term.length < 3) return [];
+
+    try {
+      return await this.prisma.$queryRaw<
+        Array<{
+          id: number;
+          nome: string | null;
+          cpf: string;
+          email: string | null;
+          telefone: string | null;
+        }>
+      >(Prisma.sql`
+        SELECT "id", "nome", "cpf", "email", "telefone"
+        FROM "candidato"
+        WHERE "nome" IS NOT NULL
+          AND public.immutable_unaccent(lower("nome")) LIKE public.immutable_unaccent(lower(${`%${term}%`}))
+        ORDER BY "nome" ASC, "cpf" ASC
+        LIMIT ${clampSearchLimit(limit)}
+      `);
+    } catch (error) {
+      if (!this.isMissingUnaccentPreparation(error)) throw error;
+
+      return this.prisma.candidato.findMany({
+        select: { id: true, nome: true, cpf: true, email: true, telefone: true },
+        where: { nome: { contains: term, mode: 'insensitive' } },
+        orderBy: [{ nome: 'asc' }, { cpf: 'asc' }],
+        take: clampSearchLimit(limit),
+      });
+    }
+  }
+
   async findOne(id: number) {
     const candidato = await this.prisma.candidato.findUnique({
       where: { id },
@@ -76,8 +122,10 @@ export class CandidatosService {
 
   async remove(id: number) {
     const candidato = await this.findOne(id);
-    if (candidato.requisicoes.length > 0) {
-      throw new BadRequestException('Não é possível excluir candidato vinculado a uma requisição.');
+    if (candidato.candidaturas.length > 0) {
+      throw new BadRequestException(
+        'Não é possível excluir candidato com candidaturas vinculadas.',
+      );
     }
 
     await this.prisma.candidato.delete({ where: { id } });
@@ -91,5 +139,13 @@ export class CandidatosService {
     }
 
     throw error;
+  }
+
+  private isMissingUnaccentPreparation(error: unknown) {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2010' &&
+      String(error.meta?.message ?? '').includes('immutable_unaccent')
+    );
   }
 }

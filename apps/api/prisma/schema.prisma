@@ -14,14 +14,14 @@ enum Role {
 }
 
 model User {
-  id        Int        @id @default(autoincrement())
-  cpf       String?    @unique
+  id        Int              @id @default(autoincrement())
+  cpf       String?          @unique
   nome      String?
-  email     String?    @unique
-  telefone  String?    @unique
-  role      Role       @default(CANDIDATO)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  email     String?          @unique
+  telefone  String?          @unique
+  role      Role             @default(CANDIDATO)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   candidato Candidato?
   empresas  EmpresaUsuario[]
 
@@ -32,15 +32,15 @@ model User {
 }
 
 model Candidato {
-  id             Int              @id @default(autoincrement())
-  userId         Int?             @unique
-  cpf            String           @unique
-  dataNascimento DateTime         @db.Date
+  id             Int           @id @default(autoincrement())
+  userId         Int?          @unique
+  cpf            String        @unique
+  dataNascimento DateTime      @db.Date
   nome           String?
   email          String?
   telefone       String?
-  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
-  requisicoes    RequisicaoVaga[]
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  candidaturas   Candidatura[]
 
   @@map("candidato")
 }
@@ -106,11 +106,20 @@ enum TipoRequisicaoVaga {
   OUTRO
 }
 
+enum StatusCandidatura {
+  INSCRITO
+  EM_ANALISE
+  ENTREVISTA
+  APROVADO
+  REPROVADO
+  DESISTIU
+  CANCELADO
+}
+
 model RequisicaoVaga {
   id Int @id @default(autoincrement())
 
-  candidatoId Int?
-  candidato   Candidato? @relation(fields: [candidatoId], references: [id], onDelete: SetNull)
+  candidaturas Candidatura[]
 
   criadoPorUserId Int?
   criadoPor       User? @relation("RequisicaoCriadaPor", fields: [criadoPorUserId], references: [id], onDelete: SetNull)
@@ -121,17 +130,21 @@ model RequisicaoVaga {
   tipo   TipoRequisicaoVaga   @default(NOVA_VAGA)
   status StatusRequisicaoVaga @default(RASCUNHO)
 
-  empresaId       Int?     @map("empresa")
-  empresa         Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
-  filial          Int?
-  filialNome      String?  @map("filial_nome")
-  cargo           String?
-  cargoNome       String?  @map("cargo_nome")
-  centroCusto     String?
-  ccustoNome      String?  @map("ccusto_nome")
-  escala          String?
-  descricaoEscala String?  @map("descricao_escala")
-  sindicato       String?
+  quantidadeVagas Int @default(1)
+
+  empresaId         Int?     @map("empresa")
+  empresa           Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  filial            Int?
+  filialNome        String?  @map("filial_nome")
+  postoTrabalho     String?  @map("posto_trabalho")
+  postoTrabalhoNome String?  @map("posto_trabalho_nome")
+  cargo             String?
+  cargoNome         String?  @map("cargo_nome")
+  centroCusto       String?
+  ccustoNome        String?  @map("ccusto_nome")
+  escala            String?
+  descricaoEscala   String?  @map("descricao_escala")
+  sindicato         String?
 
   dataPrevistaAdmissao DateTime? @db.Date
 
@@ -148,8 +161,24 @@ model RequisicaoVaga {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([candidatoId])
   @@index([status])
   @@index([empresaId, filial], map: "requisicao_vaga_empresa_filial_idx")
   @@map("requisicao_vaga")
+}
+
+model Candidatura {
+  id           Int               @id @default(autoincrement())
+  requisicaoId Int               @map("requisicao_id")
+  candidatoId  Int               @map("candidato_id")
+  status       StatusCandidatura @default(INSCRITO)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  requisicao RequisicaoVaga @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
+  candidato  Candidato      @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@unique([requisicaoId, candidatoId])
+  @@index([candidatoId])
+  @@index([status])
+  @@map("candidatura")
 }

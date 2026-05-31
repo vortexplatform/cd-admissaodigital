@@ -70,3 +70,15 @@
       linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.65));
   }
 }
+
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

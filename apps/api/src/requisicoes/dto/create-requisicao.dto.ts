@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPositive,
+  IsString,
+} from 'class-validator';
 import { StatusRequisicaoVaga, TipoRequisicaoVaga } from '@prisma/client';
 
 export class CreateRequisicaoDto {
@@ -18,8 +26,9 @@ export class CreateRequisicaoDto {
 
   @Type(() => Number)
   @IsInt()
+  @IsPositive()
   @IsOptional()
-  candidatoId?: number;
+  quantidadeVagas?: number;
 
   @Type(() => Number)
   @IsInt()
@@ -30,6 +39,16 @@ export class CreateRequisicaoDto {
   @IsNotEmpty()
   @IsOptional()
   filialNome?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  postoTrabalho?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  postoTrabalhoNome?: string;
 
   @IsString()
   @IsNotEmpty()

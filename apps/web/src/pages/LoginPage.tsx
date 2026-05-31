@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import ThemeToggle from '@/components/ThemeToggle';
 import api from '@/lib/api';
 
 const emailSchema = z.object({ identifier: z.string().email('E-mail inválido') });
@@ -71,34 +70,37 @@ function IdentifierForm({ type }: { type: 'email' | 'phone' }) {
 
 export default function LoginPage() {
   return (
-    <div className="app-surface relative flex min-h-screen items-center justify-center p-4 pt-16">
-      <ThemeToggle className="absolute right-4 top-4 shadow-corporate" />
-      <Card className="w-full max-w-sm shadow-corporate">
-        <CardHeader className="text-center">
-          <CardTitle className="font-display text-2xl">Admissão Digital</CardTitle>
-          <CardDescription>
-            Entre com seu e-mail ou telefone para receber um código de acesso.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="email">
-            <TabsList className="w-full mb-4">
-              <TabsTrigger value="email" className="flex-1">
-                E-mail
-              </TabsTrigger>
-              <TabsTrigger value="phone" className="flex-1">
-                Telefone
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="email">
-              <IdentifierForm type="email" />
-            </TabsContent>
-            <TabsContent value="phone">
-              <IdentifierForm type="phone" />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="w-full max-w-sm shadow-corporate">
+      <CardHeader className="text-center">
+        <CardTitle className="font-display text-2xl">Admissão Digital</CardTitle>
+        <CardDescription>
+          Entre com seu e-mail ou telefone para receber um código de acesso.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="email">
+          <TabsList className="w-full mb-4">
+            <TabsTrigger value="email" className="flex-1">
+              E-mail
+            </TabsTrigger>
+            <TabsTrigger value="phone" className="flex-1">
+              Telefone
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="email">
+            <IdentifierForm type="email" />
+          </TabsContent>
+          <TabsContent value="phone">
+            <IdentifierForm type="phone" />
+          </TabsContent>
+        </Tabs>
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          Primeiro acesso?{' '}
+          <Link to="/signup" className="font-semibold text-primary hover:underline">
+            Criar cadastro
+          </Link>
+        </p>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,190 +1,125 @@
-import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Select, { type StylesConfig } from 'react-select';
+import AsyncSelect from 'react-select/async';
 import {
-  ArrowLeft,
   BriefcaseBusiness,
-  Building2,
+  CalendarDays,
   Edit3,
-  LogOut,
+  Eye,
   Plus,
-  Save,
   Trash2,
+  UserRoundPlus,
   X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import EmpresaSelector from '@/components/EmpresaSelector';
-import ThemeToggle from '@/components/ThemeToggle';
-import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
+import {
+  type Candidatura,
+  type Requisicao,
+  type StatusCandidatura,
+  formatCpf,
+  labels,
+  optionalNumber,
+  statusCandidaturaList,
+  toDateInputValue,
+} from './requisicoes.model';
 
-const tipos = ['NOVA_VAGA', 'SUBSTITUICAO', 'AUMENTO_QUADRO', 'TEMPORARIA', 'OUTRO'] as const;
-const statusList = [
-  'RASCUNHO',
-  'ABERTA',
-  'AGUARDANDO_CANDIDATO',
-  'EM_ADMISSAO',
-  'AGUARDANDO_DOCUMENTOS',
-  'AGUARDANDO_ASSINATURA',
-  'AGUARDANDO_RH',
-  'PENDENTE_CORRECAO',
-  'APROVADA',
-  'INTEGRANDO_SENIOR',
-  'INTEGRADA_SENIOR',
-  'CANCELADA',
-  'REPROVADA',
-  'ERRO_INTEGRACAO',
-] as const;
-
-type TipoRequisicao = (typeof tipos)[number];
-type StatusRequisicao = (typeof statusList)[number];
-
-interface Empresa {
-  id: number;
-  nome: string;
-}
-
-interface Candidato {
-  id: number;
-  nome: string | null;
-  cpf: string;
-}
-
-interface Requisicao {
-  id: number;
-  tipo: TipoRequisicao;
-  status: StatusRequisicao;
-  empresaId: number | null;
-  empresa: Empresa | null;
-  candidatoId: number | null;
-  candidato: Candidato | null;
-  filial: number | null;
-  filialNome: string | null;
-  cargo: string | null;
-  cargoNome: string | null;
-  centroCusto: string | null;
-  ccustoNome: string | null;
-  escala: string | null;
-  descricaoEscala: string | null;
-  sindicato: string | null;
-  dataPrevistaAdmissao: string | null;
-  motivoAbertura: string | null;
-  observacao: string | null;
-  codigoRequisicaoSenior: string | null;
-  codigoCandidatoSenior: string | null;
-  codigoColaboradorSenior: string | null;
-  createdAt: string;
-}
-
-const requisicaoSchema = z.object({
-  tipo: z.enum(tipos),
-  status: z.enum(statusList),
-  empresaId: z.string().optional(),
-  candidatoId: z.string().optional(),
-  filial: z.string().trim().optional(),
-  filialNome: z.string().trim().optional(),
-  cargo: z.string().trim().optional(),
-  cargoNome: z.string().trim().min(1, 'Informe o nome do cargo'),
-  centroCusto: z.string().trim().optional(),
-  ccustoNome: z.string().trim().optional(),
-  escala: z.string().trim().optional(),
-  descricaoEscala: z.string().trim().optional(),
-  sindicato: z.string().trim().optional(),
-  dataPrevistaAdmissao: z.string().optional(),
-  motivoAbertura: z.string().trim().optional(),
-  observacao: z.string().trim().optional(),
-  codigoRequisicaoSenior: z.string().trim().optional(),
-  codigoCandidatoSenior: z.string().trim().optional(),
-  codigoColaboradorSenior: z.string().trim().optional(),
-});
-
-type RequisicaoForm = z.infer<typeof requisicaoSchema>;
-
-const defaultValues: RequisicaoForm = {
-  tipo: 'NOVA_VAGA',
-  status: 'RASCUNHO',
-  empresaId: '',
-  candidatoId: '',
-  filial: '',
-  filialNome: '',
-  cargo: '',
-  cargoNome: '',
-  centroCusto: '',
-  ccustoNome: '',
-  escala: '',
-  descricaoEscala: '',
-  sindicato: '',
-  dataPrevistaAdmissao: '',
-  motivoAbertura: '',
-  observacao: '',
-  codigoRequisicaoSenior: '',
-  codigoCandidatoSenior: '',
-  codigoColaboradorSenior: '',
+const statusTone: Record<string, string> = {
+  RASCUNHO: 'border-slate-300 bg-slate-500/10 text-slate-700 dark:text-slate-200',
+  ABERTA: 'border-emerald-300 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+  AGUARDANDO_CANDIDATO: 'border-amber-300 bg-amber-500/10 text-amber-700 dark:text-amber-200',
+  EM_ADMISSAO: 'border-sky-300 bg-sky-500/10 text-sky-700 dark:text-sky-200',
+  CANCELADA: 'border-red-300 bg-red-500/10 text-red-700 dark:text-red-200',
+  REPROVADA: 'border-red-300 bg-red-500/10 text-red-700 dark:text-red-200',
+  ERRO_INTEGRACAO: 'border-red-300 bg-red-500/10 text-red-700 dark:text-red-200',
 };
 
-const labels: Record<string, string> = {
-  NOVA_VAGA: 'Nova vaga',
-  SUBSTITUICAO: 'Substituição',
-  AUMENTO_QUADRO: 'Aumento de quadro',
-  TEMPORARIA: 'Temporária',
-  OUTRO: 'Outro',
-  RASCUNHO: 'Rascunho',
-  ABERTA: 'Aberta',
-  AGUARDANDO_CANDIDATO: 'Aguardando candidato',
-  EM_ADMISSAO: 'Em admissão',
-  AGUARDANDO_DOCUMENTOS: 'Aguardando documentos',
-  AGUARDANDO_ASSINATURA: 'Aguardando assinatura',
-  AGUARDANDO_RH: 'Aguardando RH',
-  PENDENTE_CORRECAO: 'Pendente correção',
-  APROVADA: 'Aprovada',
-  INTEGRANDO_SENIOR: 'Integrando Senior',
-  INTEGRADA_SENIOR: 'Integrada Senior',
-  CANCELADA: 'Cancelada',
-  REPROVADA: 'Reprovada',
-  ERRO_INTEGRACAO: 'Erro integração',
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface CandidatoSearchOption extends SelectOption {
+  candidato: {
+    id: number;
+    nome: string | null;
+    cpf: string;
+    email: string | null;
+    telefone: string | null;
+  };
+}
+
+const selectStyles: StylesConfig<SelectOption, false> = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 38,
+    borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
+    borderRadius: 'calc(var(--radius) - 2px)',
+    backgroundColor: 'hsl(var(--background))',
+    boxShadow: state.isFocused ? '0 0 0 1px hsl(var(--ring))' : 'none',
+    ':hover': { borderColor: 'hsl(var(--ring))' },
+  }),
+  menu: (base) => ({
+    ...base,
+    zIndex: 30,
+    overflow: 'hidden',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: 'var(--radius)',
+    backgroundColor: 'hsl(var(--popover))',
+    color: 'hsl(var(--popover-foreground))',
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? 'hsl(var(--primary))'
+      : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'transparent',
+    color: state.isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+  }),
+  placeholder: (base) => ({ ...base, color: 'hsl(var(--muted-foreground))' }),
+  singleValue: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
+  input: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
 };
 
-const toDateInputValue = (value: string | null) => (value ? value.slice(0, 10) : '');
-const toText = (value: string | number | null | undefined) => (value == null ? '' : String(value));
-const optionalString = (value?: string) => value?.trim() || undefined;
-const formatCpf = (value: string) => value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-const optionalNumber = (value?: string) => {
-  const text = value?.trim();
-  return text ? Number(text) : undefined;
-};
+const uniqueOptions = (values: Array<string | null | undefined>) =>
+  Array.from(new Set(values.filter((value): value is string => Boolean(value?.trim()))))
+    .sort((first, second) => first.localeCompare(second, 'pt-BR'))
+    .map((value) => ({ value, label: value }));
 
 export default function RequisicoesPage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
   const [requisicoes, setRequisicoes] = useState<Requisicao[]>([]);
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [candidatos, setCandidatos] = useState<Candidato[]>([]);
-  const [editingRequisicao, setEditingRequisicao] = useState<Requisicao | null>(null);
+  const [filialFilter, setFilialFilter] = useState<SelectOption | null>(null);
+  const [cargoFilter, setCargoFilter] = useState<SelectOption | null>(null);
+  const [setorFilter, setSetorFilter] = useState<SelectOption | null>(null);
+  const [linkModalRequisicao, setLinkModalRequisicao] = useState<Requisicao | null>(null);
+  const [selectedCandidato, setSelectedCandidato] = useState<CandidatoSearchOption | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isLinking, setIsLinking] = useState(false);
+  const [removingCandidaturaId, setRemovingCandidaturaId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
+  const candidateSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<RequisicaoForm>({ resolver: zodResolver(requisicaoSchema), defaultValues });
+  const filialOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.filialNome));
+  const cargoOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.cargoNome));
+  const setorOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.ccustoNome));
+  const filteredRequisicoes = requisicoes.filter((requisicao) => {
+    if (filialFilter && requisicao.filialNome !== filialFilter.value) return false;
+    if (cargoFilter && requisicao.cargoNome !== cargoFilter.value) return false;
+    if (setorFilter && requisicao.ccustoNome !== setorFilter.value) return false;
+
+    return true;
+  });
+  const hasActiveFilters = Boolean(filialFilter || cargoFilter || setorFilter);
 
   const loadData = async () => {
-    const [requisicoesResponse, empresasResponse, candidatosResponse] = await Promise.all([
-      api.get<Requisicao[]>('/requisicoes'),
-      api.get<Empresa[]>('/empresas'),
-      api.get<Candidato[]>('/candidatos'),
-    ]);
+    const requisicoesResponse = await api.get<Requisicao[]>('/requisicoes');
     setRequisicoes(requisicoesResponse.data);
-    setEmpresas(empresasResponse.data);
-    setCandidatos(candidatosResponse.data);
   };
 
   useEffect(() => {
@@ -193,82 +128,12 @@ export default function RequisicoesPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const clearForm = () => {
-    setEditingRequisicao(null);
-    reset(defaultValues);
-  };
-
-  const startEditing = (requisicao: Requisicao) => {
-    setEditingRequisicao(requisicao);
-    reset({
-      tipo: requisicao.tipo,
-      status: requisicao.status,
-      empresaId: toText(requisicao.empresaId),
-      candidatoId: toText(requisicao.candidatoId),
-      filial: toText(requisicao.filial),
-      filialNome: toText(requisicao.filialNome),
-      cargo: toText(requisicao.cargo),
-      cargoNome: toText(requisicao.cargoNome),
-      centroCusto: toText(requisicao.centroCusto),
-      ccustoNome: toText(requisicao.ccustoNome),
-      escala: toText(requisicao.escala),
-      descricaoEscala: toText(requisicao.descricaoEscala),
-      sindicato: toText(requisicao.sindicato),
-      dataPrevistaAdmissao: toDateInputValue(requisicao.dataPrevistaAdmissao),
-      motivoAbertura: toText(requisicao.motivoAbertura),
-      observacao: toText(requisicao.observacao),
-      codigoRequisicaoSenior: toText(requisicao.codigoRequisicaoSenior),
-      codigoCandidatoSenior: toText(requisicao.codigoCandidatoSenior),
-      codigoColaboradorSenior: toText(requisicao.codigoColaboradorSenior),
-    });
-  };
-
-  const buildPayload = (values: RequisicaoForm) => ({
-    tipo: values.tipo,
-    status: values.status,
-    empresaId: optionalNumber(values.empresaId),
-    candidatoId: optionalNumber(values.candidatoId),
-    filial: optionalNumber(values.filial),
-    filialNome: optionalString(values.filialNome),
-    cargo: optionalString(values.cargo),
-    cargoNome: optionalString(values.cargoNome),
-    centroCusto: optionalString(values.centroCusto),
-    ccustoNome: optionalString(values.ccustoNome),
-    escala: optionalString(values.escala),
-    descricaoEscala: optionalString(values.descricaoEscala),
-    sindicato: optionalString(values.sindicato),
-    dataPrevistaAdmissao: optionalString(values.dataPrevistaAdmissao),
-    motivoAbertura: optionalString(values.motivoAbertura),
-    observacao: optionalString(values.observacao),
-    codigoRequisicaoSenior: optionalString(values.codigoRequisicaoSenior),
-    codigoCandidatoSenior: optionalString(values.codigoCandidatoSenior),
-    codigoColaboradorSenior: optionalString(values.codigoColaboradorSenior),
-  });
-
-  const onSubmit = async (values: RequisicaoForm) => {
-    setIsSaving(true);
-    setError('');
-
-    try {
-      if (editingRequisicao) {
-        await api.patch(`/requisicoes/${editingRequisicao.id}`, buildPayload(values));
-      } else {
-        await api.post('/requisicoes', buildPayload(values));
-      }
-
-      await loadData();
-      clearForm();
-    } catch {
-      setError('Não foi possível salvar a requisição. Verifique os dados e tente novamente.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  useEffect(
+    () => () => {
+      if (candidateSearchTimeout.current) clearTimeout(candidateSearchTimeout.current);
+    },
+    [],
+  );
 
   const removeRequisicao = async (requisicao: Requisicao) => {
     const title = requisicao.cargoNome ?? requisicao.cargo ?? `#${requisicao.id}`;
@@ -279,435 +144,486 @@ export default function RequisicoesPage() {
     try {
       await api.delete(`/requisicoes/${requisicao.id}`);
       await loadData();
-      if (editingRequisicao?.id === requisicao.id) clearForm();
     } catch {
       setError('Não foi possível excluir a requisição.');
     }
   };
 
+  const openLinkModal = (requisicao: Requisicao) => {
+    setLinkModalRequisicao(requisicao);
+    setSelectedCandidato(null);
+    setModalError('');
+  };
+
+  const closeLinkModal = () => {
+    if (isLinking) return;
+    setLinkModalRequisicao(null);
+    setSelectedCandidato(null);
+    setModalError('');
+  };
+
+  const loadCandidateOptions = (
+    inputValue: string,
+    callback: (options: CandidatoSearchOption[]) => void,
+  ) => {
+    if (candidateSearchTimeout.current) clearTimeout(candidateSearchTimeout.current);
+
+    const nome = inputValue.trim();
+    if (nome.length < 3) {
+      callback([]);
+      return;
+    }
+
+    candidateSearchTimeout.current = setTimeout(() => {
+      api
+        .get<CandidatoSearchOption['candidato'][]>('/candidatos/search', {
+          params: { nome, limit: 20 },
+        })
+        .then(({ data }) => {
+          callback(
+            data.map((candidato) => ({
+              value: String(candidato.id),
+              label: `${candidato.nome || formatCpf(candidato.cpf)} · ${formatCpf(candidato.cpf)}`,
+              candidato,
+            })),
+          );
+        })
+        .catch(() => callback([]));
+    }, 350);
+  };
+
+  const vincularCandidato = async () => {
+    if (!linkModalRequisicao || !selectedCandidato) return;
+
+    const candidatoId = optionalNumber(selectedCandidato.value);
+    if (!candidatoId) return;
+
+    setModalError('');
+    setIsLinking(true);
+    try {
+      await api.post(`/requisicoes/${linkModalRequisicao.id}/candidaturas`, { candidatoId });
+      await loadData();
+      setLinkModalRequisicao(null);
+      setSelectedCandidato(null);
+    } catch {
+      setModalError('Não foi possível vincular o candidato à requisição.');
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  const atualizarStatusCandidatura = async (
+    candidatura: Candidatura,
+    status: StatusCandidatura,
+  ) => {
+    setError('');
+    try {
+      await api.patch(`/candidaturas/${candidatura.id}/status`, { status });
+      await loadData();
+    } catch {
+      setError('Não foi possível atualizar a candidatura.');
+    }
+  };
+
+  const removerVinculoCandidato = async (candidatura: Candidatura) => {
+    const title = candidatura.candidato.nome || formatCpf(candidatura.candidato.cpf);
+    const confirmed = window.confirm(`Remover o vínculo do candidato "${title}" desta requisição?`);
+    if (!confirmed) return;
+
+    setError('');
+    setRemovingCandidaturaId(candidatura.id);
+    try {
+      await api.delete(`/candidaturas/${candidatura.id}`);
+      await loadData();
+    } catch {
+      setError('Não foi possível remover o vínculo do candidato.');
+    } finally {
+      setRemovingCandidaturaId(null);
+    }
+  };
+
   return (
-    <div className="app-surface min-h-screen text-foreground">
-      <header className="flex flex-col gap-4 border-b bg-card/95 px-4 py-4 shadow-sm backdrop-blur lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <BriefcaseBusiness className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="font-display text-lg font-semibold leading-none">Requisições</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Cadastro operacional de vagas e admissões
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <EmpresaSelector />
-          <ThemeToggle />
-          <Button type="button" variant="outline" onClick={handleLogout} className="justify-start">
-            <LogOut className="h-4 w-4" />
-            Sair
+    <>
+      <PageHeader
+        eyebrow="Mesa de contratação"
+        title="Requisições em operação"
+        description="Uma lista de controle para abrir vagas, despachar candidatos e acompanhar cada admissão sem entrar no formulário por padrão."
+        actions={
+          <Button onClick={() => navigate('/requisicoes/novo')} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4" />
+            Nova requisição
           </Button>
-        </div>
-      </header>
+        }
+      />
 
-      <div className="grid lg:grid-cols-[16rem_1fr]">
-        <aside className="hidden border-r bg-card/70 p-5 lg:block">
-          <nav className="space-y-5 text-sm">
-            <div>
-              <div className="mb-2 flex items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Processos</span>
-                <span className="h-px flex-1 bg-border" />
+      <section className="relative overflow-hidden rounded-[1.75rem] border bg-card p-4 shadow-corporate sm:p-6">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,hsl(var(--accent)/0.16),transparent_24rem),linear-gradient(135deg,hsl(var(--primary)/0.06),transparent_36rem)]" />
+        <div className="relative">
+          <div className="mb-5 grid gap-3 sm:grid-cols-3">
+            <MetricCard label="Requisições" value={requisicoes.length} />
+            <MetricCard
+              label="Vagas abertas"
+              value={requisicoes.reduce((total, item) => total + item.quantidadeVagas, 0)}
+            />
+            <MetricCard
+              label="Candidaturas"
+              value={requisicoes.reduce((total, item) => total + item.candidaturas.length, 0)}
+            />
+          </div>
+
+          {requisicoes.length > 0 && (
+            <div className="mb-5 rounded-2xl border bg-background/80 p-4">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    Filtros de operação
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Refine a fila por filial, cargo e setor.
+                  </p>
+                </div>
+                {hasActiveFilters && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFilialFilter(null);
+                      setCargoFilter(null);
+                      setSetorFilter(null);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                    Limpar filtros
+                  </Button>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => navigate('/')}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Visão geral
-              </button>
-              {['Candidatos', 'Pendências'].map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => {
-                    if (item === 'Candidatos') navigate('/candidatos');
-                  }}
-                  className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Configurações</span>
-                <span className="h-px flex-1 bg-border" />
+              <div className="grid gap-3 lg:grid-cols-3">
+                <FilterSelect
+                  label="Filial"
+                  options={filialOptions}
+                  value={filialFilter}
+                  onChange={setFilialFilter}
+                />
+                <FilterSelect
+                  label="Cargo"
+                  options={cargoOptions}
+                  value={cargoFilter}
+                  onChange={setCargoFilter}
+                />
+                <FilterSelect
+                  label="Setor"
+                  options={setorOptions}
+                  value={setorFilter}
+                  onChange={setSetorFilter}
+                />
               </div>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-left text-primary-foreground"
-              >
-                <BriefcaseBusiness className="h-4 w-4" />
-                Requisições
-              </button>
-              {user?.role === 'ADMIN' && (
-                <button
-                  type="button"
-                  onClick={() => navigate('/empresas')}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                >
-                  <Building2 className="h-4 w-4" />
-                  Empresa
-                </button>
-              )}
-            </div>
-          </nav>
-        </aside>
-
-        <main className="px-4 py-6 lg:px-8">
-          <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-primary">
-                Admissão digital
-              </p>
-              <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight lg:text-4xl">
-                Requisições de vaga
-              </h1>
-              <p className="mt-2 max-w-2xl text-muted-foreground">
-                Cadastre, edite, acompanhe e remova requisições com os dados de filial, cargo,
-                centro de custo e escala.
+              <p className="mt-3 text-xs text-muted-foreground">
+                Exibindo {filteredRequisicoes.length} de {requisicoes.length} requisição(ões).
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/')}
-              className="w-full sm:w-auto lg:hidden"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </Button>
-          </section>
+          )}
 
-          <section className="grid gap-4 xl:grid-cols-[26rem_1fr]">
-            <Card className="shadow-corporate">
-              <CardHeader>
-                <CardTitle>{editingRequisicao ? 'Editar requisição' : 'Nova requisição'}</CardTitle>
-                <CardDescription>Preencha os dados operacionais da vaga.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="tipo">Tipo</Label>
-                      <select
-                        id="tipo"
-                        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                        {...register('tipo')}
+          {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+
+          {isLoading ? (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">
+                Carregando requisições...
+              </CardContent>
+            </Card>
+          ) : requisicoes.length === 0 ? (
+            <EmptyState onCreate={() => navigate('/requisicoes/novo')} />
+          ) : filteredRequisicoes.length === 0 ? (
+            <Card className="border-dashed bg-background/85 text-center">
+              <CardContent className="p-8">
+                <p className="font-semibold">Nenhuma requisição encontrada</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Ajuste os filtros para voltar a visualizar a fila.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {filteredRequisicoes.map((requisicao, index) => (
+                <article
+                  key={requisicao.id}
+                  className="group grid gap-4 rounded-2xl border bg-background/92 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg xl:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)_minmax(20rem,0.9fr)]"
+                  style={{ animation: `fade-slide-up 420ms ease ${index * 45}ms both` }}
+                >
+                  <div className="min-w-0">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                        Req #{requisicao.id}
+                      </span>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusTone[requisicao.status] ?? 'border-blue-300 bg-blue-500/10 text-blue-700 dark:text-blue-200'}`}
                       >
-                        {tipos.map((tipo) => (
-                          <option key={tipo} value={tipo}>
-                            {labels[tipo]}
-                          </option>
+                        {labels[requisicao.status]}
+                      </span>
+                    </div>
+                    <h2 className="font-display text-2xl font-semibold tracking-tight">
+                      {requisicao.cargoNome ?? requisicao.cargo ?? 'Cargo não informado'}
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {labels[requisicao.tipo]} · {requisicao.quantidadeVagas} vaga(s)
+                    </p>
+                    <div className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                      <span>{requisicao.empresa?.nome ?? 'Empresa não vinculada'}</span>
+                      <span>{requisicao.filialNome ?? 'Filial não informada'}</span>
+                      <span>{requisicao.postoTrabalhoNome ?? 'Posto não informado'}</span>
+                      <span>{requisicao.ccustoNome ?? 'Centro de custo não informado'}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <CalendarDays className="h-4 w-4" />
+                        {toDateInputValue(requisicao.dataPrevistaAdmissao) || 'Sem data prevista'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-dashed bg-muted/35 p-3">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Candidatos
+                    </p>
+                    {requisicao.candidaturas.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum candidato vinculado.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {requisicao.candidaturas.map((candidatura) => (
+                          <div key={candidatura.id} className="rounded-xl border bg-background p-2">
+                            <p className="text-sm font-semibold">
+                              {candidatura.candidato.nome || formatCpf(candidatura.candidato.cpf)}
+                            </p>
+                            <div className="mt-2 flex gap-2">
+                              <select
+                                className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs"
+                                value={candidatura.status}
+                                onChange={(event) =>
+                                  atualizarStatusCandidatura(
+                                    candidatura,
+                                    event.target.value as StatusCandidatura,
+                                  )
+                                }
+                              >
+                                {statusCandidaturaList.map((status) => (
+                                  <option key={status} value={status}>
+                                    {labels[status]}
+                                  </option>
+                                ))}
+                              </select>
+                              {candidatura.status === 'INSCRITO' && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 px-2 text-xs text-destructive hover:text-destructive"
+                                  disabled={removingCandidaturaId === candidatura.id}
+                                  onClick={() => removerVinculoCandidato(candidatura)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Remover
+                                </Button>
+                              )}
+                            </div>
+                          </div>
                         ))}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="status">Status</Label>
-                      <select
-                        id="status"
-                        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                        {...register('status')}
-                      >
-                        {statusList.map((status) => (
-                          <option key={status} value={status}>
-                            {labels[status]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="empresaId">Empresa</Label>
-                    <select
-                      id="empresaId"
-                      className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                      {...register('empresaId')}
+                  <div className="flex flex-col justify-between gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="justify-center"
+                      onClick={() => openLinkModal(requisicao)}
                     >
-                      <option value="">Sem empresa vinculada</option>
-                      {empresas.map((empresa) => (
-                        <option key={empresa.id} value={empresa.id}>
-                          {empresa.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="candidatoId">Candidato</Label>
-                    <select
-                      id="candidatoId"
-                      className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                      {...register('candidatoId')}
-                    >
-                      <option value="">Sem candidato vinculado</option>
-                      {candidatos.map((candidato) => (
-                        <option key={candidato.id} value={candidato.id}>
-                          {candidato.nome || formatCpf(candidato.cpf)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="filial">Código filial</Label>
-                      <Input
-                        id="filial"
-                        type="number"
-                        placeholder="Ex.: 3"
-                        {...register('filial')}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="filialNome">Filial nome</Label>
-                      <Input
-                        id="filialNome"
-                        placeholder="Ex.: Filial Centro"
-                        {...register('filialNome')}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="cargo">Código cargo</Label>
-                      <Input id="cargo" placeholder="Ex.: 1020" {...register('cargo')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cargoNome">Cargo nome</Label>
-                      <Input
-                        id="cargoNome"
-                        placeholder="Ex.: Operador de loja"
-                        {...register('cargoNome')}
-                      />
-                      {errors.cargoNome && (
-                        <p className="text-sm text-destructive">{errors.cargoNome.message}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="centroCusto">Código centro de custo</Label>
-                      <Input
-                        id="centroCusto"
-                        placeholder="Ex.: 01.02"
-                        {...register('centroCusto')}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="ccustoNome">Centro de custo nome</Label>
-                      <Input
-                        id="ccustoNome"
-                        placeholder="Ex.: Frente de loja"
-                        {...register('ccustoNome')}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="escala">Código escala</Label>
-                      <Input id="escala" placeholder="Ex.: 6X1" {...register('escala')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="descricaoEscala">Descrição escala</Label>
-                      <Input
-                        id="descricaoEscala"
-                        placeholder="Ex.: Segunda a sábado"
-                        {...register('descricaoEscala')}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="sindicato">Sindicato</Label>
-                      <Input
-                        id="sindicato"
-                        placeholder="Ex.: Comerciários"
-                        {...register('sindicato')}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="dataPrevistaAdmissao">Admissão prevista</Label>
-                      <Input
-                        id="dataPrevistaAdmissao"
-                        type="date"
-                        {...register('dataPrevistaAdmissao')}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="motivoAbertura">Motivo abertura</Label>
-                    <Input
-                      id="motivoAbertura"
-                      placeholder="Ex.: Substituição por desligamento"
-                      {...register('motivoAbertura')}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="observacao">Observação</Label>
-                    <textarea
-                      id="observacao"
-                      rows={3}
-                      className="w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      placeholder="Detalhes adicionais da requisição"
-                      {...register('observacao')}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="codigoRequisicaoSenior">Req. Senior</Label>
-                      <Input id="codigoRequisicaoSenior" {...register('codigoRequisicaoSenior')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="codigoCandidatoSenior">Cand. Senior</Label>
-                      <Input id="codigoCandidatoSenior" {...register('codigoCandidatoSenior')} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="codigoColaboradorSenior">Colab. Senior</Label>
-                      <Input
-                        id="codigoColaboradorSenior"
-                        {...register('codigoColaboradorSenior')}
-                      />
-                    </div>
-                  </div>
-
-                  {error && <p className="text-sm text-destructive">{error}</p>}
-
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button type="submit" disabled={isSaving} className="w-full">
-                      {editingRequisicao ? (
-                        <Save className="h-4 w-4" />
-                      ) : (
-                        <Plus className="h-4 w-4" />
-                      )}
-                      {isSaving
-                        ? 'Salvando...'
-                        : editingRequisicao
-                          ? 'Salvar alterações'
-                          : 'Cadastrar'}
+                      <UserRoundPlus className="h-4 w-4" />
+                      Vincular candidato
                     </Button>
-                    {editingRequisicao && (
+                    <div className="grid grid-cols-3 gap-2">
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={clearForm}
-                        className="w-full"
+                        onClick={() => navigate(`/requisicoes/${requisicao.id}`)}
                       >
-                        <X className="h-4 w-4" />
-                        Cancelar
+                        <Eye className="h-4 w-4" />
+                        Ver
                       </Button>
-                    )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => navigate(`/requisicoes/${requisicao.id}/editar`)}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                        Editar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => removeRequisicao(requisicao)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Excluir
+                      </Button>
+                    </div>
                   </div>
-                </form>
-              </CardContent>
-            </Card>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
-            <Card className="shadow-corporate">
-              <CardHeader>
-                <CardTitle>Requisições cadastradas</CardTitle>
-                <CardDescription>
-                  {requisicoes.length} requisição(ões) disponível(is).
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <p className="text-sm text-muted-foreground">Carregando requisições...</p>
-                ) : requisicoes.length === 0 ? (
-                  <div className="rounded-xl border border-dashed bg-background p-8 text-center">
-                    <BriefcaseBusiness className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <p className="mt-3 font-semibold">Nenhuma requisição cadastrada</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Use o formulário ao lado para criar o primeiro registro.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-xl border">
-                    <div className="hidden grid-cols-[1.2fr_1fr_10rem_11rem] gap-4 border-b bg-muted/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:grid">
-                      <span>Cargo</span>
-                      <span>Local</span>
-                      <span>Status</span>
-                      <span className="text-right">Ações</span>
-                    </div>
-                    <div className="divide-y">
-                      {requisicoes.map((requisicao) => (
-                        <div
-                          key={requisicao.id}
-                          className="grid gap-3 bg-background px-4 py-4 lg:grid-cols-[1.2fr_1fr_10rem_11rem] lg:items-center"
-                        >
-                          <div>
-                            <p className="font-semibold">
-                              {requisicao.cargoNome ?? requisicao.cargo ?? 'Cargo não informado'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {labels[requisicao.tipo]}
-                              {requisicao.dataPrevistaAdmissao
-                                ? ` · ${toDateInputValue(requisicao.dataPrevistaAdmissao)}`
-                                : ''}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {requisicao.candidato?.nome ?? 'Candidato não vinculado'}
-                            </p>
-                          </div>
-                          <div className="text-sm">
-                            <p>{requisicao.empresa?.nome ?? 'Empresa não vinculada'}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {requisicao.filialNome ?? 'Filial não informada'}
-                              {requisicao.ccustoNome ? ` · ${requisicao.ccustoNome}` : ''}
-                            </p>
-                          </div>
-                          <span className="w-fit rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-                            {labels[requisicao.status]}
-                          </span>
-                          <div className="flex gap-2 lg:justify-end">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => startEditing(requisicao)}
-                            >
-                              <Edit3 className="h-4 w-4" />
-                              Editar
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeRequisicao(requisicao)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Excluir
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </section>
-        </main>
-      </div>
+      {linkModalRequisicao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-[1.5rem] border bg-background shadow-2xl">
+            <div className="border-b bg-muted/50 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    Vincular candidato
+                  </p>
+                  <h2 className="mt-1 font-display text-2xl font-semibold">
+                    {linkModalRequisicao.cargoNome ??
+                      linkModalRequisicao.cargo ??
+                      'Cargo não informado'}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Req #{linkModalRequisicao.id} · {labels[linkModalRequisicao.tipo]} ·{' '}
+                    {linkModalRequisicao.quantidadeVagas} vaga(s)
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={closeLinkModal}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div className="grid gap-3 rounded-2xl border bg-card p-4 text-sm text-muted-foreground sm:grid-cols-2">
+                <span>{linkModalRequisicao.empresa?.nome ?? 'Empresa não vinculada'}</span>
+                <span>{linkModalRequisicao.filialNome ?? 'Filial não informada'}</span>
+                <span>{linkModalRequisicao.postoTrabalhoNome ?? 'Posto não informado'}</span>
+                <span>{linkModalRequisicao.ccustoNome ?? 'Centro de custo não informado'}</span>
+                <span className="inline-flex items-center gap-1">
+                  <CalendarDays className="h-4 w-4" />
+                  {toDateInputValue(linkModalRequisicao.dataPrevistaAdmissao) ||
+                    'Sem data prevista'}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="candidate-search">
+                  Buscar candidato por nome
+                </label>
+                <AsyncSelect<CandidatoSearchOption, false>
+                  cacheOptions
+                  inputId="candidate-search"
+                  loadOptions={loadCandidateOptions}
+                  noOptionsMessage={({ inputValue }) =>
+                    inputValue.trim().length < 3
+                      ? 'Digite ao menos 3 letras para buscar'
+                      : 'Nenhum candidato encontrado'
+                  }
+                  loadingMessage={() => 'Buscando candidatos...'}
+                  placeholder="Digite o nome do candidato"
+                  styles={selectStyles as unknown as StylesConfig<CandidatoSearchOption, false>}
+                  value={selectedCandidato}
+                  onChange={setSelectedCandidato}
+                />
+                <p className="text-xs text-muted-foreground">
+                  A busca consulta o servidor sob demanda e retorna até 20 candidatos por vez.
+                </p>
+              </div>
+
+              {selectedCandidato && (
+                <div className="rounded-2xl border bg-muted/35 p-4 text-sm">
+                  <p className="font-semibold">
+                    {selectedCandidato.candidato.nome || formatCpf(selectedCandidato.candidato.cpf)}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    CPF {formatCpf(selectedCandidato.candidato.cpf)}
+                    {selectedCandidato.candidato.email
+                      ? ` · ${selectedCandidato.candidato.email}`
+                      : ''}
+                  </p>
+                </div>
+              )}
+
+              {modalError && <p className="text-sm text-destructive">{modalError}</p>}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={closeLinkModal} disabled={isLinking}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={vincularCandidato}
+                disabled={!selectedCandidato || isLinking}
+              >
+                {isLinking ? 'Vinculando...' : 'Confirmar vínculo'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border bg-background/80 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 font-display text-3xl font-semibold">{value}</p>
     </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange: (option: SelectOption | null) => void;
+  options: SelectOption[];
+  value: SelectOption | null;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="text-sm font-medium">{label}</span>
+      <Select<SelectOption, false>
+        isClearable
+        noOptionsMessage={() => 'Nenhuma opção encontrada'}
+        options={options}
+        placeholder={`Filtrar por ${label.toLocaleLowerCase('pt-BR')}`}
+        styles={selectStyles}
+        value={value}
+        onChange={onChange}
+      />
+    </label>
+  );
+}
+
+function EmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <Card className="border-dashed bg-background/85 text-center">
+      <CardHeader>
+        <BriefcaseBusiness className="mx-auto h-9 w-9 text-muted-foreground" />
+        <CardTitle>Nenhuma requisição cadastrada</CardTitle>
+        <CardDescription>Crie a primeira vaga para começar a esteira de admissão.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={onCreate}>
+          <Plus className="h-4 w-4" />
+          Nova requisição
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

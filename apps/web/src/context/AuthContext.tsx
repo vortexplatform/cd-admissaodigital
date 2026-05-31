@@ -28,10 +28,10 @@ interface AuthContextType {
   empresas: Empresa[];
   empresaAtiva: Empresa | null;
   isLoading: boolean;
-  login: (token: string, session: AuthSession) => void;
+  login: (session: AuthSession) => void;
   updateUser: (user: User) => void;
   selectEmpresa: (empresaId: number) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -69,12 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      writeEmpresaCookie(null);
-      setIsLoading(false);
-      return;
-    }
     api
       .get<AuthSession>('/auth/me')
       .then((res) => {
@@ -86,16 +80,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         writeEmpresaCookie(activeEmpresa?.id ?? null);
       })
       .catch(() => {
-        localStorage.removeItem('access_token');
         writeEmpresaCookie(null);
       })
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = (token: string, session: AuthSession) => {
+  const login = (session: AuthSession) => {
     const activeEmpresa = resolveEmpresaAtiva(session.empresas, session.empresaAtiva);
 
-    localStorage.setItem('access_token', token);
     setUser(session.user);
     setEmpresas(session.empresas);
     setEmpresaAtiva(activeEmpresa);
@@ -114,8 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     writeEmpresaCookie(empresa.id);
   };
 
-  const logout = () => {
-    localStorage.removeItem('access_token');
+  const logout = async () => {
+    await api.post('/auth/logout').catch(() => undefined);
     writeEmpresaCookie(null);
     setUser(null);
     setEmpresas([]);

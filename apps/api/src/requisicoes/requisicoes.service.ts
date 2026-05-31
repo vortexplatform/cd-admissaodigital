@@ -6,7 +6,10 @@ import { UpdateRequisicaoDto } from './dto/update-requisicao.dto';
 
 const requisicaoInclude = {
   empresa: true,
-  candidato: true,
+  candidaturas: {
+    include: { candidato: true },
+    orderBy: { createdAt: 'desc' },
+  },
   criadoPor: true,
   aprovadoPor: true,
 } satisfies Prisma.RequisicaoVagaInclude;
@@ -17,9 +20,11 @@ const buildRequisicaoData = (dto: CreateRequisicaoDto | UpdateRequisicaoDto) => 
   tipo: dto.tipo,
   status: dto.status,
   empresaId: dto.empresaId,
-  candidatoId: dto.candidatoId,
+  quantidadeVagas: dto.quantidadeVagas,
   filial: dto.filial,
   filialNome: cleanString(dto.filialNome),
+  postoTrabalho: cleanString(dto.postoTrabalho),
+  postoTrabalhoNome: cleanString(dto.postoTrabalhoNome),
   cargo: cleanString(dto.cargo),
   cargoNome: cleanString(dto.cargoNome),
   centroCusto: cleanString(dto.centroCusto),

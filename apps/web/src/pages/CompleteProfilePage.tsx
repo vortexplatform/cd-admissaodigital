@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth, type User } from '@/context/AuthContext';
 import api from '@/lib/api';
 
@@ -69,65 +68,57 @@ export default function CompleteProfilePage() {
   const optionalPlaceholder = optionalField === 'telefone' ? '+55 11 99999-9999' : 'seu@email.com';
 
   return (
-    <div className="app-surface relative flex min-h-screen items-center justify-center p-4 pt-16">
-      <ThemeToggle className="absolute right-4 top-4 shadow-corporate" />
-      <Card className="w-full max-w-md border-primary/10 shadow-corporate">
-        <CardHeader className="space-y-3">
-          <div className="h-1.5 w-16 rounded-full bg-primary" />
-          <div>
-            <CardTitle className="font-display text-2xl">Complete seu cadastro</CardTitle>
-            <CardDescription>
-              Precisamos do seu nome e CPF para continuar sua admissão. O campo de contato
-              complementar é opcional.
-            </CardDescription>
+    <Card className="w-full max-w-md border-primary/10 shadow-corporate">
+      <CardHeader className="space-y-3">
+        <div className="h-1.5 w-16 rounded-full bg-primary" />
+        <div>
+          <CardTitle className="font-display text-2xl">Complete seu cadastro</CardTitle>
+          <CardDescription>
+            Precisamos do seu nome e CPF para continuar sua admissão. O campo de contato
+            complementar é opcional.
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="nome">Nome completo</Label>
+            <Input
+              id="nome"
+              autoComplete="name"
+              placeholder="Seu nome completo"
+              {...register('nome')}
+            />
+            {errors.nome && <p className="text-sm text-destructive">{errors.nome.message}</p>}
           </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome completo</Label>
-              <Input
-                id="nome"
-                autoComplete="name"
-                placeholder="Seu nome completo"
-                {...register('nome')}
-              />
-              {errors.nome && <p className="text-sm text-destructive">{errors.nome.message}</p>}
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="cpf">CPF</Label>
-              <Input
-                id="cpf"
-                inputMode="numeric"
-                placeholder="000.000.000-00"
-                {...register('cpf')}
-              />
-              {errors.cpf && <p className="text-sm text-destructive">{errors.cpf.message}</p>}
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="cpf">CPF</Label>
+            <Input id="cpf" inputMode="numeric" placeholder="000.000.000-00" {...register('cpf')} />
+            {errors.cpf && <p className="text-sm text-destructive">{errors.cpf.message}</p>}
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor={optionalField}>{optionalLabel} opcional</Label>
-              <Input
-                id={optionalField}
-                type={optionalType}
-                autoComplete={optionalField === 'telefone' ? 'tel' : 'email'}
-                placeholder={optionalPlaceholder}
-                {...register(optionalField)}
-              />
-              {errors[optionalField] && (
-                <p className="text-sm text-destructive">{errors[optionalField]?.message}</p>
-              )}
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor={optionalField}>{optionalLabel} opcional</Label>
+            <Input
+              id={optionalField}
+              type={optionalType}
+              autoComplete={optionalField === 'telefone' ? 'tel' : 'email'}
+              placeholder={optionalPlaceholder}
+              {...register(optionalField)}
+            />
+            {errors[optionalField] && (
+              <p className="text-sm text-destructive">{errors[optionalField]?.message}</p>
+            )}
+          </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Salvando...' : 'Salvar e continuar'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Salvando...' : 'Salvar e continuar'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
