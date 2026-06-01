@@ -1,4 +1,13 @@
-import { IsDateString, IsEmail, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 export class UpdateCandidatoDto {
   @IsString()
@@ -24,4 +33,12 @@ export class UpdateCandidatoDto {
   @IsNotEmpty()
   @IsOptional()
   telefone?: string;
+
+  @IsIn(['M', 'F'])
+  @IsOptional()
+  genero?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  possuiFilhos?: boolean;
 }

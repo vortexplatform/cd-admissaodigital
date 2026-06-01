@@ -152,6 +152,7 @@ function RhHome({ user }: { user: User }) {
 }
 
 function CandidateHome({ user, identifier }: { user: User; identifier: string }) {
+  const navigate = useNavigate();
   return (
     <>
       <section className="grid gap-4 lg:grid-cols-[1fr_22rem]">
@@ -170,7 +171,7 @@ function CandidateHome({ user, identifier }: { user: User; identifier: string })
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
-            <Button type="button" className="h-11">
+            <Button type="button" className="h-11" onClick={() => navigate('/candidato/documentos')}>
               Enviar documentos
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -211,7 +212,8 @@ function CandidateHome({ user, identifier }: { user: User; identifier: string })
             return (
               <div
                 key={step.label}
-                className={`rounded-xl border p-4 ${step.active ? 'border-primary bg-primary/5' : 'bg-background'}`}
+                onClick={() => step.active && navigate('/candidato/documentos')}
+                className={`rounded-xl border p-4 ${step.active ? 'cursor-pointer border-primary bg-primary/5 transition-colors hover:bg-primary/10' : 'bg-background'}`}
               >
                 <div
                   className={`mb-4 grid h-10 w-10 place-items-center rounded-lg ${

@@ -1,4 +1,11 @@
-import { BriefcaseBusiness, Building2, LayoutDashboard, UserRound, UsersRound } from 'lucide-react';
+import {
+  BriefcaseBusiness,
+  Building2,
+  FileText,
+  LayoutDashboard,
+  UserRound,
+  UsersRound,
+} from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
@@ -46,6 +53,10 @@ export default function AppSidebar() {
             <span>Configurações</span>
             <span className="h-px flex-1 bg-border" />
           </div>
+          <NavLink to="/documentos/configuracoes" className={linkClass}>
+            <FileText className="h-4 w-4" />
+            Regras de documentos
+          </NavLink>
           {isAdmin && (
             <>
               <NavLink to="/empresas" className={linkClass}>

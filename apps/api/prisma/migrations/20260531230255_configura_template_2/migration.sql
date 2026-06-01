@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "documento_template_substituicao_template_id_substituido_templat" RENAME TO "documento_template_substituicao_template_id_substituido_tem_key";

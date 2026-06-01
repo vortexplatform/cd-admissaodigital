@@ -10,6 +10,7 @@ import { EmpresasModule } from './empresas/empresas.module';
 import { RequisicoesModule } from './requisicoes/requisicoes.module';
 import { CandidatosModule } from './candidatos/candidatos.module';
 import { CandidaturasModule } from './candidaturas/candidaturas.module';
+import { DocumentosModule } from './documentos/documentos.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { CandidaturasModule } from './candidaturas/candidaturas.module';
     RequisicoesModule,
     CandidatosModule,
     CandidaturasModule,
+    DocumentosModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -27,6 +27,7 @@ model User {
 
   requisicoesCriadas   RequisicaoVaga[] @relation("RequisicaoCriadaPor")
   requisicoesAprovadas RequisicaoVaga[] @relation("RequisicaoAprovadaPor")
+  documentosRevisados  DocumentoAdmissao[] @relation("DocumentoRevisadoPor")
 
   @@map("users")
 }
@@ -39,6 +40,8 @@ model Candidato {
   nome           String?
   email          String?
   telefone       String?
+  genero         String?
+  possuiFilhos   Boolean       @default(false) @map("possui_filhos")
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   candidaturas   Candidatura[]
 
@@ -63,6 +66,7 @@ model Empresa {
   codigoEmpresaSenior String           @unique @map("codigo_empresa_senior")
   requisicoes         RequisicaoVaga[]
   usuarios            EmpresaUsuario[]
+  documentosTemplate  DocumentoTemplate[]
 
   @@map("empresa")
 }
@@ -176,9 +180,107 @@ model Candidatura {
 
   requisicao RequisicaoVaga @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
   candidato  Candidato      @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  documentos DocumentoAdmissao[]
 
   @@unique([requisicaoId, candidatoId])
   @@index([candidatoId])
   @@index([status])
   @@map("candidatura")
+}
+
+enum StatusDocumentoAdmissao {
+  PENDENTE
+  ENVIADO
+  EM_ANALISE
+  APROVADO
+  RECUSADO
+  REENVIO_SOLICITADO
+}
+
+enum OrigemDocumentoAdmissao {
+  CANDIDATO
+  RH
+}
+
+enum ModoSubstituicaoDocumento {
+  SEMPRE
+  CAMPO_OCR
+}
+
+model DocumentoTemplate {
+  id                   Int      @id @default(autoincrement())
+  empresaId            Int      @map("empresa_id")
+  codigo               String
+  nome                 String
+  descricao            String?
+  palavrasChave        String[] @default([]) @map("palavras_chave")
+  mimeTypesPermitidos  String[] @default([]) @map("mime_types_permitidos")
+  condicaoGenero       String?  @map("condicao_genero")
+  condicaoPossuiFilhos Boolean? @map("condicao_possui_filhos")
+  obrigatorio          Boolean  @default(true)
+  ordem                Int      @default(0)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  empresa       Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  documentos    DocumentoAdmissao[]
+  substitui     DocumentoTemplateSubstituicao[] @relation("TemplateSubstitui")
+  substituidoPor DocumentoTemplateSubstituicao[] @relation("TemplateSubstituidoPor")
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, ordem])
+  @@map("documento_template")
+}
+
+model DocumentoTemplateSubstituicao {
+  id                    Int                       @id @default(autoincrement())
+  templateId            Int                       @map("template_id")
+  substituidoTemplateId Int                       @map("substituido_template_id")
+  modo                  ModoSubstituicaoDocumento @default(SEMPRE)
+  campoOcr              String?                   @map("campo_ocr")
+  createdAt             DateTime                  @default(now()) @map("created_at")
+
+  template    DocumentoTemplate @relation("TemplateSubstitui", fields: [templateId], references: [id], onDelete: Cascade)
+  substituido DocumentoTemplate @relation("TemplateSubstituidoPor", fields: [substituidoTemplateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, substituidoTemplateId])
+  @@index([substituidoTemplateId])
+  @@map("documento_template_substituicao")
+}
+
+model DocumentoAdmissao {
+  id            Int                      @id @default(autoincrement())
+  candidaturaId Int                      @map("candidatura_id")
+  templateId    Int?                     @map("template_id")
+  codigo        String
+  nome          String
+  descricao     String?
+  obrigatorio   Boolean                  @default(true)
+  status        StatusDocumentoAdmissao  @default(PENDENTE)
+  origem        OrigemDocumentoAdmissao?
+  arquivoNome   String?                  @map("arquivo_nome")
+  mimeType      String?                  @map("mime_type")
+  tamanhoBytes  Int?                     @map("tamanho_bytes")
+  storagePath   String?                  @map("storage_path")
+  enviadoEm     DateTime?                @map("enviado_em")
+  revisadoEm    DateTime?                @map("revisado_em")
+  revisadoPorId Int?                     @map("revisado_por_id")
+  observacaoRh  String?                  @map("observacao_rh")
+  ocrTexto      String?                  @map("ocr_texto")
+  ocrValidadoEm DateTime?                @map("ocr_validado_em")
+  dispensadoPorId Int?                   @map("dispensado_por_id")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  updatedAt     DateTime                 @updatedAt @map("updated_at")
+
+  candidatura  Candidatura        @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+  template     DocumentoTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  revisadoPor  User?              @relation("DocumentoRevisadoPor", fields: [revisadoPorId], references: [id], onDelete: SetNull)
+  dispensadoPor DocumentoAdmissao? @relation("DispensaPor", fields: [dispensadoPorId], references: [id], onDelete: SetNull)
+  dispensados  DocumentoAdmissao[] @relation("DispensaPor")
+
+  @@unique([candidaturaId, codigo])
+  @@index([status])
+  @@index([candidaturaId])
+  @@index([dispensadoPorId])
+  @@map("documento_admissao")
 }

@@ -46,6 +46,8 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   nome: cleanString(dto.nome),
   email: cleanString(dto.email),
   telefone: cleanString(dto.telefone),
+  genero: cleanString(dto.genero),
+  possuiFilhos: dto.possuiFilhos,
 });
 
 @Injectable()

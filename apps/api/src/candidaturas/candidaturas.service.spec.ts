@@ -11,6 +11,9 @@ describe('CandidaturasService', () => {
       requisicaoVaga: {
         update: jest.fn().mockResolvedValue({}),
       },
+      documentoAdmissao: {
+        createMany: jest.fn().mockResolvedValue({ count: 5 }),
+      },
     };
     const prisma = {
       requisicaoVaga: { findUnique: jest.fn().mockResolvedValue({ id: 1 }) },

@@ -9,6 +9,9 @@ import RequisicoesPage from '@/pages/RequisicoesPage';
 import RequisicaoFormPage from '@/pages/RequisicaoFormPage';
 import CandidatosPage from '@/pages/CandidatosPage';
 import CandidatoFormPage from '@/pages/CandidatoFormPage';
+import DocumentosRhPage from '@/pages/DocumentosRhPage';
+import DocumentoTemplatesPage from '@/pages/DocumentoTemplatesPage';
+import CandidateDocumentosPage from '@/pages/CandidateDocumentosPage';
 import CompanyAccessRequiredPage from '@/pages/CompanyAccessRequiredPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import SignupPage from '@/pages/SignupPage';
@@ -142,6 +145,9 @@ export default function Router() {
         <Route path="/candidatos/novo" element={<CandidatoFormPage mode="create" />} />
         <Route path="/candidatos/:id" element={<CandidatoFormPage mode="view" />} />
         <Route path="/candidatos/:id/editar" element={<CandidatoFormPage mode="edit" />} />
+        <Route path="/candidatos/:id/documentos" element={<DocumentosRhPage />} />
+        <Route path="/documentos" element={<DocumentosRhPage />} />
+        <Route path="/documentos/configuracoes" element={<DocumentoTemplatesPage />} />
         <Route element={<AdminRoute />}>
           <Route path="/empresas" element={<EmpresasPage />} />
           <Route path="/usuarios" element={<UsuariosPage />} />
@@ -149,7 +155,7 @@ export default function Router() {
       </Route>
       <Route element={<CandidateLayoutRoute />}>
         <Route path="/candidato" element={<HomePage />} />
-        <Route path="/candidato/documentos" element={<HomePage />} />
+        <Route path="/candidato/documentos" element={<CandidateDocumentosPage />} />
         <Route path="/candidato/assinaturas" element={<HomePage />} />
         <Route path="/candidato/status" element={<HomePage />} />
       </Route>

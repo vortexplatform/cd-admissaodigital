@@ -61,6 +61,8 @@ interface Candidato {
   nome: string | null;
   email: string | null;
   telefone: string | null;
+  genero: string | null;
+  possuiFilhos: boolean;
   candidaturas: CandidaturaResumo[];
 }
 
@@ -73,6 +75,8 @@ const candidatoSchema = z.object({
   nome: z.string().trim().optional(),
   email: z.string().trim().email('Informe um e-mail válido').optional().or(z.literal('')),
   telefone: z.string().trim().optional(),
+  genero: z.enum(['', 'M', 'F']).optional(),
+  possuiFilhos: z.boolean().optional(),
 });
 
 type CandidatoForm = z.infer<typeof candidatoSchema>;
@@ -84,6 +88,8 @@ const defaultValues: CandidatoForm = {
   nome: '',
   email: '',
   telefone: '',
+  genero: '',
+  possuiFilhos: false,
 };
 
 const toDateInputValue = (value: string | null) => (value ? value.slice(0, 10) : '');
@@ -96,6 +102,8 @@ const buildPayload = (values: CandidatoForm) => ({
   nome: optionalString(values.nome),
   email: optionalString(values.email),
   telefone: optionalString(values.telefone),
+  genero: optionalString(values.genero),
+  possuiFilhos: Boolean(values.possuiFilhos),
 });
 
 const getPageTitle = (mode: CandidatoMode) => {
@@ -133,6 +141,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           nome: toText(data.nome),
           email: toText(data.email),
           telefone: toText(data.telefone),
+          genero: (data.genero as 'M' | 'F' | null) ?? '',
+          possuiFilhos: data.possuiFilhos,
         });
       })
       .catch(() => setError('Não foi possível carregar o candidato.'))
@@ -260,6 +270,26 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       {...register('telefone')}
                     />
                   </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="genero">Gênero para regras de documentos</Label>
+                    <select
+                      id="genero"
+                      disabled={isViewMode}
+                      className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                      {...register('genero')}
+                    >
+                      <option value="">Não informado</option>
+                      <option value="M">Masculino</option>
+                      <option value="F">Feminino</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+                    <input type="checkbox" disabled={isViewMode} {...register('possuiFilhos')} />
+                    Possui filhos
+                  </label>
                 </div>
 
                 {error && <p className="text-sm text-destructive">{error}</p>}
