@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
+type SignedDocumentAttachment = {
+  filename: string;
+  content: Buffer;
+};
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -35,5 +40,39 @@ export class EmailService {
       `,
     });
     this.logger.log(`OTP enviado para ${email}`);
+  }
+
+  async sendSignedDocuments(
+    email: string,
+    candidatoNome: string,
+    empresaNome: string,
+    attachments: SignedDocumentAttachment[],
+  ): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.config.get<string>('SMTP_FROM'),
+      to: email,
+      subject: 'Documentos assinados — Admissão Digital',
+      text: [
+        `Olá, ${candidatoNome}.`,
+        '',
+        `Segue em anexo a cópia dos documentos assinados digitalmente pela ${empresaNome}.`,
+        '',
+        'Guarde estes arquivos para consulta futura.',
+      ].join('\n'),
+      html: `
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
+          <h2>Documentos assinados</h2>
+          <p>Olá, ${candidatoNome}.</p>
+          <p>Segue em anexo a cópia dos documentos assinados digitalmente pela <strong>${empresaNome}</strong>.</p>
+          <p style="color: #6b7280; font-size: 14px;">Guarde estes arquivos para consulta futura.</p>
+        </div>
+      `,
+      attachments: attachments.map((attachment) => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: 'application/pdf',
+      })),
+    });
+    this.logger.log(`Documentos assinados enviados para ${email}`);
   }
 }

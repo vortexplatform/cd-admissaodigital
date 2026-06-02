@@ -38,11 +38,29 @@ export class UsersService {
   async findOrCreate(identifier: string, type: 'email' | 'phone') {
     const where = type === 'email' ? { email: identifier } : { telefone: identifier };
     const existing = await this.prisma.user.findUnique({ where });
-    if (existing) return { user: existing, isNewUser: false };
+    if (existing) {
+      await this.linkCandidato(existing.id, existing.email, existing.telefone);
+      return { user: existing, isNewUser: false };
+    }
 
     const data = type === 'email' ? { email: identifier } : { telefone: identifier };
     const user = await this.prisma.user.create({ data });
+    await this.linkCandidato(user.id, user.email, user.telefone);
     return { user, isNewUser: true };
+  }
+
+  private async linkCandidato(userId: number, email?: string | null, telefone?: string | null) {
+    const conditions: { email: string }[] | { telefone: string }[] = [];
+    if (email) (conditions as { email: string }[]).push({ email });
+    if (telefone) (conditions as { telefone: string }[]).push({ telefone });
+    if (conditions.length === 0) return;
+
+    const candidato = await this.prisma.candidato.findFirst({
+      where: { userId: null, OR: conditions },
+    });
+    if (candidato) {
+      await this.prisma.candidato.update({ where: { id: candidato.id }, data: { userId } });
+    }
   }
 
   async createAdminUser(dto: CreateAdminUserDto) {

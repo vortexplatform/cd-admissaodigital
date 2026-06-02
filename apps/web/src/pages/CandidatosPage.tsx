@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Edit3,
   Eye,
+  FileSignature,
   FileText,
   ListChecks,
   Plus,
@@ -502,7 +503,7 @@ export default function CandidatosPage() {
           ) : (
             <div className="overflow-x-auto">
               <div className="min-w-[860px]">
-                <div className="grid grid-cols-[2fr_1.4fr_1.6fr_8rem_18rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[2fr_1.4fr_1.6fr_8rem_21rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <span>Candidato</span>
                   <span>Empresa</span>
                   <span>Etapa</span>
@@ -519,7 +520,7 @@ export default function CandidatosPage() {
                     return (
                       <div
                         key={candidato.id}
-                          className={`grid grid-cols-[2fr_1.4fr_1.6fr_8rem_18rem] gap-4 px-5 py-4 ${
+                          className={`grid grid-cols-[2fr_1.4fr_1.6fr_8rem_21rem] gap-4 px-5 py-4 ${
                           sla.urgent ? 'bg-yellow-100/70 dark:bg-yellow-950/30' : 'bg-background'
                         }`}
                       >
@@ -581,6 +582,15 @@ export default function CandidatosPage() {
                                 onClick={() => navigate(`/candidatos/${candidato.id}/documentos`)}
                               >
                                 <FileText className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                title="Gerar ou conferir assinaturas"
+                                onClick={() => navigate(`/assinaturas?candidatoId=${candidato.id}`)}
+                              >
+                                <FileSignature className="h-4 w-4" />
                               </Button>
                               <Button
                                 type="button"

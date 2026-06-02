@@ -1,11 +1,14 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ModoSubstituicaoDocumento, OrigemDocumentoAdmissao, Role, StatusDocumentoAdmissao } from '@prisma/client';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { ModoSubstituicaoDocumento, OrigemDocumentoAdmissao, Prisma, ResultadoValidacaoOcr, Role, StatusDocumentoAdmissao } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { DocumentoValidationService } from './documento-validation.service';
 import { defaultDocumentosAdmissao } from './default-documentos';
 import { RevisarDocumentoDto } from './dto/revisar-documento.dto';
 import { OcrService } from './ocr.service';
+import { S3StorageService } from './s3-storage.service';
+
+type Substitui = { substituidoTemplateId: number; modo: ModoSubstituicaoDocumento; campoOcr: string | null };
+type VirtualTemplate = { palavrasChave: string[]; substitui: Substitui[] } | null;
 
 type UploadedMemoryFile = {
   originalname: string;
@@ -14,8 +17,13 @@ type UploadedMemoryFile = {
   buffer: Buffer;
 };
 
-const uploadsRoot = path.resolve(process.cwd(), 'uploads', 'documentos-admissao');
 const allowedMimeTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+
+const inferContentType = (contentType: string, filename: string, buffer: Buffer) => {
+  if (buffer.subarray(0, 4).toString('utf8') === '%PDF') return 'application/pdf';
+  if (filename.toLowerCase().endsWith('.pdf')) return 'application/pdf';
+  return contentType;
+};
 
 const isReviewStatus = (status: StatusDocumentoAdmissao) =>
   status === StatusDocumentoAdmissao.APROVADO ||
@@ -32,6 +40,8 @@ export class DocumentosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ocr: OcrService,
+    private readonly validation: DocumentoValidationService,
+    private readonly s3: S3StorageService,
   ) {}
 
   async listMyDocumentos(userId: number) {
@@ -45,17 +55,12 @@ export class DocumentosService {
       orderBy: { createdAt: 'desc' },
     });
 
-    await Promise.all(candidaturas.map((candidatura) => this.ensureDocumentos(candidatura.id)));
-
-    return this.prisma.candidatura.findMany({
-      where: { candidato: { userId } },
-      include: {
-        candidato: true,
-        requisicao: { include: { empresa: true } },
-        documentos: { include: documentoInclude, orderBy: { id: 'asc' } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    return Promise.all(
+      candidaturas.map(async (candidatura) => ({
+        ...candidatura,
+        documentos: await this.buildMergedDocumentos(candidatura),
+      })),
+    );
   }
 
   async listForRh() {
@@ -63,24 +68,70 @@ export class DocumentosService {
       include: {
         candidato: true,
         requisicao: { include: { empresa: true } },
-        documentos: { orderBy: { id: 'asc' } },
+        documentos: { include: documentoInclude, orderBy: { id: 'asc' } },
       },
       orderBy: { updatedAt: 'desc' },
     });
 
     await Promise.all(candidaturas.map((candidatura) => this.ensureDocumentos(candidatura.id)));
 
-    return this.prisma.candidatura.findMany({
+    const refreshed = await this.prisma.candidatura.findMany({
       include: {
         candidato: true,
         requisicao: { include: { empresa: true } },
-        documentos: { orderBy: { id: 'asc' } },
+        documentos: { include: documentoInclude, orderBy: { id: 'asc' } },
       },
       orderBy: { updatedAt: 'desc' },
     });
+
+    return Promise.all(
+      refreshed.map(async (candidatura) => ({
+        ...candidatura,
+        documentos: await this.buildMergedDocumentos(candidatura),
+      })),
+    );
   }
 
-  async uploadMyDocumento(userId: number, documentoId: number, file?: UploadedMemoryFile) {
+  async uploadMyDocumento(
+    userId: number,
+    documentoId: number,
+    file?: UploadedMemoryFile,
+    candidaturaId?: number,
+    templateId?: number,
+    codigo?: string,
+    confirmarEnvio = false,
+    observacaoCandidato?: string,
+  ) {
+    if (documentoId === 0) {
+      if (!candidaturaId) throw new BadRequestException('candidaturaId é obrigatório para novo documento.');
+      const candidatura = await this.prisma.candidatura.findFirst({ where: { id: candidaturaId, candidato: { userId } } });
+      if (!candidatura) throw new ForbiddenException('Candidatura não encontrada ou acesso negado.');
+
+      let docId: number;
+
+      if (templateId) {
+        const template = await this.prisma.documentoTemplate.findUnique({ where: { id: templateId } });
+        if (!template) throw new NotFoundException('Template não encontrado.');
+        const existing = await this.prisma.documentoAdmissao.findFirst({ where: { candidaturaId, codigo: template.codigo } });
+        const doc = existing ?? await this.prisma.documentoAdmissao.create({
+          data: { candidaturaId, templateId, codigo: template.codigo, nome: template.nome, descricao: template.descricao, obrigatorio: template.obrigatorio },
+        });
+        docId = doc.id;
+      } else if (codigo) {
+        const def = defaultDocumentosAdmissao.find((d) => d.codigo === codigo);
+        if (!def) throw new NotFoundException('Documento padrão não encontrado.');
+        const existing = await this.prisma.documentoAdmissao.findFirst({ where: { candidaturaId, codigo, templateId: null } });
+        const doc = existing ?? await this.prisma.documentoAdmissao.create({
+          data: { candidaturaId, codigo: def.codigo, nome: def.nome, descricao: def.descricao, obrigatorio: def.obrigatorio },
+        });
+        docId = doc.id;
+      } else {
+        throw new BadRequestException('templateId ou codigo são obrigatórios para novo documento.');
+      }
+
+      return this.saveUpload(docId, file, OrigemDocumentoAdmissao.CANDIDATO, confirmarEnvio, observacaoCandidato);
+    }
+
     const documento = await this.findDocumento(documentoId);
     if (documento.candidatura.candidato.userId !== userId) {
       throw new ForbiddenException('Documento não pertence ao candidato autenticado.');
@@ -89,7 +140,7 @@ export class DocumentosService {
       throw new BadRequestException('Não é possível substituir um documento aprovado.');
     }
 
-    return this.saveUpload(documentoId, file, OrigemDocumentoAdmissao.CANDIDATO);
+    return this.saveUpload(documentoId, file, OrigemDocumentoAdmissao.CANDIDATO, confirmarEnvio, observacaoCandidato);
   }
 
   async uploadRhDocumento(userId: number, documentoId: number, file?: UploadedMemoryFile) {
@@ -148,8 +199,12 @@ export class DocumentosService {
       throw new NotFoundException('Documento não possui arquivo enviado.');
     }
 
-    const buffer = await fs.readFile(documento.storagePath);
-    return { buffer, contentType: documento.mimeType, filename: documento.arquivoNome };
+    const buffer = await this.s3.download(documento.storagePath);
+    return {
+      buffer,
+      contentType: inferContentType(documento.mimeType, documento.arquivoNome, buffer),
+      filename: documento.arquivoNome,
+    };
   }
 
   async ensureDocumentos(candidaturaId: number) {
@@ -189,21 +244,98 @@ export class DocumentosService {
     });
   }
 
+  private async buildMergedDocumentos(candidatura: {
+    id: number;
+    candidato: { genero: string | null; possuiFilhos: boolean };
+    requisicao: { empresaId: number | null };
+    documentos: Array<ReturnType<typeof Object.assign> & { id: number; templateId: number | null; codigo: string }>;
+  }) {
+    const templates = candidatura.requisicao.empresaId
+      ? await this.prisma.documentoTemplate.findMany({
+          where: { empresaId: candidatura.requisicao.empresaId },
+          include: { substitui: true },
+          orderBy: [{ ordem: 'asc' }, { nome: 'asc' }],
+        })
+      : [];
+
+    const existingDocs = candidatura.documentos;
+
+    if (templates.length > 0) {
+      return templates
+        .filter((t) => this.templateAppliesToCandidate(t, candidatura.candidato))
+        .map((template) => {
+          const existing = existingDocs.find((d) => d.templateId === template.id || d.codigo === template.codigo);
+          return existing ?? this.makeVirtualDoc(candidatura.id, template.id, template.codigo, template.nome, template.descricao, template.obrigatorio, { palavrasChave: template.palavrasChave, substitui: template.substitui });
+        });
+    }
+
+    return defaultDocumentosAdmissao.map((def) => {
+      const existing = existingDocs.find((d) => d.codigo === def.codigo && d.templateId === null);
+      return existing ?? this.makeVirtualDoc(candidatura.id, null, def.codigo, def.nome, def.descricao, def.obrigatorio, null);
+    });
+  }
+
+  private makeVirtualDoc(
+    candidaturaId: number,
+    templateId: number | null,
+    codigo: string,
+    nome: string,
+    descricao: string | null,
+    obrigatorio: boolean,
+    template: VirtualTemplate,
+  ) {
+    return {
+      id: 0,
+      candidaturaId,
+      templateId,
+      codigo,
+      nome,
+      descricao,
+      obrigatorio,
+      status: StatusDocumentoAdmissao.PENDENTE,
+      origem: null,
+      arquivoNome: null,
+      mimeType: null,
+      tamanhoBytes: null,
+      storagePath: null,
+      enviadoEm: null,
+      revisadoEm: null,
+      revisadoPorId: null,
+      observacaoRh: null,
+      ocrTexto: null,
+      ocrResultado: null,
+      ocrScore: null,
+      ocrMotivos: [],
+      ocrCampos: null,
+      ocrValidadoEm: null,
+      dispensadoPorId: null,
+      dispensadoPor: null,
+      template,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
   private async saveUpload(
     documentoId: number,
     file: UploadedMemoryFile | undefined,
     origem: OrigemDocumentoAdmissao,
+    confirmarEnvio = false,
+    observacaoCandidato?: string,
   ) {
     const documento = await this.findDocumento(documentoId);
     this.validateFile(file, documento.template?.mimeTypesPermitidos ?? []);
 
-    await fs.mkdir(uploadsRoot, { recursive: true });
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = path.join(uploadsRoot, `${documentoId}-${Date.now()}-${safeName}`);
-    await fs.writeFile(storagePath, file.buffer);
+    // OCR antes do S3 — valida o conteúdo antes de persistir
+    const ocrResult = await this.ocr.extractText(file.buffer, file.mimetype);
+    const { text: ocrTexto, campos } = ocrResult;
+    const validacao = this.validation.validate(documento, ocrResult);
 
-    // Rodar OCR (falha silenciosa — não bloqueia upload)
-    const { text: ocrTexto, campos } = await this.ocr.extractText(file.buffer, file.mimetype);
+    this.validateOcrResult(validacao, confirmarEnvio, observacaoCandidato);
+
+    const cpf = documento.candidatura.candidato.cpf ?? null;
+    const storagePath = this.s3.buildKey(cpf, documentoId, file.originalname);
+    await this.s3.upload(storagePath, file.buffer, file.mimetype);
 
     const updated = await this.prisma.documentoAdmissao.update({
       where: { id: documentoId },
@@ -218,9 +350,13 @@ export class DocumentosService {
         revisadoEm: null,
         revisadoPorId: null,
         observacaoRh: null,
+        observacaoCandidato: observacaoCandidato?.trim() || null,
         ocrTexto: ocrTexto || null,
-        ocrValidadoEm: ocrTexto ? new Date() : null,
-        // Limpar dispensações anteriores ao reenviar
+        ocrResultado: validacao.resultado,
+        ocrScore: validacao.score,
+        ocrMotivos: validacao.motivos,
+        ocrCampos: JSON.parse(JSON.stringify(validacao.campos)),
+        ocrValidadoEm: new Date(),
         dispensadoPorId: null,
       },
       include: {
@@ -281,10 +417,34 @@ export class DocumentosService {
     }
   }
 
+  private validateOcrResult(
+    validacao: { resultado: ResultadoValidacaoOcr; motivos: string[] },
+    confirmarEnvio: boolean,
+    observacaoCandidato?: string,
+  ) {
+    if (validacao.resultado === ResultadoValidacaoOcr.VALIDO) return;
+
+    const message = validacao.motivos.join(' ');
+    if (validacao.resultado === ResultadoValidacaoOcr.INVALIDO) {
+      throw new HttpException({ code: 'DOCUMENTO_INVALIDO', message }, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    if (!confirmarEnvio) {
+      throw new HttpException(
+        { code: 'DOCUMENTO_SUSPEITO', message },
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    if (!observacaoCandidato?.trim() || observacaoCandidato.trim().length < 10) {
+      throw new BadRequestException('Informe uma justificativa com pelo menos 10 caracteres para enviar este documento.');
+    }
+  }
+
   private async clearDocumento(documentoId: number) {
     const documento = await this.findDocumento(documentoId);
     if (documento.storagePath) {
-      await fs.rm(documento.storagePath, { force: true });
+      await this.s3.delete(documento.storagePath);
     }
 
     // Remover dispensações que este documento causou
@@ -307,6 +467,10 @@ export class DocumentosService {
         revisadoPorId: null,
         observacaoRh: null,
         ocrTexto: null,
+        ocrResultado: null,
+        ocrScore: null,
+        ocrMotivos: [],
+        ocrCampos: Prisma.JsonNull,
         ocrValidadoEm: null,
         dispensadoPorId: null,
       },

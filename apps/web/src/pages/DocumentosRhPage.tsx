@@ -40,6 +40,21 @@ function calcSla(dataPrevista: string | null | undefined) {
   return { label: `${days}d`, urgent: days <= 2 };
 }
 
+function getFileKind(doc: DocumentoAdmissao): 'image' | 'pdf' | 'other' {
+  const mimeType = doc.mimeType?.toLowerCase() ?? '';
+  const fileName = doc.arquivoNome?.toLowerCase() ?? '';
+
+  if (mimeType.startsWith('image/')) return 'image';
+  if (
+    mimeType === 'application/pdf' ||
+    mimeType === 'application/x-pdf' ||
+    fileName.endsWith('.pdf')
+  ) {
+    return 'pdf';
+  }
+  return 'other';
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DocumentosRhPage() {
@@ -166,9 +181,9 @@ export default function DocumentosRhPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Conferência de admissão"
-        title="Documentos dos candidatos"
-        description="Confira documentos enviados, aprove, recuse, solicite reenvio ou insira arquivos pelo RH."
+        eyebrow="Entrega de documentos"
+        title="Documentos enviados"
+        description="Confira arquivos enviados pelo candidato, aprove, recuse, solicite reenvio ou insira arquivos pelo RH."
       />
 
       <section className="relative overflow-hidden rounded-[1.75rem] border bg-card p-4 shadow-corporate sm:p-6">
@@ -260,6 +275,9 @@ function CandidatoRevisao({
   const [activeIndex, setActiveIndex] = useState(0);
   const [observacao, setObservacao] = useState('');
   const [formError, setFormError] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const prevBlobRef = useRef<string | null>(null);
 
   const documentos = candidatura.documentos;
   const doc = documentos[activeIndex] ?? documentos[0];
@@ -269,13 +287,52 @@ function CandidatoRevisao({
     setFormError('');
   }, [activeIndex, doc?.observacaoRh]);
 
+  useEffect(() => {
+    if (!doc?.arquivoNome) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewUrl(null);
+    setPreviewLoading(true);
+
+    api
+      .get<Blob>(`/documentos/${doc.id}/view`, { responseType: 'blob' })
+      .then((res) => {
+        if (cancelled) return;
+        if (prevBlobRef.current) URL.revokeObjectURL(prevBlobRef.current);
+        // Garante MIME type explícito para o browser renderizar inline
+        const mimeType = res.data.type || doc.mimeType || 'application/octet-stream';
+        const blob = res.data.type ? res.data : new Blob([res.data], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        prevBlobRef.current = url;
+        setPreviewUrl(url);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [doc?.id, doc?.arquivoNome, doc?.mimeType]);
+
+  useEffect(
+    () => () => {
+      if (prevBlobRef.current) URL.revokeObjectURL(prevBlobRef.current);
+    },
+    [],
+  );
+
   if (!doc) return null;
 
   const sla = calcSla(candidatura.requisicao.dataPrevistaAdmissao);
   const nomeEmpresa = candidatura.requisicao.empresa?.nome ?? 'Empresa não informada';
   const nomeCandidato = candidatura.candidato.nome ?? candidatura.candidato.cpf;
   const hasFile = Boolean(doc.arquivoNome);
-  const isPdf = doc.mimeType === 'application/pdf';
+  const fileKind = getFileKind(doc);
   const isBusy = busyId === doc.id;
 
   const handleRevisar = async (status: StatusDocumentoAdmissao) => {
@@ -357,19 +414,40 @@ function CandidatoRevisao({
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         {/* Left – Document preview */}
         <div className="overflow-hidden rounded-2xl border bg-muted/30">
-          {hasFile && isPdf ? (
-            <iframe
-              src={getDocumentoUrl(doc.id)}
-              title={doc.nome}
+          {hasFile && previewLoading ? (
+            <div className="flex h-[620px] items-center justify-center text-sm text-muted-foreground">
+              Carregando documento...
+            </div>
+          ) : hasFile && fileKind === 'pdf' ? (
+            <embed
+              src={previewUrl ?? ''}
+              type="application/pdf"
               className="h-[620px] w-full"
             />
-          ) : hasFile && !isPdf ? (
+          ) : hasFile && fileKind === 'image' ? (
             <div className="flex h-[620px] items-center justify-center p-4">
               <img
-                src={getDocumentoUrl(doc.id)}
+                src={previewUrl ?? ''}
                 alt={doc.nome}
                 className="max-h-full max-w-full rounded-lg object-contain shadow-md"
               />
+            </div>
+          ) : hasFile ? (
+            <div className="flex h-[620px] flex-col items-center justify-center gap-4 p-6 text-center text-muted-foreground">
+              <div className="rounded-2xl border-2 border-dashed border-border bg-background/70 p-8">
+                <FileText className="mx-auto h-12 w-12 opacity-40" />
+                <p className="mt-4 text-sm font-semibold text-foreground">Prévia indisponível</p>
+                <p className="mt-1 max-w-md text-sm">
+                  Este tipo de arquivo não pode ser exibido embutido. Abra o documento em uma nova
+                  aba para validar o conteúdo.
+                </p>
+                <Button type="button" variant="outline" size="sm" className="mt-5" asChild>
+                  <a href={getDocumentoUrl(doc.id)} target="_blank" rel="noreferrer">
+                    <Eye className="h-4 w-4" />
+                    Abrir documento
+                  </a>
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="flex h-[620px] flex-col items-center justify-center gap-3 text-muted-foreground">

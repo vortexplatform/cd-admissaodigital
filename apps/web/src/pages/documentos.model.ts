@@ -21,7 +21,12 @@ export interface DocumentoAdmissao {
   enviadoEm: string | null;
   revisadoEm: string | null;
   observacaoRh: string | null;
+  observacaoCandidato: string | null;
   ocrTexto: string | null;
+  ocrResultado: 'VALIDO' | 'SUSPEITO' | 'INVALIDO' | null;
+  ocrScore: number | null;
+  ocrMotivos: string[];
+  ocrCampos: Record<string, unknown> | null;
   ocrValidadoEm: string | null;
   dispensadoPorId: number | null;
   dispensadoPor: { id: number; nome: string } | null;
@@ -57,6 +62,42 @@ export interface DocumentosCandidatura {
   documentos: DocumentoAdmissao[];
 }
 
+export type StatusEnvelopeAssinatura =
+  | 'RASCUNHO'
+  | 'AGUARDANDO_OTP'
+  | 'OTP_VALIDADO'
+  | 'CONCLUIDO'
+  | 'CANCELADO';
+
+export type StatusDocumentoAssinatura = 'PENDENTE' | 'ASSINADO' | 'CANCELADO';
+
+export interface DocumentoAssinatura {
+  id: number;
+  codigo: string;
+  nome: string;
+  descricao: string | null;
+  status: StatusDocumentoAssinatura;
+  hashOriginal: string;
+  hashAssinado: string | null;
+  visualizadoEm: string | null;
+  assinadoEm: string | null;
+  codigoVerificacao: string | null;
+}
+
+export interface EnvelopeAssinatura {
+  id: number;
+  setor: 'ADM_PESSOAL' | 'SESMT';
+  status: StatusEnvelopeAssinatura;
+  otpValidadoEm: string | null;
+  sessionExpiraEm: string | null;
+  concluidoEm: string | null;
+  documentos: DocumentoAssinatura[];
+}
+
+export interface AssinaturasCandidatura extends Omit<DocumentosCandidatura, 'documentos'> {
+  envelopesAssinatura: EnvelopeAssinatura[];
+}
+
 export const documentoStatusLabels: Record<StatusDocumentoAdmissao, string> = {
   PENDENTE: 'Pendente',
   ENVIADO: 'Enviado',
@@ -75,7 +116,7 @@ export const documentoStatusTone: Record<StatusDocumentoAdmissao, string> = {
   REENVIO_SOLICITADO: 'border-orange-300 bg-orange-500/10 text-orange-700 dark:text-orange-200',
 };
 
-export const formatCandidaturaTitle = (item: DocumentosCandidatura) => {
+export const formatCandidaturaTitle = (item: { requisicao: DocumentosCandidatura['requisicao'] }) => {
   const cargo = item.requisicao.cargoNome ?? item.requisicao.cargo ?? 'Cargo não informado';
   const setor = item.requisicao.ccustoNome ?? 'Setor não informado';
   const filial = item.requisicao.filial == null ? '--' : String(item.requisicao.filial).padStart(2, '0');
@@ -84,5 +125,11 @@ export const formatCandidaturaTitle = (item: DocumentosCandidatura) => {
 };
 
 export const getDocumentoUrl = (id: number) => `${apiBaseUrl()}/documentos/${id}/view`;
+
+export const getDocumentoAssinaturaUrl = (id: number) =>
+  `${apiBaseUrl()}/documentos/assinaturas/documentos/${id}/view`;
+
+export const getDocumentoAssinaturaRhUrl = (id: number) =>
+  `${apiBaseUrl()}/documentos/assinaturas/rh/documentos/${id}/view`;
 
 const apiBaseUrl = () => import.meta.env.VITE_API_URL ?? 'http://localhost:3001';

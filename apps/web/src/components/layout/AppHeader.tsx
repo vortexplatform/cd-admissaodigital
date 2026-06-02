@@ -1,4 +1,5 @@
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { LogOut, Menu, ShieldCheck, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import EmpresaSelector from '@/components/EmpresaSelector';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -21,39 +22,76 @@ export default function AppHeader({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const identifier = user?.email ?? user?.telefone ?? '';
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  return (
-    <header className="flex flex-col gap-4 border-b bg-card/95 px-4 py-4 shadow-sm backdrop-blur lg:flex-row lg:items-center lg:justify-between lg:px-8">
-      <div className="flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground">
-          <ShieldCheck className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="font-display text-lg font-semibold leading-none">{title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </div>
-      </div>
+  const envBadge = showEmpresaSelector ? (
+    <EmpresaSelector />
+  ) : (
+    <div className="rounded-lg border bg-background px-3 py-2 text-sm">
+      <p className="font-medium leading-none">{badgeLabel ?? 'Acesso'}</p>
+      <p className="mt-1 max-w-[220px] truncate text-xs text-muted-foreground">{identifier}</p>
+    </div>
+  );
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        {showEmpresaSelector ? (
-          <EmpresaSelector />
-        ) : (
-          <div className="rounded-lg border bg-background px-3 py-2 text-sm">
-            <p className="font-medium leading-none">{badgeLabel ?? 'Acesso'}</p>
-            <p className="mt-1 max-w-[220px] truncate text-xs text-muted-foreground">{identifier}</p>
+  return (
+    <header className="border-b bg-card/95 px-4 py-4 shadow-sm backdrop-blur lg:px-8">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground">
+            <ShieldCheck className="h-5 w-5" />
           </div>
-        )}
-        <ThemeToggle />
-        <Button type="button" variant="outline" onClick={handleLogout} className="justify-start">
-          <LogOut className="h-4 w-4" />
-          Sair
+          <div>
+            <p className="font-display text-lg font-semibold leading-none">{title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          </div>
+        </div>
+
+        {/* Controles — visíveis a partir de sm */}
+        <div className="hidden sm:flex sm:items-center sm:gap-3">
+          {envBadge}
+          <ThemeToggle />
+          <Button type="button" variant="outline" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" />
+            Sair
+          </Button>
+        </div>
+
+        {/* Hambúrguer — apenas mobile */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="sm:hidden"
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
       </div>
+
+      {/* Painel mobile */}
+      {mobileMenuOpen && (
+        <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:hidden">
+          {envBadge}
+          <div className="flex gap-2">
+            <ThemeToggle className="flex-1 justify-center" />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleLogout}
+              className="flex-1 justify-center"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair
+            </Button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

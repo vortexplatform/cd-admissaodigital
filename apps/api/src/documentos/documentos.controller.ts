@@ -3,10 +3,12 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Request,
   Res,
   UploadedFile,
@@ -16,10 +18,12 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AssinaturasService } from './assinaturas.service';
 import { DocumentosService } from './documentos.service';
 import { RevisarDocumentoDto } from './dto/revisar-documento.dto';
+import { VerifySignatureOtpDto } from './dto/verify-signature-otp.dto';
 
-type AuthRequest = { user: { id: number } };
+type AuthRequest = { user: { id: number }; ip?: string };
 type UploadedMemoryFile = {
   originalname: string;
   mimetype: string;
@@ -27,14 +31,99 @@ type UploadedMemoryFile = {
   buffer: Buffer;
 };
 
+const contentDispositionInline = (filename: string) => {
+  const asciiFilename = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+  return `inline; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+};
+
 @UseGuards(JwtAuthGuard)
 @Controller('documentos')
 export class DocumentosController {
-  constructor(private readonly documentos: DocumentosService) {}
+  constructor(
+    private readonly documentos: DocumentosService,
+    private readonly assinaturas: AssinaturasService,
+  ) {}
 
   @Get('candidato')
   listMyDocumentos(@Request() req: AuthRequest) {
     return this.documentos.listMyDocumentos(req.user.id);
+  }
+
+  @Get('assinaturas/candidato')
+  listMyAssinaturas(@Request() req: AuthRequest) {
+    return this.assinaturas.listMyEnvelopes(req.user.id);
+  }
+
+  @Get('assinaturas/rh')
+  listAssinaturasRh(@Request() req: AuthRequest) {
+    return this.assinaturas.listForRh(req.user.id);
+  }
+
+  @Post('assinaturas/rh/candidaturas/:id/gerar')
+  gerarAssinaturasRh(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
+    return this.assinaturas.gerarParaRh(req.user.id, id);
+  }
+
+  @Post('assinaturas/:id/otp')
+  sendSignatureOtp(
+    @Request() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.assinaturas.sendOtp(req.user.id, id, { ip: req.ip, userAgent });
+  }
+
+  @Post('assinaturas/:id/otp/verify')
+  verifySignatureOtp(
+    @Request() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: VerifySignatureOtpDto,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.assinaturas.verifyOtp(req.user.id, id, dto.code, { ip: req.ip, userAgent });
+  }
+
+  @Post('assinaturas/documentos/:id/assinar')
+  signDocumento(
+    @Request() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body('sessionToken') sessionToken: string,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.assinaturas.signDocument(req.user.id, id, sessionToken, { ip: req.ip, userAgent });
+  }
+
+  @Get('assinaturas/documentos/:id/view')
+  async viewDocumentoAssinatura(
+    @Request() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('user-agent') userAgent: string | undefined,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.assinaturas.viewDocument(req.user.id, id, { ip: req.ip, userAgent });
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': contentDispositionInline(`documento-assinatura-${id}.pdf`),
+      'Content-Length': String(buffer.length),
+      'Cache-Control': 'private, max-age=300',
+    });
+    res.send(buffer);
+  }
+
+  @Get('assinaturas/rh/documentos/:id/view')
+  async viewDocumentoAssinaturaRh(
+    @Request() req: AuthRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.assinaturas.viewDocumentForRh(req.user.id, id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': contentDispositionInline(`documento-assinatura-${id}.pdf`),
+      'Content-Length': String(buffer.length),
+      'Cache-Control': 'private, max-age=300',
+    });
+    res.send(buffer);
   }
 
   @Post('candidato/:id/upload')
@@ -43,8 +132,22 @@ export class DocumentosController {
     @Request() req: AuthRequest,
     @Param('id', ParseIntPipe) id: number,
     @UploadedFile() file?: UploadedMemoryFile,
+    @Query('candidaturaId') candidaturaId?: string,
+    @Query('templateId') templateId?: string,
+    @Query('codigo') codigo?: string,
+    @Query('confirmarEnvio') confirmarEnvio?: string,
+    @Query('observacaoCandidato') observacaoCandidato?: string,
   ) {
-    return this.documentos.uploadMyDocumento(req.user.id, id, file);
+    return this.documentos.uploadMyDocumento(
+      req.user.id,
+      id,
+      file,
+      candidaturaId ? Number(candidaturaId) : undefined,
+      templateId ? Number(templateId) : undefined,
+      codigo,
+      confirmarEnvio === 'true' || confirmarEnvio === '1',
+      observacaoCandidato,
+    );
   }
 
   @Delete('candidato/:id')
@@ -90,7 +193,7 @@ export class DocumentosController {
     const { buffer, contentType, filename } = await this.documentos.getDocumentoFile(req.user.id, id);
     res.set({
       'Content-Type': contentType,
-      'Content-Disposition': `inline; filename="${encodeURIComponent(filename)}"`,
+      'Content-Disposition': contentDispositionInline(filename),
       'Content-Length': String(buffer.length),
       'Cache-Control': 'private, max-age=300',
     });

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -16,6 +17,8 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth, type User } from '@/context/AuthContext';
+import api from '@/lib/api';
+import type { AssinaturasCandidatura, DocumentosCandidatura } from './documentos.model';
 
 const rhMetrics = [
   { label: 'Vagas abertas', value: '18', detail: '+4 na semana', icon: BriefcaseBusiness },
@@ -40,26 +43,30 @@ const rhQueue = [
   { title: 'Coordenador de Loja', company: 'Filial 12', status: 'Revisão RH', priority: 'Normal' },
 ];
 
-const candidateSteps = [
-  { label: 'Perfil', description: 'Dados pessoais confirmados', done: true, icon: UserRoundCheck },
-  {
-    label: 'Documentos',
-    description: 'Envio de arquivos obrigatórios',
-    done: false,
-    active: true,
-    icon: ClipboardCheck,
-  },
-  { label: 'Assinatura', description: 'Contratos e declarações', done: false, icon: FileSignature },
-  { label: 'Revisão RH', description: 'Validação final da equipe', done: false, icon: BadgeCheck },
-  {
-    label: 'Integração',
-    description: 'Preparação para o primeiro dia',
-    done: false,
-    icon: Building2,
-  },
-];
-
 const getDisplayName = (user: User) => user.nome?.trim().split(' ')[0] || 'Usuário';
+
+const isDocumentoConcluido = (documento: DocumentosCandidatura['documentos'][number]) =>
+  documento.dispensadoPorId != null || documento.status === 'APROVADO';
+
+const getCandidateStatus = (documentos: DocumentosCandidatura[], assinaturas: AssinaturasCandidatura[]) => {
+  const candidatura = documentos[0] ?? null;
+  const assinatura = assinaturas.find((item) => item.id === candidatura?.id) ?? null;
+  const docs = candidatura?.documentos ?? [];
+  const requiredDocs = docs.filter((documento) => documento.obrigatorio && documento.dispensadoPorId == null);
+  const documentosConcluidos = docs.length > 0 && docs.every(isDocumentoConcluido);
+  const assinaturaDisponivel = documentosConcluidos && Boolean(assinatura?.envelopesAssinatura.length);
+  const assinaturaConcluida = Boolean(
+    assinatura?.envelopesAssinatura.length &&
+      assinatura.envelopesAssinatura.every((envelope) => envelope.status === 'CONCLUIDO'),
+  );
+
+  return {
+    documentosConcluidos,
+    assinaturaDisponivel,
+    assinaturaConcluida,
+    documentosPendentes: requiredDocs.filter((documento) => !isDocumentoConcluido(documento)).length,
+  };
+};
 
 function RhHome({ user }: { user: User }) {
   const navigate = useNavigate();
@@ -153,6 +160,76 @@ function RhHome({ user }: { user: User }) {
 
 function CandidateHome({ user, identifier }: { user: User; identifier: string }) {
   const navigate = useNavigate();
+  const [documentos, setDocumentos] = useState<DocumentosCandidatura[]>([]);
+  const [assinaturas, setAssinaturas] = useState<AssinaturasCandidatura[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api.get<DocumentosCandidatura[]>('/documentos/candidato'),
+      api.get<AssinaturasCandidatura[]>('/documentos/assinaturas/candidato'),
+    ])
+      .then(([documentosResponse, assinaturasResponse]) => {
+        setDocumentos(documentosResponse.data);
+        setAssinaturas(assinaturasResponse.data);
+      })
+      .catch(() => undefined)
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const status = getCandidateStatus(documentos, assinaturas);
+  const completedSteps = [
+    true,
+    status.documentosConcluidos,
+    status.assinaturaConcluida,
+    false,
+    false,
+  ].filter(Boolean).length;
+  const progress = Math.max(20, completedSteps * 20);
+  const currentLabel = status.assinaturaConcluida
+    ? 'revisão RH'
+    : status.documentosConcluidos
+      ? 'assinatura'
+      : 'documentos';
+  const primaryRoute = status.documentosConcluidos ? '/candidato/assinaturas' : '/candidato/documentos';
+  const primaryLabel = status.documentosConcluidos ? 'Assinar documentos' : 'Enviar documentos';
+  const candidateSteps = [
+    { label: 'Perfil', description: 'Dados pessoais confirmados', done: true, active: false, route: null, icon: UserRoundCheck },
+    {
+      label: 'Documentos',
+      description: status.documentosConcluidos
+        ? 'Arquivos obrigatórios aprovados'
+        : status.documentosPendentes > 0
+          ? `${status.documentosPendentes} pendente${status.documentosPendentes > 1 ? 's' : ''}`
+          : 'Envio de arquivos obrigatórios',
+      done: status.documentosConcluidos,
+      active: !status.documentosConcluidos,
+      route: '/candidato/documentos',
+      icon: ClipboardCheck,
+    },
+    {
+      label: 'Assinatura',
+      description: status.assinaturaConcluida
+        ? 'Contratos assinados'
+        : status.assinaturaDisponivel
+          ? 'Contratos prontos para assinatura'
+          : 'Contratos e declarações',
+      done: status.assinaturaConcluida,
+      active: status.documentosConcluidos && !status.assinaturaConcluida,
+      route: status.documentosConcluidos ? '/candidato/assinaturas' : null,
+      icon: FileSignature,
+    },
+    { label: 'Revisão RH', description: 'Validação final da equipe', done: false, active: status.assinaturaConcluida, route: '/candidato/status', icon: BadgeCheck },
+    {
+      label: 'Integração',
+      description: 'Preparação para o primeiro dia',
+      done: false,
+      active: false,
+      route: null,
+      icon: Building2,
+    },
+  ];
+
   return (
     <>
       <section className="grid gap-4 lg:grid-cols-[1fr_22rem]">
@@ -160,19 +237,18 @@ function CandidateHome({ user, identifier }: { user: User; identifier: string })
           <CardHeader className="pb-4">
             <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
               <LayoutDashboard className="h-4 w-4" />
-              Etapa atual: documentos
+              Etapa atual: {isLoading ? 'carregando' : currentLabel}
             </div>
             <CardTitle className="font-display text-3xl font-semibold tracking-tight lg:text-4xl">
               {getDisplayName(user)}, continue sua admissão com segurança.
             </CardTitle>
             <CardDescription className="max-w-2xl text-base">
-              Organize os documentos necessários e acompanhe cada validação em um fluxo simples,
-              transparente e com status sempre visível.
+              Organize documentos, assinaturas e validações em um fluxo simples, transparente e com status sempre visível.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
-            <Button type="button" className="h-11" onClick={() => navigate('/candidato/documentos')}>
-              Enviar documentos
+            <Button type="button" className="h-11" onClick={() => navigate(primaryRoute)} disabled={isLoading}>
+              {primaryLabel}
               <ArrowRight className="h-4 w-4" />
             </Button>
             <div className="rounded-xl border bg-background px-4 py-3">
@@ -187,15 +263,17 @@ function CandidateHome({ user, identifier }: { user: User; identifier: string })
         <Card className="shadow-corporate">
           <CardHeader>
             <CardTitle>Progresso</CardTitle>
-            <CardDescription>1 de 5 etapas concluída.</CardDescription>
+            <CardDescription>
+              {completedSteps} de 5 etapas concluída{completedSteps === 1 ? '' : 's'}.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-end justify-between">
-              <p className="font-display text-4xl font-semibold">20%</p>
+              <p className="font-display text-4xl font-semibold">{progress}%</p>
               <CheckCircle2 className="h-8 w-8 text-primary" />
             </div>
             <div className="mt-4 h-3 overflow-hidden rounded-full bg-secondary">
-              <div className="h-full w-1/5 rounded-full bg-primary" />
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
             </div>
           </CardContent>
         </Card>
@@ -212,8 +290,8 @@ function CandidateHome({ user, identifier }: { user: User; identifier: string })
             return (
               <div
                 key={step.label}
-                onClick={() => step.active && navigate('/candidato/documentos')}
-                className={`rounded-xl border p-4 ${step.active ? 'cursor-pointer border-primary bg-primary/5 transition-colors hover:bg-primary/10' : 'bg-background'}`}
+                onClick={() => step.route && navigate(step.route)}
+                className={`rounded-xl border p-4 ${step.active ? 'border-primary bg-primary/5' : 'bg-background'} ${step.route ? 'cursor-pointer transition-colors hover:bg-primary/10' : ''}`}
               >
                 <div
                   className={`mb-4 grid h-10 w-10 place-items-center rounded-lg ${

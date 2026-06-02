@@ -1,7 +1,10 @@
 import {
   BriefcaseBusiness,
   Building2,
+  ClipboardCheck,
+  FileSignature,
   FileText,
+  KeyRound,
   LayoutDashboard,
   UserRound,
   UsersRound,
@@ -40,12 +43,14 @@ export default function AppSidebar() {
             <UserRound className="h-4 w-4" />
             Candidatos
           </NavLink>
-          <button
-            type="button"
-            className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          >
-            Pendências
-          </button>
+          <NavLink to="/documentos" className={linkClass}>
+            <ClipboardCheck className="h-4 w-4" />
+            Entrega de documentos
+          </NavLink>
+          <NavLink to="/assinaturas" className={linkClass}>
+            <FileSignature className="h-4 w-4" />
+            Assinaturas pendentes
+          </NavLink>
         </div>
 
         <div>
@@ -56,6 +61,10 @@ export default function AppSidebar() {
           <NavLink to="/documentos/configuracoes" className={linkClass}>
             <FileText className="h-4 w-4" />
             Regras de documentos
+          </NavLink>
+          <NavLink to="/certificados-a1" className={linkClass}>
+            <KeyRound className="h-4 w-4" />
+            Certificado A1
           </NavLink>
           {isAdmin && (
             <>
