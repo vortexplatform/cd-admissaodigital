@@ -1,0 +1,15 @@
+meta {
+  name: Listar pendências do dispositivo
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/biometria/dispositivo/solicitacoes/pendentes
+  body: none
+  auth: none
+}
+
+headers {
+  x-device-token: SEU_DEVICE_TOKEN_AQUI
+}

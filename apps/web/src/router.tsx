@@ -17,6 +17,7 @@ import CandidateDocumentosPage from '@/pages/CandidateDocumentosPage';
 import CandidateAssinaturasPage from '@/pages/CandidateAssinaturasPage';
 import CompanyAccessRequiredPage from '@/pages/CompanyAccessRequiredPage';
 import UsuariosPage from '@/pages/UsuariosPage';
+import BiometriaPage from '@/pages/BiometriaPage';
 import SignupPage from '@/pages/SignupPage';
 import AdminLayout from '@/layouts/AdminLayout';
 import CandidateLayout from '@/layouts/CandidateLayout';
@@ -156,6 +157,7 @@ export default function Router() {
         <Route element={<AdminRoute />}>
           <Route path="/empresas" element={<EmpresasPage />} />
           <Route path="/usuarios" element={<UsuariosPage />} />
+          <Route path="/biometria" element={<BiometriaPage />} />
         </Route>
       </Route>
       <Route element={<CandidateLayoutRoute />}>

@@ -1,0 +1,18 @@
+meta {
+  name: Vincular usuário à empresa
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/empresas/1/usuarios
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "userId": 1
+  }
+}

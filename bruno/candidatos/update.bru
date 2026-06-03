@@ -1,0 +1,20 @@
+meta {
+  name: Atualizar candidato
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{base_url}}/candidatos/1
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "nome": "João da Silva Atualizado",
+    "email": "joao.novo@exemplo.com",
+    "telefone": "11988887777"
+  }
+}

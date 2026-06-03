@@ -1,0 +1,18 @@
+meta {
+  name: Atualizar status da candidatura
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{base_url}}/candidaturas/1/status
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "status": "EM_ANALISE"
+  }
+}

@@ -1,0 +1,18 @@
+meta {
+  name: Criar candidatura
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/requisicoes/1/candidaturas
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "candidatoId": 1
+  }
+}

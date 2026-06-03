@@ -1,0 +1,18 @@
+meta {
+  name: Verificar OTP de assinatura
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/documentos/assinaturas/1/otp/verify
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "code": "123456"
+  }
+}

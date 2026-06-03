@@ -25,27 +25,33 @@ model User {
   candidato Candidato?
   empresas  EmpresaUsuario[]
 
-  requisicoesCriadas   RequisicaoVaga[] @relation("RequisicaoCriadaPor")
-  requisicoesAprovadas RequisicaoVaga[] @relation("RequisicaoAprovadaPor")
-  documentosRevisados  DocumentoAdmissao[] @relation("DocumentoRevisadoPor")
-  envelopesAssinatura  EnvelopeAssinatura[]
-  certificadosA1Criados EmpresaCertificadoA1[] @relation("CertificadoA1CriadoPor")
+  requisicoesCriadas           RequisicaoVaga[]       @relation("RequisicaoCriadaPor")
+  requisicoesAprovadas         RequisicaoVaga[]       @relation("RequisicaoAprovadaPor")
+  documentosRevisados          DocumentoAdmissao[]    @relation("DocumentoRevisadoPor")
+  envelopesAssinatura          EnvelopeAssinatura[]
+  certificadosA1Criados        EmpresaCertificadoA1[] @relation("CertificadoA1CriadoPor")
+  biometriaSolicitacoesCriadas BiometriaSolicitacao[] @relation("BiometriaSolicitadaPor")
 
   @@map("users")
 }
 
 model Candidato {
-  id             Int           @id @default(autoincrement())
-  userId         Int?          @unique
-  cpf            String        @unique
-  dataNascimento DateTime      @db.Date
-  nome           String?
-  email          String?
-  telefone       String?
-  genero         String?
-  possuiFilhos   Boolean       @default(false) @map("possui_filhos")
-  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-  candidaturas   Candidatura[]
+  id                            Int                    @id @default(autoincrement())
+  userId                        Int?                   @unique
+  cpf                           String                 @unique
+  dataNascimento                DateTime               @db.Date
+  nome                          String?
+  email                         String?
+  telefone                      String?
+  genero                        String?
+  possuiFilhos                  Boolean                @default(false) @map("possui_filhos")
+  biometriaStatus               BiometriaStatus        @default(NAO_CADASTRADA) @map("biometria_status")
+  biometriaCadastradaEm         DateTime?              @map("biometria_cadastrada_em")
+  biometriaIdentificadorExterno String?                @map("biometria_identificador_externo")
+  user                          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  candidaturas                  Candidatura[]
+  biometriaSolicitacoes         BiometriaSolicitacao[]
+  biometriaTemplates            BiometriaTemplate[]
 
   @@map("candidato")
 }
@@ -63,9 +69,9 @@ model CodeOtp {
 }
 
 model Empresa {
-  id                  Int              @id @default(autoincrement())
+  id                  Int                    @id @default(autoincrement())
   nome                String
-  codigoEmpresaSenior String           @unique @map("codigo_empresa_senior")
+  codigoEmpresaSenior String                 @unique @map("codigo_empresa_senior")
   requisicoes         RequisicaoVaga[]
   usuarios            EmpresaUsuario[]
   documentosTemplate  DocumentoTemplate[]
@@ -205,10 +211,11 @@ model Candidatura {
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
 
-  requisicao RequisicaoVaga @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
-  candidato  Candidato      @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
-  documentos DocumentoAdmissao[]
-  envelopesAssinatura EnvelopeAssinatura[]
+  requisicao            RequisicaoVaga         @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
+  candidato             Candidato              @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  documentos            DocumentoAdmissao[]
+  envelopesAssinatura   EnvelopeAssinatura[]
+  biometriaSolicitacoes BiometriaSolicitacao[]
 
   @@unique([requisicaoId, candidatoId])
   @@index([candidatoId])
@@ -235,34 +242,68 @@ enum StatusDocumentoAssinatura {
   CANCELADO
 }
 
+enum MetodoAssinatura {
+  OTP
+  BIOMETRIA
+}
+
 enum TipoEventoAssinatura {
   ENVELOPE_CRIADO
   OTP_ENVIADO
   OTP_VALIDADO
   DOCUMENTO_VISUALIZADO
   DOCUMENTO_ASSINADO
+  DOCUMENTO_ASSINADO_BIOMETRIA
   DOCUMENTO_CERTIFICADO_EMPRESA
   ENVELOPE_CONCLUIDO
 }
 
-model EnvelopeAssinatura {
-  id             Int                       @id @default(autoincrement())
-  candidaturaId  Int                       @map("candidatura_id")
-  userId         Int                       @map("user_id")
-  setor          SetorAssinatura
-  status         StatusEnvelopeAssinatura  @default(RASCUNHO)
-  otpIdentifier  String?                   @map("otp_identifier")
-  otpValidadoEm  DateTime?                 @map("otp_validado_em")
-  sessionToken   String?                   @unique @map("session_token")
-  sessionExpiraEm DateTime?                @map("session_expira_em")
-  concluidoEm    DateTime?                 @map("concluido_em")
-  createdAt      DateTime                  @default(now()) @map("created_at")
-  updatedAt      DateTime                  @updatedAt @map("updated_at")
+enum BiometriaStatus {
+  NAO_CADASTRADA
+  CADASTRADA
+  ERRO
+}
 
-  candidatura Candidatura @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  documentos  DocumentoAssinatura[]
-  eventos     EventoAssinatura[]
+enum TipoBiometriaSolicitacao {
+  CADASTRO
+  VERIFICACAO_ASSINATURA
+}
+
+enum StatusBiometriaSolicitacao {
+  PENDENTE
+  EM_ATENDIMENTO
+  CONCLUIDA
+  REPROVADA
+  FALHOU
+  EXPIRADA
+  CANCELADA
+}
+
+enum ResultadoBiometriaSolicitacao {
+  APROVADO
+  REPROVADO
+  FALHOU
+}
+
+model EnvelopeAssinatura {
+  id              Int                      @id @default(autoincrement())
+  candidaturaId   Int                      @map("candidatura_id")
+  userId          Int                      @map("user_id")
+  setor           SetorAssinatura
+  status          StatusEnvelopeAssinatura @default(RASCUNHO)
+  otpIdentifier   String?                  @map("otp_identifier")
+  otpValidadoEm   DateTime?                @map("otp_validado_em")
+  sessionToken    String?                  @unique @map("session_token")
+  sessionExpiraEm DateTime?                @map("session_expira_em")
+  concluidoEm     DateTime?                @map("concluido_em")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  candidatura           Candidatura            @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentos            DocumentoAssinatura[]
+  eventos               EventoAssinatura[]
+  biometriaSolicitacoes BiometriaSolicitacao[]
 
   @@unique([candidaturaId, setor])
   @@index([userId])
@@ -271,38 +312,105 @@ model EnvelopeAssinatura {
 }
 
 model DocumentoAssinatura {
-  id                  Int                       @id @default(autoincrement())
-  envelopeId          Int                       @map("envelope_id")
-  codigo              String
-  nome                String
-  descricao           String?
-  ordem               Int                       @default(0)
-  conteudo            String
-  hashOriginal        String                    @map("hash_original")
-  hashAssinado        String?                   @map("hash_assinado")
-  status              StatusDocumentoAssinatura @default(PENDENTE)
-  visualizadoEm       DateTime?                 @map("visualizado_em")
-  assinadoEm          DateTime?                 @map("assinado_em")
-  assinaturaNome      String?                   @map("assinatura_nome")
-  assinaturaCpf       String?                   @map("assinatura_cpf")
-  assinaturaIp        String?                   @map("assinatura_ip")
-  assinaturaUserAgent String?                   @map("assinatura_user_agent")
-  codigoVerificacao   String?                   @unique @map("codigo_verificacao")
-  empresaCertificadoId Int?                     @map("empresa_certificado_id")
-  empresaAssinouEm     DateTime?                @map("empresa_assinou_em")
-  empresaCertSubject   String?                  @map("empresa_cert_subject")
-  empresaCertIssuer    String?                  @map("empresa_cert_issuer")
-  empresaCertSerial    String?                  @map("empresa_cert_serial")
-  empresaPdfHash       String?                  @map("empresa_pdf_hash")
-  empresaPdfFinal      Bytes?                   @map("empresa_pdf_final")
-  createdAt           DateTime                  @default(now()) @map("created_at")
-  updatedAt           DateTime                  @updatedAt @map("updated_at")
+  id                     Int                       @id @default(autoincrement())
+  envelopeId             Int                       @map("envelope_id")
+  codigo                 String
+  nome                   String
+  descricao              String?
+  ordem                  Int                       @default(0)
+  conteudo               String
+  hashOriginal           String                    @map("hash_original")
+  hashAssinado           String?                   @map("hash_assinado")
+  status                 StatusDocumentoAssinatura @default(PENDENTE)
+  visualizadoEm          DateTime?                 @map("visualizado_em")
+  assinadoEm             DateTime?                 @map("assinado_em")
+  assinaturaNome         String?                   @map("assinatura_nome")
+  assinaturaCpf          String?                   @map("assinatura_cpf")
+  assinaturaIp           String?                   @map("assinatura_ip")
+  assinaturaUserAgent    String?                   @map("assinatura_user_agent")
+  metodoAssinatura       MetodoAssinatura?         @map("metodo_assinatura")
+  biometriaSolicitacaoId Int?                      @map("biometria_solicitacao_id")
+  codigoVerificacao      String?                   @unique @map("codigo_verificacao")
+  empresaCertificadoId   Int?                      @map("empresa_certificado_id")
+  empresaAssinouEm       DateTime?                 @map("empresa_assinou_em")
+  empresaCertSubject     String?                   @map("empresa_cert_subject")
+  empresaCertIssuer      String?                   @map("empresa_cert_issuer")
+  empresaCertSerial      String?                   @map("empresa_cert_serial")
+  empresaPdfHash         String?                   @map("empresa_pdf_hash")
+  empresaPdfFinal        Bytes?                    @map("empresa_pdf_final")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
 
-  envelope EnvelopeAssinatura @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  envelope             EnvelopeAssinatura    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  biometriaSolicitacao BiometriaSolicitacao? @relation(fields: [biometriaSolicitacaoId], references: [id], onDelete: SetNull)
 
   @@unique([envelopeId, codigo])
   @@index([status])
+  @@index([biometriaSolicitacaoId])
   @@map("documento_assinatura")
+}
+
+model BiometriaDispositivo {
+  id           Int       @id @default(autoincrement())
+  nome         String
+  tokenHash    String    @unique @map("token_hash")
+  ativo        Boolean   @default(true)
+  ultimoPingEm DateTime? @map("ultimo_ping_em")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  solicitacoes BiometriaSolicitacao[]
+
+  @@map("biometria_dispositivo")
+}
+
+model BiometriaTemplate {
+  id          Int       @id @default(autoincrement())
+  candidatoId Int       @map("candidato_id")
+  template    Bytes     @db.ByteA
+  criadoEm   DateTime  @default(now()) @map("criado_em")
+
+  candidato   Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@index([candidatoId])
+  @@map("biometria_template")
+}
+
+model BiometriaSolicitacao {
+  id                   Int                            @id @default(autoincrement())
+  tipo                 TipoBiometriaSolicitacao
+  status               StatusBiometriaSolicitacao     @default(PENDENTE)
+  candidatoId          Int                            @map("candidato_id")
+  candidaturaId        Int?                           @map("candidatura_id")
+  envelopeId           Int?                           @map("envelope_id")
+  solicitadaPorId      Int                            @map("solicitada_por_id")
+  dispositivoId        Int?                           @map("dispositivo_id")
+  expiraEm             DateTime                       @map("expira_em")
+  assumidaEm           DateTime?                      @map("assumida_em")
+  concluidaEm          DateTime?                      @map("concluida_em")
+  resultado            ResultadoBiometriaSolicitacao?
+  cpfRetornado         String?                        @map("cpf_retornado")
+  score                Int?
+  identificadorExterno String?                        @map("identificador_externo")
+  mensagem             String?
+  ipResultado          String?                        @map("ip_resultado")
+  userAgentResultado   String?                        @map("user_agent_resultado")
+  payloadHash          String?                        @map("payload_hash")
+  createdAt            DateTime                       @default(now()) @map("created_at")
+  updatedAt            DateTime                       @updatedAt @map("updated_at")
+
+  candidato           Candidato             @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  candidatura         Candidatura?          @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+  envelope            EnvelopeAssinatura?   @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  solicitadaPor       User                  @relation("BiometriaSolicitadaPor", fields: [solicitadaPorId], references: [id], onDelete: Restrict)
+  dispositivo         BiometriaDispositivo? @relation(fields: [dispositivoId], references: [id], onDelete: SetNull)
+  documentosAssinados DocumentoAssinatura[]
+
+  @@index([status, expiraEm])
+  @@index([candidatoId])
+  @@index([envelopeId])
+  @@index([dispositivoId])
+  @@map("biometria_solicitacao")
 }
 
 model EventoAssinatura {
@@ -361,9 +469,9 @@ model DocumentoTemplate {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
-  empresa       Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  documentos    DocumentoAdmissao[]
-  substitui     DocumentoTemplateSubstituicao[] @relation("TemplateSubstitui")
+  empresa        Empresa                         @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  documentos     DocumentoAdmissao[]
+  substitui      DocumentoTemplateSubstituicao[] @relation("TemplateSubstitui")
   substituidoPor DocumentoTemplateSubstituicao[] @relation("TemplateSubstituidoPor")
 
   @@unique([empresaId, codigo])
@@ -388,22 +496,22 @@ model DocumentoTemplateSubstituicao {
 }
 
 model DocumentoAdmissao {
-  id            Int                      @id @default(autoincrement())
-  candidaturaId Int                      @map("candidatura_id")
-  templateId    Int?                     @map("template_id")
-  codigo        String
-  nome          String
-  descricao     String?
-  obrigatorio   Boolean                  @default(true)
-  status        StatusDocumentoAdmissao  @default(PENDENTE)
-  origem        OrigemDocumentoAdmissao?
-  arquivoNome   String?                  @map("arquivo_nome")
-  mimeType      String?                  @map("mime_type")
-  tamanhoBytes  Int?                     @map("tamanho_bytes")
-  storagePath   String?                  @map("storage_path")
-  enviadoEm     DateTime?                @map("enviado_em")
-  revisadoEm    DateTime?                @map("revisado_em")
-  revisadoPorId Int?                     @map("revisado_por_id")
+  id                  Int                      @id @default(autoincrement())
+  candidaturaId       Int                      @map("candidatura_id")
+  templateId          Int?                     @map("template_id")
+  codigo              String
+  nome                String
+  descricao           String?
+  obrigatorio         Boolean                  @default(true)
+  status              StatusDocumentoAdmissao  @default(PENDENTE)
+  origem              OrigemDocumentoAdmissao?
+  arquivoNome         String?                  @map("arquivo_nome")
+  mimeType            String?                  @map("mime_type")
+  tamanhoBytes        Int?                     @map("tamanho_bytes")
+  storagePath         String?                  @map("storage_path")
+  enviadoEm           DateTime?                @map("enviado_em")
+  revisadoEm          DateTime?                @map("revisado_em")
+  revisadoPorId       Int?                     @map("revisado_por_id")
   observacaoRh        String?                  @map("observacao_rh")
   observacaoCandidato String?                  @map("observacao_candidato")
   ocrTexto            String?                  @map("ocr_texto")
@@ -411,16 +519,16 @@ model DocumentoAdmissao {
   ocrScore            Int?                     @map("ocr_score")
   ocrMotivos          String[]                 @default([]) @map("ocr_motivos")
   ocrCampos           Json?                    @map("ocr_campos")
-  ocrValidadoEm DateTime?                @map("ocr_validado_em")
-  dispensadoPorId Int?                   @map("dispensado_por_id")
-  createdAt     DateTime                 @default(now()) @map("created_at")
-  updatedAt     DateTime                 @updatedAt @map("updated_at")
+  ocrValidadoEm       DateTime?                @map("ocr_validado_em")
+  dispensadoPorId     Int?                     @map("dispensado_por_id")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
 
-  candidatura  Candidatura        @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
-  template     DocumentoTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  revisadoPor  User?              @relation("DocumentoRevisadoPor", fields: [revisadoPorId], references: [id], onDelete: SetNull)
-  dispensadoPor DocumentoAdmissao? @relation("DispensaPor", fields: [dispensadoPorId], references: [id], onDelete: SetNull)
-  dispensados  DocumentoAdmissao[] @relation("DispensaPor")
+  candidatura   Candidatura         @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+  template      DocumentoTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  revisadoPor   User?               @relation("DocumentoRevisadoPor", fields: [revisadoPorId], references: [id], onDelete: SetNull)
+  dispensadoPor DocumentoAdmissao?  @relation("DispensaPor", fields: [dispensadoPorId], references: [id], onDelete: SetNull)
+  dispensados   DocumentoAdmissao[] @relation("DispensaPor")
 
   @@unique([candidaturaId, codigo])
   @@index([status])

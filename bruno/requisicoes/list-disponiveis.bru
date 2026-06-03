@@ -1,0 +1,18 @@
+meta {
+  name: Listar requisições disponíveis
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/requisicoes/disponiveis
+  body: none
+  auth: none
+}
+
+
+params:query {
+  ~candidatoId: 1
+  ~q: analista
+  ~limit: 20
+}

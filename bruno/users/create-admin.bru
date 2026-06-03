@@ -1,0 +1,22 @@
+meta {
+  name: Criar usuário admin
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/users/admin
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "nome": "Admin Empresa",
+    "cpf": "98765432100",
+    "email": "admin@empresa.com",
+    "telefone": "11988888888",
+    "role": "ADMIN",
+    "empresaId": 1
+  }
+}

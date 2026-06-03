@@ -1,0 +1,18 @@
+meta {
+  name: Assinar documento
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{base_url}}/documentos/assinaturas/documentos/1/assinar
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "sessionToken": "TOKEN_DE_SESSAO_AQUI"
+  }
+}

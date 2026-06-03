@@ -1,0 +1,24 @@
+meta {
+  name: Criar candidato
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/candidatos
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "cpf": "12345678901",
+    "dataNascimento": "1990-05-15",
+    "nome": "João Silva",
+    "email": "joao@exemplo.com",
+    "telefone": "11999999999",
+    "genero": "M",
+    "possuiFilhos": false
+  }
+}

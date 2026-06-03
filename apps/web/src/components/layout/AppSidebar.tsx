@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   FileSignature,
   FileText,
+  Fingerprint,
   KeyRound,
   LayoutDashboard,
   UserRound,
@@ -68,6 +69,10 @@ export default function AppSidebar() {
           </NavLink>
           {isAdmin && (
             <>
+              <NavLink to="/biometria" className={linkClass}>
+                <Fingerprint className="h-4 w-4" />
+                Biometria
+              </NavLink>
               <NavLink to="/empresas" className={linkClass}>
                 <Building2 className="h-4 w-4" />
                 Empresas

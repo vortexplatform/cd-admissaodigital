@@ -1,0 +1,24 @@
+meta {
+  name: Upload documento do candidato
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{base_url}}/documentos/candidato/1/upload
+  body: multipartForm
+  auth: none
+}
+
+
+params:query {
+  ~candidaturaId: 1
+  ~templateId: 1
+  ~codigo: RG
+  ~confirmarEnvio: true
+  ~observacaoCandidato: Documento atualizado
+}
+
+body:multipart-form {
+  file: @file(/caminho/para/documento.pdf)
+}

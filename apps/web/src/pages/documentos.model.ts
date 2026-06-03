@@ -49,6 +49,9 @@ export interface DocumentosCandidatura {
     cpf: string;
     email: string | null;
     telefone: string | null;
+    biometriaStatus?: 'NAO_CADASTRADA' | 'CADASTRADA' | 'ERRO';
+    biometriaCadastradaEm?: string | null;
+    biometriaIdentificadorExterno?: string | null;
   };
   requisicao: {
     id: number;
@@ -81,6 +84,7 @@ export interface DocumentoAssinatura {
   hashAssinado: string | null;
   visualizadoEm: string | null;
   assinadoEm: string | null;
+  metodoAssinatura: 'OTP' | 'BIOMETRIA' | null;
   codigoVerificacao: string | null;
 }
 

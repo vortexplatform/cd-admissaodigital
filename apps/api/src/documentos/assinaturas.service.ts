@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   Prisma,
+  MetodoAssinatura,
   Role,
   SetorAssinatura,
   StatusDocumentoAdmissao,
@@ -221,6 +222,7 @@ export class AssinaturasService {
         assinaturaCpf: candidato.cpf,
         assinaturaIp: evidence.ip,
         assinaturaUserAgent: evidence.userAgent,
+        metodoAssinatura: MetodoAssinatura.OTP,
         codigoVerificacao,
         hashAssinado,
       },
@@ -235,6 +237,82 @@ export class AssinaturasService {
     await this.concludeEnvelopeIfComplete(documento.envelopeId);
 
     return signed;
+  }
+
+  async signEnvelopeByBiometria(envelopeId: number, biometriaSolicitacaoId: number, evidence: RequestEvidence) {
+    const envelope = await this.prisma.envelopeAssinatura.findUnique({
+      where: { id: envelopeId },
+      include: {
+        candidatura: { include: { candidato: true, requisicao: { include: { empresa: true } } } },
+        user: true,
+        documentos: { orderBy: { ordem: 'asc' } },
+      },
+    });
+    if (!envelope) throw new NotFoundException('Envelope não encontrado.');
+
+    const solicitacao = await this.prisma.biometriaSolicitacao.findUnique({
+      where: { id: biometriaSolicitacaoId },
+      include: { dispositivo: true, solicitadaPor: true },
+    });
+    if (!solicitacao || solicitacao.envelopeId !== envelope.id) {
+      throw new BadRequestException('Solicitação biométrica inválida para o envelope.');
+    }
+
+    const candidato = envelope.candidatura.candidato;
+    const signedAt = solicitacao.concluidaEm ?? new Date();
+    const pendingDocuments = envelope.documentos.filter(
+      (documento) => documento.status !== StatusDocumentoAssinatura.ASSINADO,
+    );
+
+    for (const documento of pendingDocuments) {
+      const codigoVerificacao = this.generateVerificationCode();
+      const assinaturaUserAgent = solicitacao.dispositivo
+        ? `Biometria: ${solicitacao.dispositivo.nome}`
+        : evidence.userAgent;
+      const pdfCandidato = await this.renderDocumentoPdf({
+        ...documento,
+        status: StatusDocumentoAssinatura.ASSINADO,
+        assinadoEm: signedAt,
+        assinaturaNome: candidato.nome ?? envelope.user.nome,
+        assinaturaCpf: candidato.cpf,
+        assinaturaIp: evidence.ip ?? null,
+        assinaturaUserAgent: assinaturaUserAgent ?? null,
+        metodoAssinatura: MetodoAssinatura.BIOMETRIA,
+        codigoVerificacao,
+        hashAssinado: null,
+      });
+      const hashAssinado = this.hashBuffer(pdfCandidato);
+
+      await this.prisma.documentoAssinatura.update({
+        where: { id: documento.id },
+        data: {
+          status: StatusDocumentoAssinatura.ASSINADO,
+          assinadoEm: signedAt,
+          assinaturaNome: candidato.nome ?? envelope.user.nome,
+          assinaturaCpf: candidato.cpf,
+          assinaturaIp: evidence.ip,
+          assinaturaUserAgent,
+          metodoAssinatura: MetodoAssinatura.BIOMETRIA,
+          biometriaSolicitacaoId,
+          codigoVerificacao,
+          hashAssinado,
+        },
+      });
+      await this.recordEvent(envelope.id, TipoEventoAssinatura.DOCUMENTO_ASSINADO_BIOMETRIA, evidence, {
+        documentoId: documento.id,
+        biometriaSolicitacaoId,
+        dispositivoId: solicitacao.dispositivoId,
+        dispositivoNome: solicitacao.dispositivo?.nome,
+        solicitadoPorId: solicitacao.solicitadaPorId,
+        solicitadoPorNome: solicitacao.solicitadaPor.nome,
+        hashOriginal: documento.hashOriginal,
+        hashAssinado,
+        codigoVerificacao,
+      });
+    }
+
+    await this.certifyEnvelopeDocuments(envelope.id);
+    await this.concludeEnvelopeIfComplete(envelope.id);
   }
 
   private async ensureEnvelopes(candidaturaId: number, userId: number) {
@@ -373,6 +451,7 @@ export class AssinaturasService {
     assinaturaCpf: string | null;
     assinaturaIp: string | null;
     assinaturaUserAgent: string | null;
+    metodoAssinatura?: MetodoAssinatura | null;
     codigoVerificacao: string | null;
   }) {
     const pdf = await PDFDocument.create();
@@ -478,6 +557,7 @@ export class AssinaturasService {
       assinaturaCpf: string | null;
       assinaturaIp: string | null;
       assinaturaUserAgent: string | null;
+      metodoAssinatura?: MetodoAssinatura | null;
       codigoVerificacao: string | null;
     },
   ) {
@@ -487,6 +567,7 @@ export class AssinaturasService {
     cursorY -= 34;
 
     const rows = [
+      ['Método', documento.metodoAssinatura === MetodoAssinatura.BIOMETRIA ? 'Assinatura biométrica assistida' : 'Assinatura eletrônica por OTP'],
       ['Assinado por', documento.assinaturaNome ?? 'Não informado'],
       ['CPF', documento.assinaturaCpf ?? 'Não informado'],
       ['Data/hora', documento.assinadoEm?.toISOString() ?? 'Não informado'],
@@ -562,6 +643,23 @@ export class AssinaturasService {
         where: { id: envelope.candidatura.requisicaoId },
         data: { status: StatusRequisicaoVaga.AGUARDANDO_RH },
       });
+    }
+  }
+
+  private async certifyEnvelopeDocuments(envelopeId: number) {
+    const envelope = await this.prisma.envelopeAssinatura.findUnique({
+      where: { id: envelopeId },
+      include: { candidatura: { include: { requisicao: true } }, documentos: { orderBy: { ordem: 'asc' } } },
+    });
+    if (!envelope) return;
+    if (!envelope.candidatura.requisicao.empresaId) {
+      throw new BadRequestException('Candidatura sem empresa para assinatura digital dos PDFs.');
+    }
+
+    const certificado = await this.certificados.getActiveCertificateForEmpresa(envelope.candidatura.requisicao.empresaId);
+    for (const documento of envelope.documentos) {
+      if (documento.status !== StatusDocumentoAssinatura.ASSINADO || documento.empresaPdfFinal) continue;
+      await this.certifyDocument(documento, certificado);
     }
   }
 

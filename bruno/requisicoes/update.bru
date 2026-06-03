@@ -1,0 +1,19 @@
+meta {
+  name: Atualizar requisição
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{base_url}}/requisicoes/1
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "status": "ABERTA",
+    "observacao": "Atualização da requisição"
+  }
+}

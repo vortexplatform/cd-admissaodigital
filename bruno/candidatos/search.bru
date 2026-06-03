@@ -1,0 +1,17 @@
+meta {
+  name: Buscar candidatos por nome
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/candidatos/search
+  body: none
+  auth: none
+}
+
+
+params:query {
+  ~nome: João
+  ~limit: 10
+}

@@ -1,0 +1,20 @@
+meta {
+  name: Atualizar template de documento
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{base_url}}/empresas/1/documentos-template/1
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "nome": "RG - Identidade (atualizado)",
+    "obrigatorio": true,
+    "ordem": 1
+  }
+}

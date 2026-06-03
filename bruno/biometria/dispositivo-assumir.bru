@@ -1,0 +1,15 @@
+meta {
+  name: Assumir solicitação no dispositivo
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/biometria/dispositivo/solicitacoes/1/assumir
+  body: none
+  auth: none
+}
+
+headers {
+  x-device-token: SEU_DEVICE_TOKEN_AQUI
+}

@@ -147,7 +147,7 @@ export class DocumentosService {
     await this.ensureRh(userId);
     await this.findDocumento(documentoId);
 
-    return this.saveUpload(documentoId, file, OrigemDocumentoAdmissao.RH);
+    return this.saveUpload(documentoId, file, OrigemDocumentoAdmissao.RH, false, undefined, true);
   }
 
   async revisarDocumento(userId: number, documentoId: number, dto: RevisarDocumentoDto) {
@@ -322,6 +322,7 @@ export class DocumentosService {
     origem: OrigemDocumentoAdmissao,
     confirmarEnvio = false,
     observacaoCandidato?: string,
+    skipOcrValidation = false,
   ) {
     const documento = await this.findDocumento(documentoId);
     this.validateFile(file, documento.template?.mimeTypesPermitidos ?? []);
@@ -331,7 +332,9 @@ export class DocumentosService {
     const { text: ocrTexto, campos } = ocrResult;
     const validacao = this.validation.validate(documento, ocrResult);
 
-    this.validateOcrResult(validacao, confirmarEnvio, observacaoCandidato);
+    if (!skipOcrValidation) {
+      this.validateOcrResult(validacao, confirmarEnvio, observacaoCandidato);
+    }
 
     const cpf = documento.candidatura.candidato.cpf ?? null;
     const storagePath = this.s3.buildKey(cpf, documentoId, file.originalname);

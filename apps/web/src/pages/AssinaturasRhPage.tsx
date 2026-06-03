@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2,
   Download,
   Eye,
   FileSignature,
+  Fingerprint,
   Loader2,
   PenLine,
   ShieldCheck,
@@ -51,7 +52,10 @@ export default function AssinaturasRhPage() {
   const [assinaturas, setAssinaturas] = useState<AssinaturasCandidatura[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [gerandoId, setGerandoId] = useState<number | null>(null);
+  const [cadastrandoBiometriaId, setCadastrandoBiometriaId] = useState<number | null>(null);
+  const [solicitandoBiometriaEnvelopeId, setSolicitandoBiometriaEnvelopeId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const loadData = useCallback(async () => {
     const [{ data: documentosData }, { data: assinaturasData }] = await Promise.all([
@@ -96,8 +100,49 @@ export default function AssinaturasRhPage() {
     return stats.total > 0 && stats.pending === 0;
   }).length;
 
+  // Conta envelopes concluídos individualmente (não candidaturas inteiras)
+  const envelopesConcluidos = useMemo(
+    () =>
+      rows.reduce((count, row) => {
+        if (!row.assinatura) return count;
+        return count + row.assinatura.envelopesAssinatura.filter((e) => e.status === 'CONCLUIDO').length;
+      }, 0),
+    [rows],
+  );
+
+  // Polling ativo quando: há solicitação pendente aguardando o dispositivo
+  // OU há envelopes com documentos pendentes e biometria cadastrada
+  const devePolling = useMemo(
+    () =>
+      message.includes('Aguarde') ||
+      rows.some(
+        (row) =>
+          row.assinatura &&
+          row.candidatura.candidato.biometriaStatus === 'CADASTRADA' &&
+          getEnvelopeStats(row.assinatura.envelopesAssinatura).pending > 0,
+      ),
+    [message, rows],
+  );
+
+  const prevEnvelopesConcluidosRef = useRef(envelopesConcluidos);
+  useEffect(() => {
+    if (!isLoading && prevEnvelopesConcluidosRef.current < envelopesConcluidos) {
+      setMessage('Assinatura biométrica concluída com sucesso.');
+    }
+    prevEnvelopesConcluidosRef.current = envelopesConcluidos;
+  }, [envelopesConcluidos, isLoading]);
+
+  useEffect(() => {
+    if (!devePolling) return;
+    const interval = setInterval(() => {
+      loadData().catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [devePolling, loadData]);
+
   const gerarAssinaturas = async (candidaturaId: number) => {
     setError('');
+    setMessage('');
     setGerandoId(candidaturaId);
     try {
       await api.post(`/documentos/assinaturas/rh/candidaturas/${candidaturaId}/gerar`);
@@ -107,6 +152,38 @@ export default function AssinaturasRhPage() {
       setError(typeof msg === 'string' ? msg : 'Não foi possível gerar documentos para assinatura.');
     } finally {
       setGerandoId(null);
+    }
+  };
+
+  const solicitarCadastroBiometria = async (candidatoId: number) => {
+    setError('');
+    setMessage('');
+    setCadastrandoBiometriaId(candidatoId);
+    try {
+      await api.post(`/biometria/candidatos/${candidatoId}/cadastro`);
+      setMessage('Solicitação de cadastro biométrico criada. Aguarde o software local realizar a coleta.');
+      await loadData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(typeof msg === 'string' ? msg : 'Não foi possível solicitar o cadastro biométrico.');
+    } finally {
+      setCadastrandoBiometriaId(null);
+    }
+  };
+
+  const solicitarAssinaturaBiometrica = async (envelopeId: number) => {
+    setError('');
+    setMessage('');
+    setSolicitandoBiometriaEnvelopeId(envelopeId);
+    try {
+      await api.post(`/biometria/envelopes/${envelopeId}/assinatura`);
+      setMessage('Solicitação de assinatura biométrica criada. Aguarde o software local concluir a verificação.');
+      await loadData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(typeof msg === 'string' ? msg : 'Não foi possível solicitar a assinatura biométrica.');
+    } finally {
+      setSolicitandoBiometriaEnvelopeId(null);
     }
   };
 
@@ -129,6 +206,7 @@ export default function AssinaturasRhPage() {
       />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      {message && <p className="mb-4 rounded-xl border bg-card px-4 py-3 text-sm text-primary">{message}</p>}
 
       {isLoading ? (
         <Card>
@@ -153,7 +231,11 @@ export default function AssinaturasRhPage() {
               candidatura={row.candidatura}
               assinatura={row.assinatura}
               isGerando={gerandoId === row.candidatura.id}
+              isCadastrandoBiometria={cadastrandoBiometriaId === row.candidatura.candidato.id}
+              solicitandoBiometriaEnvelopeId={solicitandoBiometriaEnvelopeId}
               onGerar={() => gerarAssinaturas(row.candidatura.id)}
+              onCadastrarBiometria={() => solicitarCadastroBiometria(row.candidatura.candidato.id)}
+              onSolicitarBiometria={solicitarAssinaturaBiometrica}
             />
           ))}
         </section>
@@ -166,15 +248,24 @@ function AssinaturaCandidaturaCard({
   candidatura,
   assinatura,
   isGerando,
+  isCadastrandoBiometria,
+  solicitandoBiometriaEnvelopeId,
   onGerar,
+  onCadastrarBiometria,
+  onSolicitarBiometria,
 }: {
   candidatura: DocumentosCandidatura;
   assinatura: AssinaturasCandidatura | null;
   isGerando: boolean;
+  isCadastrandoBiometria: boolean;
+  solicitandoBiometriaEnvelopeId: number | null;
   onGerar: () => void;
+  onCadastrarBiometria: () => void;
+  onSolicitarBiometria: (envelopeId: number) => void;
 }) {
   const envelopes = assinatura?.envelopesAssinatura ?? [];
   const stats = getEnvelopeStats(envelopes);
+  const biometriaCadastrada = candidatura.candidato.biometriaStatus === 'CADASTRADA';
 
   return (
     <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -195,27 +286,59 @@ function AssinaturaCandidaturaCard({
                 Pronto para gerar
               </span>
             )}
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${
+                biometriaCadastrada
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                  : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+              }`}
+            >
+              <Fingerprint className="h-3.5 w-3.5" />
+              {biometriaCadastrada ? 'Biometria cadastrada' : 'Sem biometria'}
+            </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{formatCandidaturaTitle(candidatura)}</p>
         </div>
 
         {assinatura ? (
-          <div className="rounded-xl border bg-background px-4 py-3 text-sm">
-            <span className="font-semibold">{stats.signed}/{stats.total}</span>{' '}
-            <span className="text-muted-foreground">documentos assinados</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {!biometriaCadastrada && (
+              <Button type="button" variant="outline" disabled={isCadastrandoBiometria} onClick={onCadastrarBiometria}>
+                {isCadastrandoBiometria ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
+                Cadastrar biometria
+              </Button>
+            )}
+            <div className="rounded-xl border bg-background px-4 py-3 text-sm">
+              <span className="font-semibold">{stats.signed}/{stats.total}</span>{' '}
+              <span className="text-muted-foreground">documentos assinados</span>
+            </div>
           </div>
         ) : (
-          <Button type="button" disabled={isGerando} onClick={onGerar}>
-            {isGerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSignature className="h-4 w-4" />}
-            Gerar documentos
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {!biometriaCadastrada && (
+              <Button type="button" variant="outline" disabled={isCadastrandoBiometria} onClick={onCadastrarBiometria}>
+                {isCadastrandoBiometria ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
+                Cadastrar biometria
+              </Button>
+            )}
+            <Button type="button" disabled={isGerando} onClick={onGerar}>
+              {isGerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSignature className="h-4 w-4" />}
+              Gerar documentos
+            </Button>
+          </div>
         )}
       </div>
 
       {assinatura && (
         <div className="grid gap-4 p-5 xl:grid-cols-2">
           {envelopes.map((envelope) => (
-            <EnvelopeCard key={envelope.id} envelope={envelope} />
+            <EnvelopeCard
+              key={envelope.id}
+              envelope={envelope}
+              biometriaCadastrada={biometriaCadastrada}
+              isSolicitandoBiometria={solicitandoBiometriaEnvelopeId === envelope.id}
+              onSolicitarBiometria={() => onSolicitarBiometria(envelope.id)}
+            />
           ))}
         </div>
       )}
@@ -223,8 +346,19 @@ function AssinaturaCandidaturaCard({
   );
 }
 
-function EnvelopeCard({ envelope }: { envelope: EnvelopeAssinatura }) {
+function EnvelopeCard({
+  envelope,
+  biometriaCadastrada,
+  isSolicitandoBiometria,
+  onSolicitarBiometria,
+}: {
+  envelope: EnvelopeAssinatura;
+  biometriaCadastrada: boolean;
+  isSolicitandoBiometria: boolean;
+  onSolicitarBiometria: () => void;
+}) {
   const signed = envelope.documentos.filter((documento) => documento.status === 'ASSINADO').length;
+  const pending = envelope.documentos.length - signed;
 
   return (
     <div className="rounded-xl border bg-background p-4">
@@ -235,10 +369,20 @@ function EnvelopeCard({ envelope }: { envelope: EnvelopeAssinatura }) {
             {signed}/{envelope.documentos.length} assinados
           </p>
         </div>
-        {envelope.status === 'CONCLUIDO' && (
+        {envelope.status === 'CONCLUIDO' ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
             <ShieldCheck className="h-3 w-3" /> Concluído
           </span>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            disabled={!biometriaCadastrada || pending === 0 || isSolicitandoBiometria}
+            onClick={onSolicitarBiometria}
+          >
+            {isSolicitandoBiometria ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
+            Solicitar biometria
+          </Button>
         )}
       </div>
 
@@ -253,6 +397,11 @@ function EnvelopeCard({ envelope }: { envelope: EnvelopeAssinatura }) {
                 </p>
                 {documento.codigoVerificacao && (
                   <p className="text-xs text-muted-foreground">Verificação: {documento.codigoVerificacao}</p>
+                )}
+                {documento.metodoAssinatura && (
+                  <p className="text-xs text-muted-foreground">
+                    Método: {documento.metodoAssinatura === 'BIOMETRIA' ? 'Biometria' : 'OTP'}
+                  </p>
                 )}
               </div>
               <span

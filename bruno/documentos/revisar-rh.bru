@@ -1,0 +1,19 @@
+meta {
+  name: Revisar documento (RH)
+  type: http
+  seq: 14
+}
+
+patch {
+  url: {{base_url}}/documentos/rh/1/revisao
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "status": "APROVADO",
+    "observacaoRh": "Documento em conformidade"
+  }
+}

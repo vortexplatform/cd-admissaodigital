@@ -1,0 +1,18 @@
+meta {
+  name: Listar candidatos
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/candidatos
+  body: none
+  auth: none
+}
+
+
+params:query {
+  ~nome: João
+  ~page: 1
+  ~limit: 20
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Criar template de documento
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/empresas/1/documentos-template
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "nome": "RG - Identidade",
+    "descricao": "Documento de identidade (RG ou CNH)",
+    "palavrasChave": ["rg", "identidade", "cnh"],
+    "mimeTypesPermitidos": ["application/pdf", "image/jpeg", "image/png"],
+    "condicaoGenero": null,
+    "condicaoPossuiFilhos": null,
+    "obrigatorio": true,
+    "ordem": 1
+  }
+}

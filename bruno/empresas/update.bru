@@ -1,0 +1,19 @@
+meta {
+  name: Atualizar empresa
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{base_url}}/empresas/1
+  body: json
+  auth: none
+}
+
+
+body:json {
+  {
+    "nome": "Empresa Atualizada LTDA",
+    "codigoEmpresaSenior": "EMP001"
+  }
+}
