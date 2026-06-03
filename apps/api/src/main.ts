@@ -7,10 +7,10 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   const isDev = process.env.NODE_ENV !== 'production';
   app.enableCors({
-    origin: isDev ? true : (process.env.FRONTEND_URL ?? 'http://localhost:3000'),
+    origin: isDev ? true : (process.env.FRONTEND_URL ?? 'http://localhost:5010'),
     credentials: true,
   });
-  const port = process.env.PORT ?? 3001;
+  const port = process.env.PORT ?? 5011;
   await app.listen(port, '0.0.0.0');
 }
 

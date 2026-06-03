@@ -136,4 +136,4 @@ export const getDocumentoAssinaturaUrl = (id: number) =>
 export const getDocumentoAssinaturaRhUrl = (id: number) =>
   `${apiBaseUrl()}/documentos/assinaturas/rh/documentos/${id}/view`;
 
-const apiBaseUrl = () => import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+const apiBaseUrl = () => import.meta.env.VITE_API_URL ?? 'http://localhost:5011';

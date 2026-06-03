@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Turborepo + pnpm workspaces com dois apps e dois packages compartilhados:
 
-- `apps/api` — NestJS (porta 3001)
-- `apps/web` — Vite + React (porta 3000)
+- `apps/api` — NestJS (porta 5011)
+- `apps/web` — Vite + React (porta 5010)
 - `packages/eslint-config` — configs ESLint compartilhadas
 - `packages/typescript-config` — configs TypeScript compartilhadas
 
