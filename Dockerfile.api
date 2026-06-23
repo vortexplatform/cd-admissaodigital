@@ -46,8 +46,8 @@ RUN pnpm --filter api build
 
 # Cria diretório de deploy standalone com apenas prod deps
 RUN pnpm deploy --filter api --prod /deploy
-COPY apps/api/dist /deploy/dist
-COPY apps/api/prisma /deploy/prisma
+RUN cp -r apps/api/dist /deploy/dist
+RUN cp -r apps/api/prisma /deploy/prisma
 
 # ── production: imagem mínima ──────────────────────────────────────────────────
 FROM node:22-alpine AS production
