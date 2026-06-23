@@ -39,6 +39,7 @@ const statusLabels: Record<string, string> = {
   EM_ANALISE: 'Em análise',
   ENTREVISTA: 'Entrevista',
   APROVADO: 'Aprovado',
+  EFETIVADO: 'Efetivado',
   REPROVADO: 'Reprovado',
   DESISTIU: 'Desistiu',
   CANCELADO: 'Cancelado',
@@ -49,6 +50,7 @@ const tabs = [
   { key: 'aguardando', label: 'Aguardando' },
   { key: 'em-analise', label: 'Em análise' },
   { key: 'aprovados', label: 'Aprovados' },
+  { key: 'efetivados', label: 'Efetivados' },
   { key: 'recusados', label: 'Recusados' },
 ] as const;
 
@@ -181,6 +183,7 @@ const getCurrentCandidatura = (candidato: Candidato) => candidato.candidaturas[0
 const getTabForStatus = (status?: string): TabKey => {
   if (!status || status === 'INSCRITO') return 'aguardando';
   if (status === 'APROVADO') return 'aprovados';
+  if (status === 'EFETIVADO') return 'efetivados';
   if (status === 'REPROVADO' || status === 'CANCELADO' || status === 'DESISTIU') return 'recusados';
   return 'em-analise';
 };
@@ -286,6 +289,9 @@ export default function CandidatosPage() {
       ).length,
       aprovados: candidatos.filter(
         (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'aprovados',
+      ).length,
+      efetivados: candidatos.filter(
+        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'efetivados',
       ).length,
       recusados: candidatos.filter(
         (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'recusados',

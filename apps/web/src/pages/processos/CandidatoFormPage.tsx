@@ -72,6 +72,7 @@ const statusCandidaturaList = [
   'EM_ANALISE',
   'ENTREVISTA',
   'APROVADO',
+  'EFETIVADO',
   'REPROVADO',
   'DESISTIU',
   'CANCELADO',
