@@ -1,0 +1,23 @@
+meta {
+  name: Integration Token
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/auth/integrations/token
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "clientId": "{{integration_client_id}}",
+    "clientSecret": "{{integration_client_secret}}"
+  }
+}
+
+script:post-response {
+  const data = res.getBody();
+  bru.setEnvVar('integration_access_token', data.accessToken);
+}

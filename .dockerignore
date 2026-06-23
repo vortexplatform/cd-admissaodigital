@@ -1,0 +1,44 @@
+# Dependências
+node_modules
+**/node_modules
+
+# Builds
+dist
+**/dist
+.next
+**/.next
+
+# Cache e temporários
+.turbo
+**/.turbo
+.cache
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Ambiente (não incluir segredos no contexto de build)
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Cobertura de testes
+coverage
+**/coverage
+
+# Outros
+bruno
+README.md
+AGENTS.md
+CLAUDE.md

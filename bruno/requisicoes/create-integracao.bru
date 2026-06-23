@@ -1,0 +1,32 @@
+meta {
+  name: Criar requisição via integração
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{base_url}}/requisicoes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{integration_access_token}}
+}
+
+body:json {
+  {
+    "tipo": "NOVA_VAGA",
+    "empresaId": 1,
+    "quantidadeVagas": 1,
+    "filial": 1,
+    "filialNome": "Filial Centro",
+    "cargo": "123",
+    "cargoNome": "Operador de Caixa",
+    "centroCusto": "001",
+    "ccustoNome": "Loja Centro",
+    "dataPrevistaAdmissao": "2026-06-20",
+    "motivoAbertura": "Aumento de quadro",
+    "observacao": "Criada via integração"
+  }
+}

@@ -4,10 +4,10 @@ import {
   Eye,
   FileSignature,
   FileText,
-  ListChecks,
   Plus,
   Trash2,
   UserRound,
+  UserRoundMinus,
   UserRoundPlus,
   X,
 } from 'lucide-react';
@@ -52,18 +52,7 @@ const tabs = [
   { key: 'recusados', label: 'Recusados' },
 ] as const;
 
-const statusCandidaturaList = [
-  'INSCRITO',
-  'EM_ANALISE',
-  'ENTREVISTA',
-  'APROVADO',
-  'REPROVADO',
-  'DESISTIU',
-  'CANCELADO',
-] as const;
-
 type TabKey = (typeof tabs)[number]['key'];
-type StatusCandidatura = (typeof statusCandidaturaList)[number];
 
 interface Empresa {
   id: number;
@@ -73,6 +62,8 @@ interface Empresa {
 interface RequisicaoResumo {
   id: number;
   empresa: Empresa | null;
+  postoTrabalho: string | null;
+  postoTrabalhoNome: string | null;
   dataPrevistaAdmissao: string | null;
   createdAt: string;
 }
@@ -227,8 +218,6 @@ export default function CandidatosPage() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1, limit: pageSize });
-  const [statusModalCandidato, setStatusModalCandidato] = useState<Candidato | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<StatusCandidatura>('INSCRITO');
   const [linkModalCandidato, setLinkModalCandidato] = useState<Candidato | null>(null);
   const [selectedRequisicao, setSelectedRequisicao] = useState<RequisicaoOption | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -329,6 +318,23 @@ export default function CandidatosPage() {
     }
   };
 
+  const desvincularCandidato = async (candidato: Candidato) => {
+    const candidatura = getCurrentCandidatura(candidato);
+    if (!candidatura) return;
+
+    const title = candidato.nome ?? formatCpf(candidato.cpf);
+    const confirmed = window.confirm(`Desvincular o candidato "${title}" desta requisição?`);
+    if (!confirmed) return;
+
+    setError('');
+    try {
+      await api.delete(`/candidaturas/${candidatura.id}`);
+      await reloadCurrentPage();
+    } catch {
+      setError('Não foi possível desvincular o candidato.');
+    }
+  };
+
   const hasShortSearchTerm = Boolean(searchTerm.trim()) && searchTerm.trim().length < 3;
   const firstItem = pagination.total === 0 ? 0 : (page - 1) * pagination.limit + 1;
   const lastItem = Math.min(page * pagination.limit, pagination.total);
@@ -340,39 +346,12 @@ export default function CandidatosPage() {
     setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
   };
 
-  const openStatusModal = (candidato: Candidato) => {
-    const candidatura = getCurrentCandidatura(candidato);
-    if (!candidatura) return;
-
-    setStatusModalCandidato(candidato);
-    setSelectedStatus(candidatura.status as StatusCandidatura);
-    setModalError('');
-  };
-
   const closeModals = (force = false) => {
     if (isSavingAction && !force) return;
 
-    setStatusModalCandidato(null);
     setLinkModalCandidato(null);
     setSelectedRequisicao(null);
     setModalError('');
-  };
-
-  const updateCandidaturaStatus = async () => {
-    const candidatura = statusModalCandidato ? getCurrentCandidatura(statusModalCandidato) : null;
-    if (!candidatura) return;
-
-    setIsSavingAction(true);
-    setModalError('');
-    try {
-      await api.patch(`/candidaturas/${candidatura.id}/status`, { status: selectedStatus });
-      await reloadCurrentPage();
-      closeModals(true);
-    } catch {
-      setModalError('Não foi possível atualizar a situação do candidato.');
-    } finally {
-      setIsSavingAction(false);
-    }
   };
 
   const openLinkModal = (candidato: Candidato) => {
@@ -451,7 +430,7 @@ export default function CandidatosPage() {
             <div>
               <CardTitle>Fila de candidatos</CardTitle>
               <CardDescription>
-                Empresa, etapa e SLA vêm da candidatura mais recente vinculada.
+                Posto de trabalho e etapa vêm da candidatura mais recente vinculada.
               </CardDescription>
             </div>
             <div className="w-full lg:max-w-sm">
@@ -502,12 +481,11 @@ export default function CandidatosPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <div className="min-w-[860px]">
-                <div className="grid grid-cols-[2fr_1.4fr_1.6fr_8rem_21rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="min-w-[960px]">
+                <div className="grid grid-cols-[2fr_2fr_1.4fr_20rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <span>Candidato</span>
-                  <span>Empresa</span>
+                  <span>Posto de trabalho</span>
                   <span>Etapa</span>
-                  <span>SLA</span>
                   <span className="text-right">Ações</span>
                 </div>
                 <div className="divide-y">
@@ -516,11 +494,14 @@ export default function CandidatosPage() {
                     const sla = getSla(candidatura);
                     const status = candidatura?.status;
                     const canDelete = candidato.candidaturas.length === 0;
+                    const isEfetivado = candidato.candidaturas.some((c) => c.status === 'EFETIVADO');
+                    const canVincular = !candidatura && !isEfetivado;
+                    const canDesvincular = !!candidatura && status === 'INSCRITO' && !isEfetivado;
 
                     return (
                       <div
                         key={candidato.id}
-                          className={`grid grid-cols-[2fr_1.4fr_1.6fr_8rem_21rem] gap-4 px-5 py-4 ${
+                        className={`grid grid-cols-[2fr_2fr_1.4fr_20rem] gap-4 px-5 py-4 ${
                           sla.urgent ? 'bg-yellow-100/70 dark:bg-yellow-950/30' : 'bg-background'
                         }`}
                       >
@@ -539,67 +520,68 @@ export default function CandidatosPage() {
                           </div>
                         </div>
                         <div className="self-center text-sm">
-                          <p className="font-medium">
-                            {candidatura?.requisicao.empresa?.nome ?? 'Sem candidatura'}
+                          <p className="truncate font-medium">
+                            {candidatura?.requisicao.postoTrabalhoNome ??
+                              candidatura?.requisicao.postoTrabalho ??
+                              'Sem candidatura'}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Nascimento: {toDateInputValue(candidato.dataNascimento)}
+                          <p className="truncate text-xs text-muted-foreground">
+                            {candidatura
+                              ? `Req. #${candidatura.requisicao.id} · ${candidatura.requisicao.empresa?.nome ?? 'Empresa não informada'}`
+                              : `Nasc.: ${toDateInputValue(candidato.dataNascimento)}`}
                           </p>
                         </div>
                         <div className="self-center">
-                          <p className="mb-2 text-sm font-medium">
+                          <p className="text-sm font-medium">
                             {status ? statusLabels[status] : 'Aguardando vínculo'}
                           </p>
-                          <div className="h-2.5 rounded-full border bg-background">
-                            <div
-                              className="h-full rounded-full bg-primary"
-                              style={{ width: `${sla.progress}%` }}
-                            />
-                          </div>
                         </div>
-                        <div
-                          className={`self-center font-display text-lg font-semibold ${sla.urgent ? 'text-destructive' : ''}`}
-                        >
-                          {sla.label}
-                        </div>
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            title="Vincular a uma requisição"
-                            onClick={() => openLinkModal(candidato)}
-                          >
-                            <UserRoundPlus className="h-4 w-4" />
-                          </Button>
+                        <div className="flex flex-wrap justify-end gap-1.5 self-center">
+                          {canVincular && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={() => openLinkModal(candidato)}
+                            >
+                              <UserRoundPlus className="h-3.5 w-3.5" />
+                              Vincular
+                            </Button>
+                          )}
+                          {canDesvincular && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 text-destructive hover:text-destructive"
+                              onClick={() => desvincularCandidato(candidato)}
+                            >
+                              <UserRoundMinus className="h-3.5 w-3.5" />
+                              Desvincular
+                            </Button>
+                          )}
                           {candidatura && (
                             <>
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                title="Documentos do candidato"
+                                className="gap-1.5"
                                 onClick={() => navigate(`/candidatos/${candidato.id}/documentos`)}
                               >
-                                <FileText className="h-4 w-4" />
+                                <FileText className="h-3.5 w-3.5" />
+                                Documentos
                               </Button>
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                title="Gerar ou conferir assinaturas"
+                                className="gap-1.5"
                                 onClick={() => navigate(`/assinaturas?candidatoId=${candidato.id}`)}
                               >
-                                <FileSignature className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                title="Alterar situação"
-                                onClick={() => openStatusModal(candidato)}
-                              >
-                                <ListChecks className="h-4 w-4" />
+                                <FileSignature className="h-3.5 w-3.5" />
+                                Assinaturas
                               </Button>
                             </>
                           )}
@@ -607,26 +589,32 @@ export default function CandidatosPage() {
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="gap-1.5"
                             onClick={() => navigate(`/candidatos/${candidato.id}`)}
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-3.5 w-3.5" />
+                            Ver
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
+                            className="gap-1.5"
                             onClick={() => navigate(`/candidatos/${candidato.id}/editar`)}
                           >
-                            <Edit3 className="h-4 w-4" />
+                            <Edit3 className="h-3.5 w-3.5" />
+                            Editar
                           </Button>
                           {canDelete && (
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
+                              className="gap-1.5"
                               onClick={() => removeCandidato(candidato)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Excluir
                             </Button>
                           )}
                         </div>
@@ -669,56 +657,6 @@ export default function CandidatosPage() {
           )}
         </CardContent>
       </Card>
-
-      {statusModalCandidato && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <div className="w-full max-w-md rounded-2xl border bg-background shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b p-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                  Alterar situação
-                </p>
-                <h2 className="mt-1 font-display text-xl font-semibold">
-                  {statusModalCandidato.nome || formatCpf(statusModalCandidato.cpf)}
-                </h2>
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => closeModals()}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="space-y-4 p-5">
-              <label className="space-y-2">
-                <span className="text-sm font-medium">Situação na requisição</span>
-                <select
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  value={selectedStatus}
-                  onChange={(event) => setSelectedStatus(event.target.value as StatusCandidatura)}
-                >
-                  {statusCandidaturaList.map((status) => (
-                    <option key={status} value={status}>
-                      {statusLabels[status]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {modalError && <p className="text-sm text-destructive">{modalError}</p>}
-            </div>
-            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => closeModals()}
-                disabled={isSavingAction}
-              >
-                Cancelar
-              </Button>
-              <Button type="button" onClick={updateCandidaturaStatus} disabled={isSavingAction}>
-                {isSavingAction ? 'Salvando...' : 'Salvar situação'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {linkModalCandidato && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">

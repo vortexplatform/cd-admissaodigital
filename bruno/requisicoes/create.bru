@@ -7,14 +7,17 @@ meta {
 post {
   url: {{base_url}}/requisicoes
   body: json
-  auth: none
+  auth: bearer
 }
 
+auth:bearer {
+  token: {{integration_access_token}}
+}
 
 body:json {
   {
     "tipo": "NOVA_VAGA",
-    "status": "RASCUNHO",
+    "status": "ABERTA",
     "empresaId": 1,
     "quantidadeVagas": 1,
     "filial": 1,

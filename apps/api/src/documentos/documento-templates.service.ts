@@ -100,11 +100,6 @@ export class DocumentoTemplatesService {
 
   async remove(userId: number, empresaId: number, id: number) {
     await this.ensureEmpresaAccess(userId, empresaId);
-    const inUse = await this.prisma.documentoAdmissao.count({ where: { templateId: id } });
-    if (inUse > 0) {
-      throw new BadRequestException('Não é possível excluir um documento já usado em candidaturas.');
-    }
-
     await this.prisma.documentoTemplate.delete({ where: { id } });
     return { deleted: true };
   }

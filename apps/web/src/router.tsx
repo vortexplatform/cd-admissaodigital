@@ -1,24 +1,28 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import LoginPage from '@/pages/LoginPage';
-import OtpPage from '@/pages/OtpPage';
-import HomePage from '@/pages/HomePage';
-import CompleteProfilePage from '@/pages/CompleteProfilePage';
-import EmpresasPage from '@/pages/EmpresasPage';
-import RequisicoesPage from '@/pages/RequisicoesPage';
-import RequisicaoFormPage from '@/pages/RequisicaoFormPage';
-import CandidatosPage from '@/pages/CandidatosPage';
-import CandidatoFormPage from '@/pages/CandidatoFormPage';
-import DocumentosRhPage from '@/pages/DocumentosRhPage';
-import AssinaturasRhPage from '@/pages/AssinaturasRhPage';
-import CertificadosA1Page from '@/pages/CertificadosA1Page';
-import DocumentoTemplatesPage from '@/pages/DocumentoTemplatesPage';
-import CandidateDocumentosPage from '@/pages/CandidateDocumentosPage';
-import CandidateAssinaturasPage from '@/pages/CandidateAssinaturasPage';
-import CompanyAccessRequiredPage from '@/pages/CompanyAccessRequiredPage';
-import UsuariosPage from '@/pages/UsuariosPage';
-import BiometriaPage from '@/pages/BiometriaPage';
-import SignupPage from '@/pages/SignupPage';
+// Auth
+import LoginPage from '@/pages/auth/LoginPage';
+import SignupPage from '@/pages/auth/SignupPage';
+import OtpPage from '@/pages/auth/OtpPage';
+import CompleteProfilePage from '@/pages/auth/CompleteProfilePage';
+import CompanyAccessRequiredPage from '@/pages/auth/CompanyAccessRequiredPage';
+// Processos
+import HomePage from '@/pages/processos/HomePage';
+import RequisicoesPage from '@/pages/processos/RequisicoesPage';
+import RequisicaoFormPage from '@/pages/processos/RequisicaoFormPage';
+import CandidatosPage from '@/pages/processos/CandidatosPage';
+import CandidatoFormPage from '@/pages/processos/CandidatoFormPage';
+import DocumentosRhPage from '@/pages/processos/DocumentosRhPage';
+import AssinaturasRhPage from '@/pages/processos/AssinaturasRhPage';
+// Configurações
+import EmpresasPage from '@/pages/configuracoes/EmpresasPage';
+import UsuariosPage from '@/pages/configuracoes/UsuariosPage';
+import BiometriaPage from '@/pages/configuracoes/BiometriaPage';
+import CertificadosA1Page from '@/pages/configuracoes/CertificadosA1Page';
+import DocumentoTemplatesPage from '@/pages/configuracoes/DocumentoTemplatesPage';
+// Candidato
+import CandidateDocumentosPage from '@/pages/candidato/CandidateDocumentosPage';
+import CandidateAssinaturasPage from '@/pages/candidato/CandidateAssinaturasPage';
 import AdminLayout from '@/layouts/AdminLayout';
 import CandidateLayout from '@/layouts/CandidateLayout';
 import AuthLayout from '@/layouts/AuthLayout';

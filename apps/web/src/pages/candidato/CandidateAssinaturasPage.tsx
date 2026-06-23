@@ -9,7 +9,7 @@ import {
   type EnvelopeAssinatura,
   formatCandidaturaTitle,
   getDocumentoAssinaturaUrl,
-} from './documentos.model';
+} from '../processos/documentos.model';
 
 export default function CandidateAssinaturasPage() {
   const navigate = useNavigate();

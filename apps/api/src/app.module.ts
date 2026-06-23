@@ -12,6 +12,8 @@ import { CandidatosModule } from './candidatos/candidatos.module';
 import { CandidaturasModule } from './candidaturas/candidaturas.module';
 import { DocumentosModule } from './documentos/documentos.module';
 import { BiometriaModule } from './biometria/biometria.module';
+import { IntegracaoSeniorModule } from './integracao-senior/integracao-senior.module';
+import { GeneralModule } from './general/general.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { BiometriaModule } from './biometria/biometria.module';
     CandidaturasModule,
     DocumentosModule,
     BiometriaModule,
+    IntegracaoSeniorModule,
+    GeneralModule,
   ],
   controllers: [AppController],
   providers: [AppService],

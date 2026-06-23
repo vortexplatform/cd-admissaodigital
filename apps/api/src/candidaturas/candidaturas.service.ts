@@ -20,7 +20,7 @@ const candidaturaInclude = {
 export class CandidaturasService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(requisicaoId: number, dto: CreateCandidaturaDto) {
+  async create(requisicaoId: number, dto: CreateCandidaturaDto, criadoPorUserId: number) {
     await this.ensureRequisicaoExists(requisicaoId);
     await this.ensureCandidatoExists(dto.candidatoId);
 
@@ -30,6 +30,7 @@ export class CandidaturasService {
           data: {
             requisicaoId,
             candidatoId: dto.candidatoId,
+            criadoPorUserId,
           },
           include: candidaturaInclude,
         });

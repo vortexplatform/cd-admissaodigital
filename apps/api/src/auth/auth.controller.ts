@@ -1,10 +1,18 @@
-import { Body, Controller, Get, Post, Request, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, Post, Req, Request, Res, UseGuards } from '@nestjs/common';
+import type { Request as ExpressRequest, Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { AUTH_COOKIE_NAME, authCookieOptions, clearAuthCookieOptions } from './auth-cookie';
+import { IntegrationTokenDto } from './dto/integration-token.dto';
+import {
+  AUTH_COOKIE_NAME,
+  REFRESH_COOKIE_NAME,
+  authCookieOptions,
+  clearAuthCookieOptions,
+  extractCookieValue,
+  refreshCookieOptions,
+} from './auth-cookie';
 
 @Controller('auth')
 export class AuthController {
@@ -18,14 +26,31 @@ export class AuthController {
 
   @Post('verify-otp')
   async verifyOtp(@Body() dto: VerifyOtpDto, @Res({ passthrough: true }) response: Response) {
-    const { accessToken, ...session } = await this.auth.verifyOtp(dto.identifier, dto.code);
-    response.cookie(AUTH_COOKIE_NAME, accessToken, authCookieOptions());
+    const { accessToken, refreshToken, ...session } = await this.auth.verifyOtp(dto.identifier, dto.code);
+    this.setSessionCookies(response, accessToken, refreshToken);
     return session;
   }
 
+  @Post('refresh')
+  async refresh(@Req() request: ExpressRequest, @Res({ passthrough: true }) response: Response) {
+    const refreshToken = extractCookieValue(request, REFRESH_COOKIE_NAME);
+    const { accessToken, refreshToken: nextRefreshToken, ...session } = await this.auth.refreshSession(
+      refreshToken ?? '',
+    );
+
+    this.setSessionCookies(response, accessToken, nextRefreshToken);
+    return session;
+  }
+
+  @Post('integrations/token')
+  createIntegrationToken(@Body() dto: IntegrationTokenDto) {
+    return this.auth.createIntegrationToken(dto.clientId, dto.clientSecret);
+  }
+
   @Post('logout')
-  logout(@Res({ passthrough: true }) response: Response) {
-    response.clearCookie(AUTH_COOKIE_NAME, clearAuthCookieOptions());
+  async logout(@Req() request: ExpressRequest, @Res({ passthrough: true }) response: Response) {
+    await this.auth.revokeRefreshToken(extractCookieValue(request, REFRESH_COOKIE_NAME));
+    this.clearSessionCookies(response);
     return { message: 'Sessão encerrada com sucesso.' };
   }
 
@@ -33,5 +58,15 @@ export class AuthController {
   @Get('me')
   me(@Request() req: { user: { id: number } }) {
     return this.auth.getSession(req.user.id);
+  }
+
+  private setSessionCookies(response: Response, accessToken: string, refreshToken: string) {
+    response.cookie(AUTH_COOKIE_NAME, accessToken, authCookieOptions());
+    response.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions());
+  }
+
+  private clearSessionCookies(response: Response) {
+    response.clearCookie(AUTH_COOKIE_NAME, clearAuthCookieOptions());
+    response.clearCookie(REFRESH_COOKIE_NAME, clearAuthCookieOptions());
   }
 }

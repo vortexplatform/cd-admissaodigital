@@ -48,6 +48,69 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   telefone: cleanString(dto.telefone),
   genero: cleanString(dto.genero),
   possuiFilhos: dto.possuiFilhos,
+
+  // Admissão
+  tipoAdmissao: cleanString(dto.tipoAdmissao),
+
+  // Dados pessoais adicionais
+  estadoCivil: cleanString(dto.estadoCivil),
+  grauInstrucao: cleanString(dto.grauInstrucao),
+  pis: cleanString(dto.pis),
+  raccor: dto.raccor,
+
+  // Naturalidade
+  nacionalidade: dto.nacionalidade,
+  paisNascimento: cleanString(dto.paisNascimento),
+  estadoNascimento: cleanString(dto.estadoNascimento),
+  cidadeNascimentoCod: dto.cidadeNascimentoCod,
+  cidadeNascimentoNome: cleanString(dto.cidadeNascimentoNome),
+
+  // Endereço
+  pais: cleanString(dto.pais),
+  cep: cleanString(dto.cep),
+  estadoEndereco: cleanString(dto.estadoEndereco),
+  cidadeCod: dto.cidadeCod,
+  cidadeNome: cleanString(dto.cidadeNome),
+  bairroCod: dto.bairroCod,
+  bairroNome: cleanString(dto.bairroNome),
+  tipoLogradouro: cleanString(dto.tipoLogradouro),
+  endereco: cleanString(dto.endereco),
+  numero: cleanString(dto.numero),
+  complemento: cleanString(dto.complemento),
+
+  // Contatos
+  ddiTelefone: cleanString(dto.ddiTelefone),
+  dddTelefone: cleanString(dto.dddTelefone),
+  numeroTelefone: cleanString(dto.numeroTelefone),
+  ddiTelefone2: cleanString(dto.ddiTelefone2),
+  dddTelefone2: cleanString(dto.dddTelefone2),
+  numeroTelefone2: cleanString(dto.numeroTelefone2),
+
+  // RG
+  numeroRg: cleanString(dto.numeroRg),
+  orgaoEmissorRg: cleanString(dto.orgaoEmissorRg),
+  dataExpedicaoRg: dto.dataExpedicaoRg ? new Date(dto.dataExpedicaoRg) : undefined,
+
+  // Título de eleitor
+  numeroTituloEleitor: cleanString(dto.numeroTituloEleitor),
+  zonaTituloEleitor: cleanString(dto.zonaTituloEleitor),
+  secaoTituloEleitor: cleanString(dto.secaoTituloEleitor),
+
+  // Reservista
+  numeroCertReservista: cleanString(dto.numeroCertReservista),
+
+  // Certidão civil
+  tipoCertidaoCivil: cleanString(dto.tipoCertidaoCivil),
+  dataEmissaoCertidaoCivil: dto.dataEmissaoCertidaoCivil
+    ? new Date(dto.dataEmissaoCertidaoCivil)
+    : undefined,
+  matriculaCertidaoCivil: cleanString(dto.matriculaCertidaoCivil),
+  termoMatriculaCertidao: cleanString(dto.termoMatriculaCertidao),
+  livroCertidaoCivil: cleanString(dto.livroCertidaoCivil),
+  folhaCertidaoCivil: cleanString(dto.folhaCertidaoCivil),
+  estadoCertidaoCivil: cleanString(dto.estadoCertidaoCivil),
+  cidadeCertidaoCivilCod: dto.cidadeCertidaoCivilCod,
+  cidadeCertidaoCivilNome: cleanString(dto.cidadeCertidaoCivilNome),
 });
 
 @Injectable()

@@ -261,18 +261,26 @@ export class DocumentosService {
     const existingDocs = candidatura.documentos;
 
     if (templates.length > 0) {
-      return templates
+      const matchedIds = new Set<number>();
+      const list = templates
         .filter((t) => this.templateAppliesToCandidate(t, candidatura.candidato))
         .map((template) => {
           const existing = existingDocs.find((d) => d.templateId === template.id || d.codigo === template.codigo);
+          if (existing) matchedIds.add(existing.id);
           return existing ?? this.makeVirtualDoc(candidatura.id, template.id, template.codigo, template.nome, template.descricao, template.obrigatorio, { palavrasChave: template.palavrasChave, substitui: template.substitui });
         });
+      const orphans = existingDocs.filter((d) => !matchedIds.has(d.id) && d.status !== StatusDocumentoAdmissao.PENDENTE);
+      return [...list, ...orphans];
     }
 
-    return defaultDocumentosAdmissao.map((def) => {
+    const matchedIds = new Set<number>();
+    const list = defaultDocumentosAdmissao.map((def) => {
       const existing = existingDocs.find((d) => d.codigo === def.codigo && d.templateId === null);
+      if (existing) matchedIds.add(existing.id);
       return existing ?? this.makeVirtualDoc(candidatura.id, null, def.codigo, def.nome, def.descricao, def.obrigatorio, null);
     });
+    const orphans = existingDocs.filter((d) => !matchedIds.has(d.id) && d.status !== StatusDocumentoAdmissao.PENDENTE);
+    return [...list, ...orphans];
   }
 
   private makeVirtualDoc(

@@ -24,7 +24,7 @@ import {
   documentoStatusTone,
   formatCandidaturaTitle,
   getDocumentoUrl,
-} from './documentos.model';
+} from '../processos/documentos.model';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

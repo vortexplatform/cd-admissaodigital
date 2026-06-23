@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: admissao_dev
+      POSTGRES_PASSWORD: admissao_dev
+      POSTGRES_DB: admissaodigital_dev
+    ports:
+      - "5012:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admissao_dev -d admissaodigital_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  admissaoapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: dev
+    ports:
+      - "5011:5011"
+    env_file:
+      - .env.development
+    environment:
+      # Sobrescreve o DATABASE_URL para usar o hostname do container
+      DATABASE_URL: postgresql://admissao_dev:admissao_dev@postgres:5432/admissaodigital_dev
+      NODE_ENV: development
+    volumes:
+      # Monta apenas src e prisma — node_modules ficam no container
+      - ./apps/api/src:/app/apps/api/src
+      - ./apps/api/prisma:/app/apps/api/prisma
+    command: >
+      sh -c "cd /app/apps/api && npx prisma migrate deploy && cd /app && pnpm --filter api dev"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  admissaoweb:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: dev
+    ports:
+      - "5010:5010"
+    env_file:
+      - .env.development
+    environment:
+      # Proxy interno do Vite encaminha /api → container api:5011
+      # O browser faz requisições para o mesmo origin (sem cross-site), resolvendo o problema de cookies SameSite
+      API_PROXY_TARGET: http://admissaoapi:5011
+      # Força o uso do proxy mesmo que VITE_API_URL esteja definido no .env.development
+      VITE_API_URL: /api
+    volumes:
+      # Monta apenas src — node_modules ficam no container
+      - ./apps/web/src:/app/apps/web/src
+    depends_on:
+      - admissaoapi
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    env_file:
+      - .env.development
+    command: tunnel --no-autoupdate --loglevel debug run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - admissaoapi
+      - admissaoweb
+    restart: unless-stopped
+
+volumes:
+  postgres_dev_data:

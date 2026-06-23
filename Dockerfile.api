@@ -1,0 +1,64 @@
+# ── base: node + pnpm ──────────────────────────────────────────────────────────
+FROM node:22-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# ── deps: instala dependências aproveitando cache de camadas ───────────────────
+FROM base AS deps
+WORKDIR /app
+
+# Copia apenas os manifests para maximizar cache
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
+COPY packages/typescript-config/package.json ./packages/typescript-config/
+COPY packages/ui/package.json ./packages/ui/
+
+RUN pnpm install --frozen-lockfile
+
+# ── dev: hot reload para desenvolvimento ──────────────────────────────────────
+FROM base AS dev
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+
+# Copia source completo dos packages compartilhados (tsconfig, eslint, ui)
+COPY packages ./packages
+# Copia source para gerar o Prisma Client; o volume do compose sobrescreve em runtime
+COPY apps/api ./apps/api
+COPY package.json pnpm-workspace.yaml turbo.json ./
+
+RUN pnpm --filter api exec prisma generate
+
+EXPOSE 5011
+CMD ["pnpm", "--filter", "api", "dev"]
+
+# ── build: compila para produção ───────────────────────────────────────────────
+FROM deps AS build
+WORKDIR /app
+
+COPY . .
+
+RUN pnpm --filter api exec prisma generate
+RUN pnpm --filter api build
+
+# Cria diretório de deploy standalone com apenas prod deps
+RUN pnpm deploy --filter api --prod /deploy
+COPY apps/api/dist /deploy/dist
+COPY apps/api/prisma /deploy/prisma
+
+# ── production: imagem mínima ──────────────────────────────────────────────────
+FROM node:22-alpine AS production
+WORKDIR /app
+
+RUN apk add --no-cache dumb-init
+
+COPY --from=build /deploy ./
+COPY apps/api/entrypoint.sh ./entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+EXPOSE 5011
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "entrypoint.sh"]

@@ -22,7 +22,7 @@ describe('CandidaturasService', () => {
     };
     const service = new CandidaturasService(prisma as unknown as PrismaService);
 
-    await service.create(1, { candidatoId: 2 });
+    await service.create(1, { candidatoId: 2 }, 1);
 
     expect(tx.requisicaoVaga.update).toHaveBeenCalledWith({
       where: { id: 1 },

@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -21,10 +22,11 @@ export class CandidaturasController {
 
   @Post('requisicoes/:requisicaoId/candidaturas')
   create(
+    @Request() req: { user: { id: number } },
     @Param('requisicaoId', ParseIntPipe) requisicaoId: number,
     @Body() dto: CreateCandidaturaDto,
   ) {
-    return this.candidaturas.create(requisicaoId, dto);
+    return this.candidaturas.create(requisicaoId, dto, req.user.id);
   }
 
   @Get('requisicoes/:requisicaoId/candidaturas')

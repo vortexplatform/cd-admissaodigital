@@ -27,10 +27,13 @@ model User {
 
   requisicoesCriadas           RequisicaoVaga[]       @relation("RequisicaoCriadaPor")
   requisicoesAprovadas         RequisicaoVaga[]       @relation("RequisicaoAprovadaPor")
+  candidaturasCriadas          Candidatura[]          @relation("CandidaturaCriadaPor")
+  admissoesGeradas             Candidatura[]          @relation("CandidaturaAdmissaoGeradaPor")
   documentosRevisados          DocumentoAdmissao[]    @relation("DocumentoRevisadoPor")
   envelopesAssinatura          EnvelopeAssinatura[]
   certificadosA1Criados        EmpresaCertificadoA1[] @relation("CertificadoA1CriadoPor")
   biometriaSolicitacoesCriadas BiometriaSolicitacao[] @relation("BiometriaSolicitadaPor")
+  refreshTokens                 RefreshToken[]
 
   @@map("users")
 }
@@ -48,12 +51,89 @@ model Candidato {
   biometriaStatus               BiometriaStatus        @default(NAO_CADASTRADA) @map("biometria_status")
   biometriaCadastradaEm         DateTime?              @map("biometria_cadastrada_em")
   biometriaIdentificadorExterno String?                @map("biometria_identificador_externo")
+
+  // Admissão
+  tipoAdmissao                  String?                @map("tipo_admissao")
+
+  // Dados pessoais adicionais
+  estadoCivil                   String?                @map("estado_civil")
+  grauInstrucao                 String?                @map("grau_instrucao")
+  pis                           String?
+  raccor                        Int?
+
+  // Naturalidade
+  nacionalidade                 Int?
+  paisNascimento                String?                @map("pais_nascimento")
+  estadoNascimento              String?                @map("estado_nascimento")
+  cidadeNascimentoCod           Int?                   @map("cidade_nascimento_cod")
+  cidadeNascimentoNome          String?                @map("cidade_nascimento_nome")
+
+  // Endereço
+  pais                          String?
+  cep                           String?
+  estadoEndereco                String?                @map("estado_endereco")
+  cidadeCod                     Int?                   @map("cidade_cod")
+  cidadeNome                    String?                @map("cidade_nome")
+  bairroCod                     Int?                   @map("bairro_cod")
+  bairroNome                    String?                @map("bairro_nome")
+  tipoLogradouro                String?                @map("tipo_logradouro")
+  endereco                      String?
+  numero                        String?
+  complemento                   String?
+
+  // Contatos (telefone principal é o campo legado `telefone`)
+  ddiTelefone                   String?                @map("ddi_telefone")
+  dddTelefone                   String?                @map("ddd_telefone")
+  numeroTelefone                String?                @map("numero_telefone")
+  ddiTelefone2                  String?                @map("ddi_telefone2")
+  dddTelefone2                  String?                @map("ddd_telefone2")
+  numeroTelefone2               String?                @map("numero_telefone2")
+
+  // RG
+  numeroRg                      String?                @map("numero_rg")
+  orgaoEmissorRg                String?                @map("orgao_emissor_rg")
+  dataExpedicaoRg               DateTime?              @db.Date @map("data_expedicao_rg")
+
+  // Título de eleitor
+  numeroTituloEleitor           String?                @map("numero_titulo_eleitor")
+  zonaTituloEleitor             String?                @map("zona_titulo_eleitor")
+  secaoTituloEleitor            String?                @map("secao_titulo_eleitor")
+
+  // Reservista
+  numeroCertReservista          String?                @map("numero_cert_reservista")
+
+  // Certidão civil
+  tipoCertidaoCivil             String?                @map("tipo_certidao_civil")
+  dataEmissaoCertidaoCivil      DateTime?              @db.Date @map("data_emissao_certidao_civil")
+  matriculaCertidaoCivil        String?                @map("matricula_certidao_civil")
+  termoMatriculaCertidao        String?                @map("termo_matricula_certidao")
+  livroCertidaoCivil            String?                @map("livro_certidao_civil")
+  folhaCertidaoCivil            String?                @map("folha_certidao_civil")
+  estadoCertidaoCivil           String?                @map("estado_certidao_civil")
+  cidadeCertidaoCivilCod        Int?                   @map("cidade_certidao_civil_cod")
+  cidadeCertidaoCivilNome       String?                @map("cidade_certidao_civil_nome")
+
   user                          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   candidaturas                  Candidatura[]
   biometriaSolicitacoes         BiometriaSolicitacao[]
   biometriaTemplates            BiometriaTemplate[]
 
   @@map("candidato")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique @map("token_hash")
+  userId    Int       @map("user_id")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_token")
 }
 
 model CodeOtp {
@@ -66,6 +146,21 @@ model CodeOtp {
 
   @@index([identifier])
   @@map("codeotp")
+}
+
+model IntegrationClient {
+  id               Int       @id @default(autoincrement())
+  nome             String
+  clientId         String    @unique @map("client_id")
+  clientSecretHash String    @map("client_secret_hash")
+  scopes           String[]  @default([])
+  ativo            Boolean   @default(true)
+  lastUsedAt       DateTime? @map("last_used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([ativo])
+  @@map("integration_client")
 }
 
 model Empresa {
@@ -148,6 +243,7 @@ enum StatusCandidatura {
   EM_ANALISE
   ENTREVISTA
   APROVADO
+  EFETIVADO
   REPROVADO
   DESISTIU
   CANCELADO
@@ -208,14 +304,22 @@ model Candidatura {
   requisicaoId Int               @map("requisicao_id")
   candidatoId  Int               @map("candidato_id")
   status       StatusCandidatura @default(INSCRITO)
+  admissao     DateTime?         @db.Date
+  matricula    String?           @map("matricula")
+
+  criadoPorUserId           Int?      @map("criado_por_user_id")
+  admissaoGeradaPorUserId   Int?      @map("admissao_gerada_por_user_id")
+
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
 
-  requisicao            RequisicaoVaga         @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
-  candidato             Candidato              @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
-  documentos            DocumentoAdmissao[]
-  envelopesAssinatura   EnvelopeAssinatura[]
-  biometriaSolicitacoes BiometriaSolicitacao[]
+  requisicao              RequisicaoVaga         @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
+  candidato               Candidato              @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  criadoPor               User?                  @relation("CandidaturaCriadaPor", fields: [criadoPorUserId], references: [id], onDelete: SetNull)
+  admissaoGeradaPor       User?                  @relation("CandidaturaAdmissaoGeradaPor", fields: [admissaoGeradaPorUserId], references: [id], onDelete: SetNull)
+  documentos              DocumentoAdmissao[]
+  envelopesAssinatura     EnvelopeAssinatura[]
+  biometriaSolicitacoes   BiometriaSolicitacao[]
 
   @@unique([requisicaoId, candidatoId])
   @@index([candidatoId])

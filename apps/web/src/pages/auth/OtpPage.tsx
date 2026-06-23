@@ -75,8 +75,13 @@ export default function OtpPage() {
       });
       login(data);
       navigate('/');
-    } catch {
-      setError('Código inválido ou expirado. Tente novamente.');
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      setError(
+        status === 401
+          ? 'Código inválido ou expirado. Tente novamente.'
+          : 'Não foi possível iniciar a sessão. Tente novamente.',
+      );
       setOtp('');
     } finally {
       setIsLoading(false);
