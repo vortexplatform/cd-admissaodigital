@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
-import seniorApi from '@/lib/seniorApi';
 import {
   type Requisicao,
   formatCpf,
@@ -259,7 +258,7 @@ export default function RequisicaoFormPage({ mode }: { mode: RequisicaoMode }) {
 
     setIsLoadingPostosTrabalho(true);
     setSeniorError('');
-    seniorApi
+    api
       .get<PostoTrabalhoSenior[]>(`/general/workstation/${codigoEmpresaSenior}/${filialValue}`)
       .then(({ data }) => setPostosTrabalho(data))
       .catch(() => setSeniorError('Não foi possível carregar os postos de trabalho da filial.'))
@@ -269,8 +268,8 @@ export default function RequisicaoFormPage({ mode }: { mode: RequisicaoMode }) {
   useEffect(() => {
     const loadSeniorData = async () => {
       const [filiaisResponse, escalasResponse] = await Promise.all([
-        seniorApi.get<FilialSenior[]>('/general/filial'),
-        seniorApi.get<EscalaSenior[]>('/general/workschedule'),
+        api.get<FilialSenior[]>('/general/filial'),
+        api.get<EscalaSenior[]>('/general/workschedule'),
       ]);
 
       setFiliais(filiaisResponse.data);
@@ -306,7 +305,7 @@ export default function RequisicaoFormPage({ mode }: { mode: RequisicaoMode }) {
     setIsLoadingCaracteristicas(true);
     setSeniorError('');
     try {
-      const { data } = await seniorApi.get<PostoTrabalhoCaracteristicaSenior[]>(
+      const { data } = await api.get<PostoTrabalhoCaracteristicaSenior[]>(
         `/general/workstation/${value}/characteristics`,
       );
       const [caracteristica] = data;

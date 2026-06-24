@@ -15,7 +15,7 @@ export class SeniorApiService implements OnModuleInit {
   private tokenExpiry = 0;
 
   constructor(private readonly config: ConfigService) {
-    const baseURL = this.config.getOrThrow<string>('VITE_SENIOR_API_URL');
+    const baseURL = this.config.getOrThrow<string>('SENIOR_API_URL');
     this.http = axios.create({ baseURL });
   }
 
@@ -32,8 +32,8 @@ export class SeniorApiService implements OnModuleInit {
   }
 
   private async refreshToken(): Promise<void> {
-    const cpf = this.config.getOrThrow<string>('VITE_SENIOR_API_CPF');
-    const password = this.config.getOrThrow<string>('VITE_SENIOR_API_PASSWORD');
+    const cpf = this.config.getOrThrow<string>('SENIOR_API_CPF');
+    const password = this.config.getOrThrow<string>('SENIOR_API_PASSWORD');
 
     const { data } = await this.http.post<AuthResponse>('/auth/signin', { cpf, password });
 

@@ -1,6 +1,12 @@
 import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { GeneralService } from './general.service';
+import {
+  GeneralService,
+  type FilialSenior,
+  type EscalaSenior,
+  type PostoTrabalhoSenior,
+  type PostoTrabalhoCaracteristicaSenior,
+} from './general.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('general')
@@ -53,5 +59,30 @@ export class GeneralController {
   @Get('etnia')
   getEtnia() {
     return this.general.getEtnia();
+  }
+
+  @Get('filial')
+  getFiliais(): Promise<FilialSenior[]> {
+    return this.general.getFiliais();
+  }
+
+  @Get('workschedule')
+  getWorkschedules(): Promise<EscalaSenior[]> {
+    return this.general.getWorkschedules();
+  }
+
+  @Get('workstation/:code/characteristics')
+  getWorkstationCharacteristics(
+    @Param('code') code: string,
+  ): Promise<PostoTrabalhoCaracteristicaSenior[]> {
+    return this.general.getWorkstationCharacteristics(code);
+  }
+
+  @Get('workstation/:numemp/:filial')
+  getWorkstations(
+    @Param('numemp', ParseIntPipe) numemp: number,
+    @Param('filial', ParseIntPipe) filial: number,
+  ): Promise<PostoTrabalhoSenior[]> {
+    return this.general.getWorkstations(numemp, filial);
   }
 }

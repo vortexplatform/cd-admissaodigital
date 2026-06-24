@@ -1012,11 +1012,6 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       <PageHeader
         eyebrow="Admissão digital"
         title={getPageTitle(mode)}
-        description={
-          isViewMode
-            ? 'Consulte os dados do candidato e as candidaturas vinculadas.'
-            : 'Preencha os dados pessoais usados nas requisições de admissão.'
-        }
         actions={
           <>
             <Button
@@ -1235,7 +1230,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     id="nome"
                     label="Nome completo"
                     disabled={isViewMode}
-                    placeholder="Ex.: Ana C. Silva"
+                    placeholder=""
                     {...register('nome')}
                   />
 
