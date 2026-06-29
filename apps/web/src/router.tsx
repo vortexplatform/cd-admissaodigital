@@ -5,6 +5,7 @@ import LoginPage from '@/pages/auth/LoginPage';
 import SignupPage from '@/pages/auth/SignupPage';
 import OtpPage from '@/pages/auth/OtpPage';
 import CompleteProfilePage from '@/pages/auth/CompleteProfilePage';
+import RhLoginPage from '@/pages/auth/RhLoginPage';
 import CompanyAccessRequiredPage from '@/pages/auth/CompanyAccessRequiredPage';
 // Processos
 import HomePage from '@/pages/processos/HomePage';
@@ -130,6 +131,14 @@ export default function Router() {
           element={
             <PublicRoute>
               <OtpPage />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/rh/login"
+          element={
+            <PublicRoute>
+              <RhLoginPage />
             </PublicRoute>
           }
         />

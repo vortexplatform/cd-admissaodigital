@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -74,6 +75,8 @@ export class UsersService {
       throw new BadRequestException('Apenas usuários RH ou ADMIN podem ser criados por esta tela.');
     }
 
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+
     return this.prisma.user.create({
       data: {
         nome: dto.nome.trim(),
@@ -81,6 +84,7 @@ export class UsersService {
         email,
         telefone,
         role: dto.role ?? Role.RH,
+        passwordHash,
         empresas: {
           create: { empresaId: dto.empresaId },
         },

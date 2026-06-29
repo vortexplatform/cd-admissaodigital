@@ -5,6 +5,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { IntegrationTokenDto } from './dto/integration-token.dto';
+import { LoginPasswordDto } from './dto/login-password.dto';
 import {
   AUTH_COOKIE_NAME,
   REFRESH_COOKIE_NAME,
@@ -27,6 +28,13 @@ export class AuthController {
   @Post('verify-otp')
   async verifyOtp(@Body() dto: VerifyOtpDto, @Res({ passthrough: true }) response: Response) {
     const { accessToken, refreshToken, ...session } = await this.auth.verifyOtp(dto.identifier, dto.code);
+    this.setSessionCookies(response, accessToken, refreshToken);
+    return session;
+  }
+
+  @Post('login')
+  async login(@Body() dto: LoginPasswordDto, @Res({ passthrough: true }) response: Response) {
+    const { accessToken, refreshToken, ...session } = await this.auth.loginWithPassword(dto.email, dto.password);
     this.setSessionCookies(response, accessToken, refreshToken);
     return session;
   }

@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual, scrypt as scryptCallback } from 'crypto';
 import { promisify } from 'util';
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OtpService } from './otp.service';
 import { EmailService } from './email.service';
@@ -51,6 +52,25 @@ export class AuthService {
 
     const tokens = await this.createUserTokens(user.id, identifier);
     return { ...tokens, ...session, isNewUser };
+  }
+
+  async loginWithPassword(email: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new UnauthorizedException('Credenciais inválidas.');
+
+    if (user.role !== 'RH' && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Este acesso é exclusivo para usuários RH.');
+    }
+
+    if (!user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
+      throw new UnauthorizedException('Credenciais inválidas.');
+    }
+
+    const session = await this.users.findSessionById(user.id);
+    if (!session) throw new NotFoundException('Usuário não encontrado.');
+
+    const tokens = await this.createUserTokens(user.id, user.email ?? String(user.id));
+    return { ...tokens, ...session };
   }
 
   async refreshSession(refreshToken: string) {

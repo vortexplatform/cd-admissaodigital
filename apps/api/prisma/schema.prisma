@@ -19,8 +19,9 @@ model User {
   nome      String?
   email     String?          @unique
   telefone  String?          @unique
-  role      Role             @default(CANDIDATO)
-  createdAt DateTime         @default(now())
+  role         Role             @default(CANDIDATO)
+  passwordHash String?          @map("password_hash")
+  createdAt    DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   candidato Candidato?
   empresas  EmpresaUsuario[]

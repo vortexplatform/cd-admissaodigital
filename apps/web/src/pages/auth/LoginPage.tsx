@@ -100,6 +100,11 @@ export default function LoginPage() {
             Criar cadastro
           </Link>
         </p>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          <Link to="/rh/login" className="hover:underline">
+            Acesso RH →
+          </Link>
+        </p>
       </CardContent>
     </Card>
   );
