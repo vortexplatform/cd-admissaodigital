@@ -51,6 +51,30 @@ export interface Etnicidade {
   ESOETN: number;
 }
 
+export interface FilialSenior {
+  CODFIL: number;
+  NOMFIL: string;
+}
+
+export interface EscalaSenior {
+  CODESC: number;
+  NOMESC: string;
+}
+
+export interface PostoTrabalhoSenior {
+  POSTRA: string;
+  DESRED: string;
+}
+
+export interface PostoTrabalhoCaracteristicaSenior {
+  CODFIL: number;
+  NOMFIL: string;
+  CODCAR: string;
+  TITCAR: string;
+  CODCCU: string;
+  NOMCCU: string;
+}
+
 @Injectable()
 export class GeneralService {
   constructor(private readonly seniorApi: SeniorApiService) {}
@@ -89,5 +113,21 @@ export class GeneralService {
 
   getEtnia(): Promise<Etnicidade[]> {
     return this.seniorApi.get('/general/etnia');
+  }
+
+  getFiliais(): Promise<FilialSenior[]> {
+    return this.seniorApi.get('/general/filial');
+  }
+
+  getWorkschedules(): Promise<EscalaSenior[]> {
+    return this.seniorApi.get('/general/workschedule');
+  }
+
+  getWorkstations(numemp: number, filial: number): Promise<PostoTrabalhoSenior[]> {
+    return this.seniorApi.get(`/general/workstation/${numemp}/${filial}`);
+  }
+
+  getWorkstationCharacteristics(code: string): Promise<PostoTrabalhoCaracteristicaSenior[]> {
+    return this.seniorApi.get(`/general/workstation/${code}/characteristics`);
   }
 }
