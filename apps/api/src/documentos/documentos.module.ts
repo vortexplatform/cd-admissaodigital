@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { EmailService } from '../auth/email.service';
 import { OtpService } from '../auth/otp.service';
 import { SmsService } from '../auth/sms.service';
+import { DocumentosTemplatesModule } from '../documentos-templates/documentos-templates.module';
 import { EmpresasModule } from '../empresas/empresas.module';
 import { AssinaturasService } from './assinaturas.service';
 import {
@@ -17,7 +18,7 @@ import { PdfDigitalSignatureService } from './pdf-digital-signature.service';
 import { S3StorageService } from './s3-storage.service';
 
 @Module({
-  imports: [EmpresasModule],
+  imports: [EmpresasModule, DocumentosTemplatesModule],
   controllers: [DocumentosController, DocumentoTemplatesController, DocumentoTemplateDefaultsController],
   providers: [
     DocumentosService,

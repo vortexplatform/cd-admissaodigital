@@ -11,6 +11,7 @@ import { RequisicoesModule } from './requisicoes/requisicoes.module';
 import { CandidatosModule } from './candidatos/candidatos.module';
 import { CandidaturasModule } from './candidaturas/candidaturas.module';
 import { DocumentosModule } from './documentos/documentos.module';
+import { DocumentosTemplatesModule } from './documentos-templates/documentos-templates.module';
 import { BiometriaModule } from './biometria/biometria.module';
 import { IntegracaoSeniorModule } from './integracao-senior/integracao-senior.module';
 import { GeneralModule } from './general/general.module';
@@ -31,6 +32,7 @@ import { GeneralModule } from './general/general.module';
     RequisicoesModule,
     CandidatosModule,
     CandidaturasModule,
+    DocumentosTemplatesModule,
     DocumentosModule,
     BiometriaModule,
     IntegracaoSeniorModule,
