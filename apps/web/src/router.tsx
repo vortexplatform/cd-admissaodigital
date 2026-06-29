@@ -24,6 +24,9 @@ import DocumentoTemplatesPage from '@/pages/configuracoes/DocumentoTemplatesPage
 // Candidato
 import CandidateDocumentosPage from '@/pages/candidato/CandidateDocumentosPage';
 import CandidateAssinaturasPage from '@/pages/candidato/CandidateAssinaturasPage';
+import RegulamentoPage from '@/pages/candidato/RegulamentoPage';
+// Público
+import VerificacaoPage from '@/pages/verificacao/VerificacaoPage';
 import AdminLayout from '@/layouts/AdminLayout';
 import CandidateLayout from '@/layouts/CandidateLayout';
 import AuthLayout from '@/layouts/AuthLayout';
@@ -177,8 +180,10 @@ export default function Router() {
         <Route path="/candidato" element={<HomePage />} />
         <Route path="/candidato/documentos" element={<CandidateDocumentosPage />} />
         <Route path="/candidato/assinaturas" element={<CandidateAssinaturasPage />} />
+        <Route path="/candidato/regulamento" element={<RegulamentoPage />} />
         <Route path="/candidato/status" element={<HomePage />} />
       </Route>
+      <Route path="/verificar/:codigo?" element={<VerificacaoPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

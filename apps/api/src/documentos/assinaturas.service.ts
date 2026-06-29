@@ -11,7 +11,7 @@ import {
   TipoEventoAssinatura,
 } from '@prisma/client';
 import { randomBytes, randomUUID, createHash } from 'crypto';
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
 import { EmailService } from '../auth/email.service';
 import { OtpService } from '../auth/otp.service';
 import { SmsService } from '../auth/sms.service';
@@ -189,6 +189,10 @@ export class AssinaturasService {
     this.validateSession(documento.envelope, sessionToken);
 
     const candidato = documento.envelope.candidatura.candidato;
+    const otpIdentifier = documento.envelope.otpIdentifier;
+    const assinaturaEmail = otpIdentifier?.includes('@') ? otpIdentifier : null;
+    const assinaturaTelefone = otpIdentifier && !otpIdentifier.includes('@') ? otpIdentifier : null;
+
     const signedAt = new Date();
     const codigoVerificacao = this.generateVerificationCode();
     const pdfCandidato = await this.renderDocumentoPdf({
@@ -213,6 +217,8 @@ export class AssinaturasService {
         assinaturaCpf: candidato.cpf,
         assinaturaIp: evidence.ip,
         assinaturaUserAgent: evidence.userAgent,
+        assinaturaEmail,
+        assinaturaTelefone,
         metodoAssinatura: MetodoAssinatura.OTP,
         codigoVerificacao,
         hashAssinado,
@@ -375,6 +381,12 @@ export class AssinaturasService {
     assinaturaUserAgent: string | null;
     metodoAssinatura?: MetodoAssinatura | null;
     codigoVerificacao: string | null;
+    // Dados da empresa (preenchidos ao certificar com A1)
+    empresaCertSubject?: string | null;
+    empresaCertIssuer?: string | null;
+    empresaCertSerial?: string | null;
+    empresaAssinouEm?: Date | null;
+    empresaPdfHash?: string | null;
   }): Promise<Buffer> {
     if (this.isBase64Pdf(documento.conteudo)) {
       const basePdf = Buffer.from(documento.conteudo, 'base64');
@@ -443,33 +455,122 @@ export class AssinaturasService {
       assinaturaUserAgent: string | null;
       metodoAssinatura?: MetodoAssinatura | null;
       codigoVerificacao: string | null;
+      empresaCertSubject?: string | null;
+      empresaCertIssuer?: string | null;
+      empresaCertSerial?: string | null;
+      empresaAssinouEm?: Date | null;
+      empresaPdfHash?: string | null;
     },
   ) {
     const page = pdf.addPage([595.28, 841.89]);
     let cursorY = drawHeader(page, bold);
-    page.drawText('Comprovante de assinatura eletrônica avançada', { x: 70, y: cursorY, size: 14, font: bold });
-    cursorY -= 34;
 
-    const rows = [
-      ['Método', documento.metodoAssinatura === MetodoAssinatura.BIOMETRIA ? 'Assinatura biométrica assistida' : 'Assinatura eletrônica por OTP'],
+    // Título
+    page.drawText('Comprovante de Assinatura Eletrônica', { x: 70, y: cursorY, size: 13, font: bold, color: rgb(0.1, 0.1, 0.1) });
+    cursorY -= 8;
+    page.drawLine({ start: { x: 70, y: cursorY }, end: { x: 525, y: cursorY }, thickness: 0.8, color: rgb(0.2, 0.2, 0.2) });
+    cursorY -= 18;
+
+    // Método de assinatura do colaborador
+    const metodoLabel =
+      documento.metodoAssinatura === MetodoAssinatura.BIOMETRIA
+        ? 'Assinatura biométrica assistida (verificação facial)'
+        : 'Assinatura eletrônica avançada por OTP (MP 2.200-2/2001 e Lei 14.063/2020)';
+
+    // Seção COLABORADOR
+    page.drawText('COLABORADOR', { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.3, 0.3, 0.3) });
+    cursorY -= 14;
+
+    const rowsColaborador: [string, string][] = [
       ['Assinado por', documento.assinaturaNome ?? 'Não informado'],
-      ['CPF', documento.assinaturaCpf ?? 'Não informado'],
-      ['Data/hora', documento.assinadoEm?.toISOString() ?? 'Não informado'],
-      ['IP', documento.assinaturaIp ?? 'Não informado'],
-      ['Dispositivo', documento.assinaturaUserAgent ?? 'Não informado'],
+      ['CPF', documento.assinaturaCpf ? this.maskCpf(documento.assinaturaCpf) : 'Não informado'],
+      ['Método de assinatura', metodoLabel],
+      ['Data/hora (UTC)', documento.assinadoEm?.toISOString() ?? 'Não informado'],
+      ['Data/hora (Brasília)', documento.assinadoEm ? this.formatDateBrasilia(documento.assinadoEm) : 'Não informado'],
+      ['IP público', documento.assinaturaIp ?? 'Não informado'],
+      ['Dispositivo/Navegador', documento.assinaturaUserAgent ?? 'Não informado'],
       ['Código de verificação', documento.codigoVerificacao ?? 'Não informado'],
       ['Hash original SHA-256', documento.hashOriginal],
+      ['Hash após assinatura SHA-256', documento.hashAssinado ?? 'Não disponível'],
     ];
 
-    for (const [label, value] of rows) {
-      page.drawText(`${label}:`, { x: 70, y: cursorY, size: 10, font: bold });
-      cursorY -= 14;
-      for (const line of wrapText(value, regular, 9, 455)) {
-        page.drawText(line, { x: 86, y: cursorY, size: 9, font: regular });
-        cursorY -= 12;
+    for (const [label, value] of rowsColaborador) {
+      page.drawText(`${label}:`, { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.15, 0.15, 0.15) });
+      cursorY -= 13;
+      for (const line of wrapText(value, regular, 8.5, 445)) {
+        page.drawText(line, { x: 82, y: cursorY, size: 8.5, font: regular, color: rgb(0.2, 0.2, 0.2) });
+        cursorY -= 11;
       }
-      cursorY -= 8;
+      cursorY -= 4;
     }
+
+    // Seção EMPRESA (condicional — só exibe se o certificado A1 foi aplicado)
+    if (documento.empresaCertSubject) {
+      cursorY -= 10;
+      page.drawLine({ start: { x: 70, y: cursorY }, end: { x: 525, y: cursorY }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+      cursorY -= 14;
+      page.drawText('EMPRESA', { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.3, 0.3, 0.3) });
+      cursorY -= 14;
+
+      const rowsEmpresa: [string, string][] = [
+        ['Método de assinatura', 'Assinatura digital com certificado A1 (ICP-Brasil)'],
+        ['Data/hora (UTC)', documento.empresaAssinouEm?.toISOString() ?? 'Não informado'],
+        ['Data/hora (Brasília)', documento.empresaAssinouEm ? this.formatDateBrasilia(documento.empresaAssinouEm) : 'Não informado'],
+        ['Representante (CN)', this.parseSubjectCN(documento.empresaCertSubject)],
+        ['Certificado (subject)', documento.empresaCertSubject],
+        ['Emissor', documento.empresaCertIssuer ?? 'Não informado'],
+        ['Número de série', documento.empresaCertSerial ?? 'Não informado'],
+        ['Hash PDF final SHA-256', documento.empresaPdfHash ?? 'Calculado após certificação'],
+      ];
+
+      for (const [label, value] of rowsEmpresa) {
+        if (cursorY < 60) break; // evitar overflow
+        page.drawText(`${label}:`, { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.15, 0.15, 0.15) });
+        cursorY -= 13;
+        for (const line of wrapText(value, regular, 8.5, 445)) {
+          if (cursorY < 60) break;
+          page.drawText(line, { x: 82, y: cursorY, size: 8.5, font: regular, color: rgb(0.2, 0.2, 0.2) });
+          cursorY -= 11;
+        }
+        cursorY -= 4;
+      }
+    }
+
+    // Rodapé da página de auditoria
+    cursorY -= 10;
+    if (cursorY > 60) {
+      page.drawLine({ start: { x: 70, y: cursorY }, end: { x: 525, y: cursorY }, thickness: 0.4, color: rgb(0.7, 0.7, 0.7) });
+      cursorY -= 12;
+      page.drawText(
+        'Este comprovante faz parte integrante do documento assinado. Verifique a autenticidade pelo código de verificação no sistema Admissão Digital.',
+        { x: 70, y: cursorY, size: 7, font: regular, color: rgb(0.5, 0.5, 0.5) },
+      );
+    }
+  }
+
+  private maskCpf(cpf: string): string {
+    const digits = cpf.replace(/\D/g, '');
+    if (digits.length !== 11) return cpf;
+    return `${digits.slice(0, 3)}.***.***-${digits.slice(9)}`;
+  }
+
+  private formatDateBrasilia(date: Date): string {
+    return (
+      new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+      }).format(date) + ' BRT'
+    );
+  }
+
+  private parseSubjectCN(subject: string): string {
+    const match = subject.match(/CN=([^,]+)/i);
+    return match?.[1]?.trim() ?? subject;
   }
 
   private validateSession(envelope: { sessionToken: string | null; sessionExpiraEm: Date | null; status: StatusEnvelopeAssinatura }, sessionToken: string) {
@@ -573,7 +674,14 @@ export class AssinaturasService {
     documento: Prisma.DocumentoAssinaturaGetPayload<Record<string, never>>,
     certificado: Awaited<ReturnType<EmpresaCertificadosService['getActiveCertificateForEmpresa']>>,
   ) {
-    const pdfCandidato = await this.renderDocumentoPdf(documento);
+    const empresaAssinouEm = new Date();
+    const pdfCandidato = await this.renderDocumentoPdf({
+      ...documento,
+      empresaCertSubject: certificado.subject,
+      empresaCertIssuer: certificado.issuer,
+      empresaCertSerial: certificado.serialNumber,
+      empresaAssinouEm,
+    });
     const pdfFinalEmpresa = await this.pdfDigitalSignature.signWithPfx(
       pdfCandidato,
       certificado.pfx,
@@ -585,12 +693,13 @@ export class AssinaturasService {
       where: { id: documento.id },
       data: {
         empresaCertificadoId: certificado.id,
-        empresaAssinouEm: new Date(),
+        empresaAssinouEm,
         empresaCertSubject: certificado.subject,
         empresaCertIssuer: certificado.issuer,
         empresaCertSerial: certificado.serialNumber,
         empresaPdfHash,
         empresaPdfFinal: pdfFinalEmpresa,
+        empresaRepresentanteNome: this.parseSubjectCN(certificado.subject),
       },
     });
     await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_CERTIFICADO_EMPRESA, {}, {
@@ -688,6 +797,55 @@ export class AssinaturasService {
 
   private generateVerificationCode() {
     return `AD-${randomBytes(4).toString('hex').toUpperCase()}`;
+  }
+
+  async verificarPorCodigo(codigo: string) {
+    const documento = await this.prisma.documentoAssinatura.findUnique({
+      where: { codigoVerificacao: codigo },
+      include: {
+        envelope: {
+          include: {
+            candidatura: { include: { candidato: true, requisicao: { include: { empresa: true } } } },
+          },
+        },
+      },
+    });
+    if (!documento) throw new NotFoundException('Código de verificação não encontrado.');
+
+    const empresa = documento.envelope.candidatura.requisicao.empresa;
+
+    return {
+      autenticidade: 'Documento autêntico verificado pelo sistema Admissão Digital',
+      codigoVerificacao: documento.codigoVerificacao,
+      nomeDocumento: documento.nome,
+      statusDocumento: documento.status,
+      // Dados do colaborador — com CPF mascarado
+      colaborador: {
+        nome: documento.assinaturaNome ?? 'Não informado',
+        cpfMascarado: documento.assinaturaCpf ? this.maskCpf(documento.assinaturaCpf) : null,
+        metodoAssinatura: documento.metodoAssinatura,
+        assinadoEm: documento.assinadoEm?.toISOString() ?? null,
+        assinadoEmBrasilia: documento.assinadoEm ? this.formatDateBrasilia(documento.assinadoEm) : null,
+        ip: documento.assinaturaIp ?? null,
+      },
+      // Dados da empresa — sem dados sensíveis completos
+      empresa: documento.empresaAssinouEm
+        ? {
+            nome: empresa?.nome ?? null,
+            representanteNome: documento.empresaRepresentanteNome ?? null,
+            metodo: 'Assinatura digital com certificado A1',
+            assinouEm: documento.empresaAssinouEm.toISOString(),
+            assinouEmBrasilia: this.formatDateBrasilia(documento.empresaAssinouEm),
+            certificadoSerial: documento.empresaCertSerial ?? null,
+          }
+        : null,
+      // Hashes para verificação de integridade
+      hashes: {
+        original: documento.hashOriginal,
+        aposAssinaturaColaborador: documento.hashAssinado ?? null,
+        pdfFinalEmpresa: documento.empresaPdfHash ?? null,
+      },
+    };
   }
 
   private maskIdentifier(identifier: string) {

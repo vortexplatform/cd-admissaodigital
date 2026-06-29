@@ -1,23 +1,53 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts } from 'pdf-lib';
+import { SeniorApiService } from '../general/senior-api.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { PAGE_HEIGHT, PAGE_WIDTH, drawAssinaturas, drawFooter, drawHeader, drawParagraphs, wrapText } from './pdf-render.utils';
+import {
+  PAGE_HEIGHT,
+  PAGE_WIDTH,
+  drawAssinaturasEletronicas,
+  drawFooter,
+  drawHeader,
+  drawParagraphs,
+} from './pdf-render.utils';
 
 export type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
   include: { candidato: true; requisicao: { include: { empresa: true } } };
 }>;
 
-const EMPRESA_CNPJ = '41.930.199/0026-92';
-const EMPRESA_CIDADE = 'Governador Valadares';
-const EMPRESA_ENDERECO = 'MARECHAL FLORIANO, 1527 - CENTRO';
+interface FilialAdmissao {
+  NUMCGC: string | number;
+  RAZSOC: string;
+  TIPLGR: string;
+  ENDFIL: string;
+  ENDNUM: string;
+  CODBAI: number;
+  NOMBAI: string;
+  CODCEP: number;
+  CODCID: number;
+  NOMCID: string;
+  CODEST: string;
+}
+
+interface SalarioAdmissao {
+  CODEST: number;
+  CLAINI: string;
+  NIVINI: string;
+  VALSAL: number;
+}
 
 @Injectable()
 export class ContratoExperienciaService {
   static readonly CODIGO = 'contrato-experiencia';
   static readonly NOME = 'Contrato de Experiência';
 
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ContratoExperienciaService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly seniorApi: SeniorApiService,
+  ) {}
 
   async gerarPdfById(candidaturaId: number): Promise<Buffer> {
     const candidatura = await this.prisma.candidatura.findUnique({
@@ -29,6 +59,66 @@ export class ContratoExperienciaService {
   }
 
   async gerarPdf(candidatura: CandidaturaContrato): Promise<Buffer> {
+    const prazoContratoDias = candidatura.requisicao.prazoContratoDias ?? 30;
+    const prorrogacaoDias = candidatura.requisicao.prorrogacaoDias ?? null;
+
+    if (prazoContratoDias <= 0) {
+      throw new BadRequestException('O prazo do contrato de experiência deve ser maior que zero.');
+    }
+    if (prazoContratoDias > 90) {
+      throw new BadRequestException(
+        'O prazo do contrato de experiência não pode exceder 90 dias (CLT Art. 445).',
+      );
+    }
+    if (prorrogacaoDias !== null) {
+      if (prorrogacaoDias <= 0) {
+        throw new BadRequestException('O prazo de prorrogação deve ser maior que zero.');
+      }
+      const total = prazoContratoDias + prorrogacaoDias;
+      if (total > 90) {
+        throw new BadRequestException(
+          `O prazo total (${prazoContratoDias} + ${prorrogacaoDias} = ${total} dias) ultrapassa o limite legal de 90 dias (CLT Art. 445).`,
+        );
+      }
+    }
+
+    const numemp = parseInt(candidatura.requisicao.empresa?.codigoEmpresaSenior ?? '1', 10);
+    const codfil = candidatura.requisicao.filial ?? 0;
+    const dataAdmissao =
+      candidatura.admissao ?? candidatura.requisicao.dataPrevistaAdmissao ?? new Date();
+
+    const [filial, salario] = await Promise.all([
+      this.buscarFilial(numemp, codfil),
+      this.buscarSalario(
+        numemp,
+        codfil,
+        candidatura.requisicao.estcar,
+        candidatura.requisicao.cargo,
+        dataAdmissao,
+      ),
+    ]);
+
+    const empresaNome =
+      filial?.RAZSOC ?? candidatura.requisicao.empresa?.nome ?? 'Supermercado Coelho Diniz Ltda';
+    const empresaCnpj = filial ? this.formatarCnpj(filial.NUMCGC) : '41.930.199/0026-92';
+    const empresaCidade = filial?.NOMCID ?? 'Governador Valadares';
+    const empresaEndereco = filial
+      ? `${filial.TIPLGR} ${filial.ENDFIL}, ${filial.ENDNUM} - ${filial.NOMBAI}`
+      : 'MARECHAL FLORIANO, 1527 - CENTRO';
+    const salarioFormatado = salario
+      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+          salario.VALSAL,
+        )
+      : '__________';
+
+    const candidatoNome = (candidatura.candidato.nome ?? 'NOME NÃO INFORMADO').toUpperCase();
+    const candidatoCpf = this.formatarCpf(candidatura.candidato.cpf);
+    const cargo = (
+      candidatura.requisicao.cargoNome ??
+      candidatura.requisicao.cargo ??
+      'CARGO NÃO INFORMADO'
+    ).toUpperCase();
+
     const pdf = await PDFDocument.create();
     pdf.setTitle(ContratoExperienciaService.NOME);
     pdf.setAuthor('Admissão Digital');
@@ -38,18 +128,78 @@ export class ContratoExperienciaService {
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-    const empresaNome = candidatura.requisicao.empresa?.nome ?? 'Supermercado Coelho Diniz Ltda';
-    const candidatoNome = (candidatura.candidato.nome ?? 'NOME NÃO INFORMADO').toUpperCase();
-    const cargo = (candidatura.requisicao.cargoNome ?? candidatura.requisicao.cargo ?? 'CARGO NÃO INFORMADO').toUpperCase();
-    const dataAdmissao = candidatura.admissao ?? candidatura.requisicao.dataPrevistaAdmissao ?? new Date();
-
     const page1 = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    this.desenharContrato(pdf, page1, regular, bold, { empresaNome, candidatoNome, cargo, dataAdmissao });
+    this.desenharContrato(pdf, page1, regular, bold, {
+      empresaNome,
+      empresaCnpj,
+      empresaCidade,
+      empresaEndereco,
+      candidatoNome,
+      candidatoCpf,
+      cargo,
+      salarioFormatado,
+      dataAdmissao,
+      prazoContratoDias,
+    });
 
     const page2 = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    this.desenharProrrogacao(pdf, page2, regular, bold, { empresaNome, candidatoNome });
+    this.desenharProrrogacao(pdf, page2, regular, bold, {
+      empresaNome,
+      candidatoNome,
+      prazoContratoDias,
+      prorrogacaoDias,
+    });
 
     return Buffer.from(await pdf.save());
+  }
+
+  private async buscarFilial(numemp: number, codfil: number): Promise<FilialAdmissao | null> {
+    if (!codfil) return null;
+    try {
+      return await this.seniorApi.get<FilialAdmissao | null>(
+        `/admissao/filial?numemp=${numemp}&codfil=${codfil}`,
+      );
+    } catch (err) {
+      this.logger.warn(`Falha ao buscar filial ${codfil}: ${String(err)}`);
+      return null;
+    }
+  }
+
+  private async buscarSalario(
+    numemp: number,
+    codfil: number,
+    estcar: number,
+    codcar: string | null | undefined,
+    datadm: Date,
+  ): Promise<SalarioAdmissao | null> {
+    if (!codcar || !codfil) return null;
+    const datadmStr = this.formatarDataAdmissao(datadm);
+    const url = `/admissao/salario?numemp=${numemp}&estcar=${estcar}&codcar=${encodeURIComponent(codcar)}&codfil=${codfil}&datadm=${encodeURIComponent(datadmStr)}`;
+    try {
+      return await this.seniorApi.get<SalarioAdmissao | null>(url);
+    } catch (err) {
+      this.logger.warn(`Falha ao buscar salário: ${String(err)}`);
+      return null;
+    }
+  }
+
+  private formatarCnpj(cnpj: string | number): string {
+    const d = String(cnpj).replace(/\D/g, '').padStart(14, '0');
+    return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  }
+
+  private formatarCpf(cpf: string): string {
+    const d = cpf.replace(/\D/g, '');
+    return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+  }
+
+  private formatarDataAdmissao(date: Date): string {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(date);
   }
 
   private desenharContrato(
@@ -57,7 +207,18 @@ export class ContratoExperienciaService {
     page: PDFPage,
     regular: PDFFont,
     bold: PDFFont,
-    data: { empresaNome: string; candidatoNome: string; cargo: string; dataAdmissao: Date },
+    data: {
+      empresaNome: string;
+      empresaCnpj: string;
+      empresaCidade: string;
+      empresaEndereco: string;
+      candidatoNome: string;
+      candidatoCpf: string;
+      cargo: string;
+      salarioFormatado: string;
+      dataAdmissao: Date;
+      prazoContratoDias: number;
+    },
   ): void {
     let y = drawHeader(page, bold);
 
@@ -71,19 +232,19 @@ export class ContratoExperienciaService {
     y -= 18;
 
     const conteudo = [
-      `Entre a firma ${data.empresaNome}, CNPJ ${EMPRESA_CNPJ} com sede em ${EMPRESA_CIDADE} na ${EMPRESA_ENDERECO}, doravante designada simplesmente EMPREGADORA e ${data.candidatoNome} portador(a) da Carteira Profissional N\xba _________________ a seguir chamado apenas EMPREGADO, e celebrado o presente CONTRATO DE EXPERI\u00caNCIA, que ter\u00e1 vig\u00eancia a partir da data de in\u00edcio de servi\u00e7os, de acordo com as condi\u00e7\u00f5es a seguir especificadas:`,
-      `1 - Fica o EMPREGADO admitido no quadro de funcion\u00e1rios da EMPREGADORA para exercer as fun\u00e7\u00f5es de ${data.cargo} mediante a remunera\u00e7\u00e3o de __________ por m\u00eas. A circunst\u00e2ncia, por\u00e9m, de ser a fun\u00e7\u00e3o especificada n\u00e3o importa na intransferibilidade do EMPREGADO para outro servi\u00e7o, o qual demonstre melhor capacidade de adapta\u00e7\u00e3o desde que compat\u00edvel com a sua condi\u00e7\u00e3o pessoal.`,
+      `Entre a firma ${data.empresaNome}, CNPJ ${data.empresaCnpj} com sede em ${data.empresaCidade} na ${data.empresaEndereco}, doravante designada simplesmente EMPREGADORA e ${data.candidatoNome} portador(a) do CPF n\xba ${data.candidatoCpf}, a seguir chamado apenas EMPREGADO, e celebrado o presente CONTRATO DE EXPERI\u00caNCIA, que ter\u00e1 vig\u00eancia a partir da data de in\u00edcio de servi\u00e7os, de acordo com as condi\u00e7\u00f5es a seguir especificadas:`,
+      `1 - Fica o EMPREGADO admitido no quadro de funcion\u00e1rios da EMPREGADORA para exercer as fun\u00e7\u00f5es de ${data.cargo} mediante a remunera\u00e7\u00e3o de ${data.salarioFormatado} por m\u00eas. A circunst\u00e2ncia, por\u00e9m, de ser a fun\u00e7\u00e3o especificada n\u00e3o importa na intransferibilidade do EMPREGADO para outro servi\u00e7o, o qual demonstre melhor capacidade de adapta\u00e7\u00e3o desde que compat\u00edvel com a sua condi\u00e7\u00e3o pessoal.`,
       `2 - O hor\u00e1rio de trabalho ser\u00e1 anotado na sua ficha de registro e a eventual redu\u00e7\u00e3o de jornada, por determina\u00e7\u00e3o da EMPREGADORA, n\u00e3o inovar\u00e1 este ajuste, permanecendo sempre \u00edntegra a obriga\u00e7\u00e3o do EMPREGADO de cumprir o hor\u00e1rio que lhe for determinado, observando o limite legal.`,
       `3 - Obriga-se tamb\u00e9m o EMPREGADO a prestar servi\u00e7os em horas extraordin\u00e1rias, sempre que lhe for determinado pela EMPREGADORA na forma prevista em Lei. Na hip\u00f3tese desta faculdade pela EMPREGADORA, o EMPREGADO receber\u00e1 as horas extraordin\u00e1rias em acr\u00e9scimo legal, salvo a ocorr\u00eancia de compensa\u00e7\u00e3o, com a consequente redu\u00e7\u00e3o da jornada de trabalho em outro dia.`,
       `4 - Aceita o EMPREGADO, expressamente, a condi\u00e7\u00e3o de prestar servi\u00e7os em qualquer dos turnos de trabalho, isto \u00e9, tanto durante o dia como a noite, desde que sem simultaneidade, observadas as prescri\u00e7\u00f5es legais, reguladoras do assunto, quanto \u00e0 remunera\u00e7\u00e3o.`,
       `5 - Fica ajustado nos termos do que disp\u00f5e o Par. 1\u00ba do artigo 469 da Consolida\u00e7\u00e3o das Leis do Trabalho, que o EMPREGADO acatar\u00e1 ordem emanada da EMPREGADORA para presta\u00e7\u00e3o de servi\u00e7os tanto na localidade de celebra\u00e7\u00e3o do Contrato de Trabalho, como em qualquer outra Cidade, Capital ou Vila do Territ\u00f3rio Nacional, quer essa transfer\u00eancia seja transit\u00f3ria, quer seja definitiva.`,
       `6 - No ato da assinatura deste contrato, o EMPREGADO recebe o Regulamento Interno da Empresa cujas cl\u00e1usulas fazem parte do Contrato de Trabalho, e a viola\u00e7\u00e3o de qualquer delas implicar\u00e1 em san\u00e7\u00e3o, cuja gradua\u00e7\u00e3o depender\u00e1 da gravidade da mesma, culminando com a rescis\u00e3o do Contrato.`,
       `7 - Em caso de dano causado pelo EMPREGADO, fica a EMPREGADORA autorizada a efetivar o desconto da import\u00e2ncia correspondente ao preju\u00edzo, com fundamento no Par\u00e1grafo 1\u00ba do Artigo 462 da Consolida\u00e7\u00e3o das Leis do Trabalho, j\u00e1 que essa possibilidade fica expressamente prevista em Contrato.`,
-      `8 - O presente Contrato viger\u00e1 durante 30 dias, sendo celebrado para as partes verificarem reciprocamente a conveni\u00eancia ou n\u00e3o de se vincularem em car\u00e1ter definitivo a um Contrato de Trabalho. A Empresa passando a conhecer as aptid\u00f5es do EMPREGADO e suas qualidades pessoais e morais; o EMPREGADO verificando se o ambiente e os m\u00e9todos de trabalho atendem a sua conveni\u00eancia.`,
+      `8 - O presente Contrato viger\u00e1 durante ${data.prazoContratoDias} dias, sendo celebrado para as partes verificarem reciprocamente a conveni\u00eancia ou n\u00e3o de se vincularem em car\u00e1ter definitivo a um Contrato de Trabalho. A Empresa passando a conhecer as aptid\u00f5es do EMPREGADO e suas qualidades pessoais e morais; o EMPREGADO verificando se o ambiente e os m\u00e9todos de trabalho atendem a sua conveni\u00eancia.`,
       `9 - Opera-se a rescis\u00e3o do presente Contrato pela decorr\u00eancia do prazo supra ou por vontade de uma das partes; rescindindo-se por vontade do EMPREGADO ou pela EMPREGADORA com justa causa, nenhuma indeniza\u00e7\u00e3o \u00e9 devida; rescindindo-se, antes do prazo, por qualquer uma das partes, fica esta obrigada a pagar 50% dos sal\u00e1rios at\u00e9 o final.`,
       `10 - Na hip\u00f3tese deste ajuste transformar-se em Contrato de Prazo Indeterminado pelo decurso do tempo, continuar\u00e3o em plena vig\u00eancia as cl\u00e1usulas de 1 (um) a 7 (sete), enquanto durarem as rela\u00e7\u00f5es do EMPREGADO com a EMPREGADORA.`,
-      `E por estarem de pleno acordo, as partes contratantes, assinam o presente Contrato de Experi\u00eancia em duas vias, ficando a primeira em poder da EMPREGADORA, e a segunda com o EMPREGADO, que dela dar\u00e1 o competente recibo.`,
-      `${EMPRESA_CIDADE}, ${this.formatarData(data.dataAdmissao)}.`,
+      `E por estarem de pleno acordo com as cl\u00e1usulas e condi\u00e7\u00f5es acima estabelecidas, as partes firmam o presente Contrato de Experi\u00eancia por meio de assinatura eletr\u00f4nica avan\u00e7ada, nos termos do Art. 10, \u00a72\u00ba, da MP 2.200-2/2001 e da Lei 14.063/2020, com for\u00e7a de instrumento particular entre as partes. O documento eletr\u00f4nico \u00e9 disponibilizado \u00e0s partes acompanhado de comprovante de assinatura, integridade e auditoria.`,
+      `${data.empresaCidade}, ${this.formatarData(data.dataAdmissao)}.`,
     ].join('\n');
 
     const { page: lastPage, y: lastY } = drawParagraphs(pdf, page, conteudo, regular, y, 8.5, {
@@ -93,7 +254,14 @@ export class ContratoExperienciaService {
       x: 42,
       maxWidth: 511,
     });
-    drawAssinaturas(pdf, lastPage, regular, bold, lastY - 14, data.empresaNome, data.candidatoNome);
+    drawAssinaturasEletronicas(
+      lastPage,
+      regular,
+      bold,
+      lastY - 14,
+      data.empresaNome,
+      data.candidatoNome,
+    );
     drawFooter(page);
   }
 
@@ -102,26 +270,48 @@ export class ContratoExperienciaService {
     page: PDFPage,
     regular: PDFFont,
     bold: PDFFont,
-    data: { empresaNome: string; candidatoNome: string },
+    data: {
+      empresaNome: string;
+      candidatoNome: string;
+      prazoContratoDias: number;
+      prorrogacaoDias: number | null;
+    },
   ): void {
     let y = drawHeader(page, bold);
 
-    const title = 'Termo de Prorrogação';
+    const title = 'Termo de Prorrogação do Contrato de Experiência';
     page.drawText(title, {
-      x: (PAGE_WIDTH - bold.widthOfTextAtSize(title, 12)) / 2,
+      x: (PAGE_WIDTH - bold.widthOfTextAtSize(title, 11)) / 2,
       y,
-      size: 12,
+      size: 11,
       font: bold,
     });
     y -= 30;
 
-    const corpo = 'Por mútuo acordo entre as partes, fica o presente Contrato de Experiência, que deveria vencer nesta data prorrogado até _______/_______/_______.';
-    for (const line of wrapText(corpo, regular, 9.5, 455)) {
-      page.drawText(line, { x: 70, y, size: 9.5, font: regular });
-      y -= 13;
-    }
+    const prazoProrrogacao = data.prorrogacaoDias ?? 60;
+    const totalDias = data.prazoContratoDias + prazoProrrogacao;
 
-    drawAssinaturas(pdf, page, regular, bold, y - 40, data.empresaNome, data.candidatoNome);
+    const corpo = [
+      `Por mútuo acordo entre as partes, fica o presente Contrato de Experiência (${data.prazoContratoDias} dias) prorrogado por mais ${prazoProrrogacao} dias, totalizando ${totalDias} dias, nos termos do Art. 445, parágrafo único, da CLT.`,
+      `A prorrogação terá vigência a partir do vencimento do prazo inicial do contrato, encerrando-se automaticamente ao término do prazo acima estabelecido.`,
+      `Este Termo é firmado por meio de assinatura eletrônica avançada, nos termos do Art. 10, §2º, da MP 2.200-2/2001 e da Lei 14.063/2020.`,
+    ].join('\n\n');
+
+    const { y: lastY } = drawParagraphs(pdf, page, corpo, regular, y, 9.5, {
+      lineHeight: 13,
+      paragraphSpacing: 6,
+      x: 70,
+      maxWidth: 455,
+    });
+
+    drawAssinaturasEletronicas(
+      page,
+      regular,
+      bold,
+      lastY - 30,
+      data.empresaNome,
+      data.candidatoNome,
+    );
     drawFooter(page);
   }
 

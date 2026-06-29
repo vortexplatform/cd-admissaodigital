@@ -4,6 +4,8 @@ import { OtpService } from '../auth/otp.service';
 import { SmsService } from '../auth/sms.service';
 import { DocumentosTemplatesModule } from '../documentos-templates/documentos-templates.module';
 import { EmpresasModule } from '../empresas/empresas.module';
+import { AceiteRegulamentoController } from './aceite-regulamento.controller';
+import { AceiteRegulamentoService } from './aceite-regulamento.service';
 import { AssinaturasService } from './assinaturas.service';
 import {
   DocumentoTemplateDefaultsController,
@@ -16,10 +18,17 @@ import { DocumentosService } from './documentos.service';
 import { OcrService } from './ocr.service';
 import { PdfDigitalSignatureService } from './pdf-digital-signature.service';
 import { S3StorageService } from './s3-storage.service';
+import { VerificacaoController } from './verificacao.controller';
 
 @Module({
   imports: [EmpresasModule, DocumentosTemplatesModule],
-  controllers: [DocumentosController, DocumentoTemplatesController, DocumentoTemplateDefaultsController],
+  controllers: [
+    DocumentosController,
+    DocumentoTemplatesController,
+    DocumentoTemplateDefaultsController,
+    VerificacaoController,
+    AceiteRegulamentoController,
+  ],
   providers: [
     DocumentosService,
     DocumentoTemplatesService,
@@ -31,6 +40,7 @@ import { S3StorageService } from './s3-storage.service';
     OtpService,
     EmailService,
     SmsService,
+    AceiteRegulamentoService,
   ],
   exports: [
     DocumentosService,
@@ -40,6 +50,7 @@ import { S3StorageService } from './s3-storage.service';
     S3StorageService,
     AssinaturasService,
     PdfDigitalSignatureService,
+    AceiteRegulamentoService,
   ],
 })
 export class DocumentosModule {}

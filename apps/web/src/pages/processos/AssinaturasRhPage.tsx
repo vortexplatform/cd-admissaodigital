@@ -396,7 +396,17 @@ function EnvelopeCard({
                   Hash: {documento.hashAssinado ?? documento.hashOriginal}
                 </p>
                 {documento.codigoVerificacao && (
-                  <p className="text-xs text-muted-foreground">Verificação: {documento.codigoVerificacao}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Verificação:{' '}
+                    <a
+                      href={`/verificar/${documento.codigoVerificacao}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono underline hover:text-foreground"
+                    >
+                      {documento.codigoVerificacao}
+                    </a>
+                  </p>
                 )}
                 {documento.metodoAssinatura && (
                   <p className="text-xs text-muted-foreground">

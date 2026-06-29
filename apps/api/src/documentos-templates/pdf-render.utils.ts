@@ -105,6 +105,71 @@ export function drawAssinaturas(
   page.drawText('Nome completo:', { x: 320, y, size: 9, font: regular });
 }
 
+/**
+ * Desenha blocos de assinatura eletrônica para contratos digitais.
+ * Substitui as linhas de assinatura manual e campo de testemunhas.
+ */
+export function drawAssinaturasEletronicas(
+  page: PDFPage,
+  regular: PDFFont,
+  bold: PDFFont,
+  startY: number,
+  empregadora: string,
+  empregado: string,
+): void {
+  let y = startY;
+
+  if (y < 160) {
+    // Não há espaço suficiente — chamador deve garantir página adequada
+    y = 700;
+  }
+
+  const blockHeight = 46;
+  const blockX = 70;
+  const blockWidth = 455;
+
+  // Bloco EMPREGADORA
+  page.drawRectangle({
+    x: blockX,
+    y: y - blockHeight + 14,
+    width: blockWidth,
+    height: blockHeight,
+    color: rgb(0.96, 0.96, 0.96),
+    borderColor: rgb(0.75, 0.75, 0.75),
+    borderWidth: 0.5,
+  });
+  page.drawText('EMPREGADORA — Assinado eletronicamente por representante autorizado', {
+    x: blockX + 8, y: y + 6, size: 7.5, font: bold, color: rgb(0.25, 0.25, 0.25),
+  });
+  page.drawText(empregadora.toUpperCase(), {
+    x: blockX + 8, y: y - 6, size: 9, font: bold, color: rgb(0.1, 0.1, 0.1),
+  });
+  page.drawText('Assinatura digital com certificado A1 | Admissão Digital', {
+    x: blockX + 8, y: y - 18, size: 7, font: regular, color: rgb(0.45, 0.45, 0.45),
+  });
+  y -= blockHeight + 10;
+
+  // Bloco EMPREGADO
+  page.drawRectangle({
+    x: blockX,
+    y: y - blockHeight + 14,
+    width: blockWidth,
+    height: blockHeight,
+    color: rgb(0.96, 0.96, 0.96),
+    borderColor: rgb(0.75, 0.75, 0.75),
+    borderWidth: 0.5,
+  });
+  page.drawText('EMPREGADO — Assinado eletronicamente pelo colaborador', {
+    x: blockX + 8, y: y + 6, size: 7.5, font: bold, color: rgb(0.25, 0.25, 0.25),
+  });
+  page.drawText(empregado.toUpperCase(), {
+    x: blockX + 8, y: y - 6, size: 9, font: bold, color: rgb(0.1, 0.1, 0.1),
+  });
+  page.drawText('Assinatura eletrônica avançada por OTP | Admissão Digital', {
+    x: blockX + 8, y: y - 18, size: 7, font: regular, color: rgb(0.45, 0.45, 0.45),
+  });
+}
+
 export function drawFooter(page: PDFPage): void {
   page.drawLine({ start: { x: 36, y: 34 }, end: { x: 559, y: 34 }, thickness: 2, color: rgb(0, 0, 0) });
   page.drawLine({ start: { x: 36, y: 30 }, end: { x: 559, y: 30 }, thickness: 0.7, color: rgb(0, 0, 0) });

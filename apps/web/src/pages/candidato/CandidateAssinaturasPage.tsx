@@ -304,7 +304,19 @@ function EnvelopeCard({
                 )}
               </div>
               <p className="mt-1 truncate text-xs text-muted-foreground">Hash: {doc.hashAssinado ?? doc.hashOriginal}</p>
-              {doc.codigoVerificacao && <p className="text-xs text-muted-foreground">Verificação: {doc.codigoVerificacao}</p>}
+              {doc.codigoVerificacao && (
+                <p className="text-xs text-muted-foreground">
+                  Verificação:{' '}
+                  <a
+                    href={`/verificar/${doc.codigoVerificacao}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono underline hover:text-foreground"
+                  >
+                    {doc.codigoVerificacao}
+                  </a>
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {doc.status !== 'ASSINADO' && (
@@ -485,9 +497,23 @@ function SignaturePreviewModal({
             {isSigned ? 'Documento já assinado' : 'Leia o documento antes de assinar'}
           </p>
           <p className="text-xs text-muted-foreground">
-            {isSigned
-              ? `Código de verificação: ${doc.codigoVerificacao ?? 'não informado'}`
-              : 'Ao assinar, você confirma ciência e aceite deste PDF específico.'}
+            {isSigned && doc.codigoVerificacao ? (
+              <>
+                Verificação:{' '}
+                <a
+                  href={`/verificar/${doc.codigoVerificacao}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono underline hover:text-foreground"
+                >
+                  {doc.codigoVerificacao}
+                </a>
+              </>
+            ) : isSigned ? (
+              'Código de verificação não informado'
+            ) : (
+              'Ao assinar, você confirma ciência e aceite deste PDF específico.'
+            )}
           </p>
         </div>
         {isSigned ? (

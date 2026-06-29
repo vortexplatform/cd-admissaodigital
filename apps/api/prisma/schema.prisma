@@ -118,8 +118,27 @@ model Candidato {
   candidaturas                  Candidatura[]
   biometriaSolicitacoes         BiometriaSolicitacao[]
   biometriaTemplates            BiometriaTemplate[]
+  aceitesRegulamento            AceiteRegulamento[]
 
   @@map("candidato")
+}
+
+model AceiteRegulamento {
+  id                    Int        @id @default(autoincrement())
+  candidatoId           Int        @map("candidato_id")
+  documentoAssinaturaId Int?       @map("documento_assinatura_id")
+  versaoRegulamento     String     @map("versao_regulamento")
+  hashRegulamento       String     @map("hash_regulamento")
+  aceitoEm              DateTime   @map("aceito_em")
+  ip                    String?
+  userAgent             String?    @map("user_agent")
+  codigoVerificacao     String     @unique @map("codigo_verificacao")
+  createdAt             DateTime   @default(now()) @map("created_at")
+
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@index([candidatoId])
+  @@map("aceite_regulamento")
 }
 
 model RefreshToken {
@@ -282,6 +301,10 @@ model RequisicaoVaga {
 
   dataPrevistaAdmissao DateTime? @db.Date
 
+  prazoContratoDias Int? @map("prazo_contrato_dias")
+  prorrogacaoDias   Int? @map("prorrogacao_dias")
+  estcar            Int  @default(0)
+
   motivoAbertura String?
   observacao     String?
 
@@ -433,16 +456,24 @@ model DocumentoAssinatura {
   assinaturaCpf          String?                   @map("assinatura_cpf")
   assinaturaIp           String?                   @map("assinatura_ip")
   assinaturaUserAgent    String?                   @map("assinatura_user_agent")
+  assinaturaEmail        String?                   @map("assinatura_email")
+  assinaturaTelefone     String?                   @map("assinatura_telefone")
   metodoAssinatura       MetodoAssinatura?         @map("metodo_assinatura")
   biometriaSolicitacaoId Int?                      @map("biometria_solicitacao_id")
   codigoVerificacao      String?                   @unique @map("codigo_verificacao")
-  empresaCertificadoId   Int?                      @map("empresa_certificado_id")
-  empresaAssinouEm       DateTime?                 @map("empresa_assinou_em")
-  empresaCertSubject     String?                   @map("empresa_cert_subject")
-  empresaCertIssuer      String?                   @map("empresa_cert_issuer")
-  empresaCertSerial      String?                   @map("empresa_cert_serial")
-  empresaPdfHash         String?                   @map("empresa_pdf_hash")
-  empresaPdfFinal        Bytes?                    @map("empresa_pdf_final")
+  empresaCertificadoId       Int?                      @map("empresa_certificado_id")
+  empresaAssinouEm           DateTime?                 @map("empresa_assinou_em")
+  empresaCertSubject         String?                   @map("empresa_cert_subject")
+  empresaCertIssuer          String?                   @map("empresa_cert_issuer")
+  empresaCertSerial          String?                   @map("empresa_cert_serial")
+  empresaPdfHash             String?                   @map("empresa_pdf_hash")
+  empresaPdfFinal            Bytes?                    @map("empresa_pdf_final")
+  empresaRepresentanteNome   String?                   @map("empresa_representante_nome")
+  empresaRepresentanteCpf    String?                   @map("empresa_representante_cpf")
+  empresaRepresentanteCargo  String?                   @map("empresa_representante_cargo")
+  empresaRepresentanteEmail  String?                   @map("empresa_representante_email")
+  empresaIp                  String?                   @map("empresa_ip")
+  empresaUserAgent           String?                   @map("empresa_user_agent")
   createdAt              DateTime                  @default(now()) @map("created_at")
   updatedAt              DateTime                  @updatedAt @map("updated_at")
 

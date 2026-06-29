@@ -18,12 +18,18 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { extractPublicIp } from '../general/request.utils';
 import { AssinaturasService } from './assinaturas.service';
 import { DocumentosService } from './documentos.service';
 import { RevisarDocumentoDto } from './dto/revisar-documento.dto';
 import { VerifySignatureOtpDto } from './dto/verify-signature-otp.dto';
 
-type AuthRequest = { user: { id: number }; ip?: string };
+type AuthRequest = {
+  user: { id: number };
+  ip?: string;
+  headers: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string };
+};
 type UploadedMemoryFile = {
   originalname: string;
   mimetype: string;
@@ -70,7 +76,7 @@ export class DocumentosController {
     @Param('id', ParseIntPipe) id: number,
     @Headers('user-agent') userAgent?: string,
   ) {
-    return this.assinaturas.sendOtp(req.user.id, id, { ip: req.ip, userAgent });
+    return this.assinaturas.sendOtp(req.user.id, id, { ip: extractPublicIp(req), userAgent });
   }
 
   @Post('assinaturas/:id/otp/verify')
@@ -80,7 +86,7 @@ export class DocumentosController {
     @Body() dto: VerifySignatureOtpDto,
     @Headers('user-agent') userAgent?: string,
   ) {
-    return this.assinaturas.verifyOtp(req.user.id, id, dto.code, { ip: req.ip, userAgent });
+    return this.assinaturas.verifyOtp(req.user.id, id, dto.code, { ip: extractPublicIp(req), userAgent });
   }
 
   @Post('assinaturas/documentos/:id/assinar')
@@ -90,7 +96,7 @@ export class DocumentosController {
     @Body('sessionToken') sessionToken: string,
     @Headers('user-agent') userAgent?: string,
   ) {
-    return this.assinaturas.signDocument(req.user.id, id, sessionToken, { ip: req.ip, userAgent });
+    return this.assinaturas.signDocument(req.user.id, id, sessionToken, { ip: extractPublicIp(req), userAgent });
   }
 
   @Get('assinaturas/documentos/:id/view')
@@ -100,7 +106,7 @@ export class DocumentosController {
     @Headers('user-agent') userAgent: string | undefined,
     @Res() res: Response,
   ) {
-    const buffer = await this.assinaturas.viewDocument(req.user.id, id, { ip: req.ip, userAgent });
+    const buffer = await this.assinaturas.viewDocument(req.user.id, id, { ip: extractPublicIp(req), userAgent });
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': contentDispositionInline(`documento-assinatura-${id}.pdf`),
