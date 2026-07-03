@@ -65,6 +65,34 @@ export class DocumentosController {
     return this.assinaturas.listForRh(req.user.id);
   }
 
+  @Get('assinaturas/rh/filtros')
+  listAssinaturasRhFiltros(@Request() req: AuthRequest) {
+    return this.assinaturas.listFiltrosRh(req.user.id);
+  }
+
+  @Get('assinaturas/rh/lista')
+  listAssinaturasRhPaginado(
+    @Request() req: AuthRequest,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+    @Query('situacao') situacao: 'PENDENTES' | 'CONCLUIDAS' | 'TODAS' | 'APROVADOS' = 'PENDENTES',
+    @Query('filial') filial?: string,
+    @Query('setor') setor?: string,
+    @Query('cargo') cargo?: string,
+  ) {
+    return this.assinaturas.listForRhPaginado(
+      req.user.id,
+      Math.max(1, Number(page)),
+      Math.min(100, Math.max(1, Number(limit))),
+      situacao,
+      {
+        filial: filial ? Number(filial) : undefined,
+        setor: setor || undefined,
+        cargo: cargo || undefined,
+      },
+    );
+  }
+
   @Post('assinaturas/rh/candidaturas/:id/gerar')
   gerarAssinaturasRh(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
     return this.assinaturas.gerarParaRh(req.user.id, id);

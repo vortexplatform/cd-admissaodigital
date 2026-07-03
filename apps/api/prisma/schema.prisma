@@ -32,6 +32,7 @@ model User {
   admissoesGeradas             Candidatura[]          @relation("CandidaturaAdmissaoGeradaPor")
   documentosRevisados          DocumentoAdmissao[]    @relation("DocumentoRevisadoPor")
   envelopesAssinatura          EnvelopeAssinatura[]
+  envelopesGerados             EnvelopeAssinatura[]   @relation("EnvelopeGeradoPor")
   certificadosA1Criados        EmpresaCertificadoA1[] @relation("CertificadoA1CriadoPor")
   biometriaSolicitacoesCriadas BiometriaSolicitacao[] @relation("BiometriaSolicitadaPor")
   refreshTokens                 RefreshToken[]
@@ -212,8 +213,9 @@ model EmpresaCertificadoA1 {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
-  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  criadoPor User?   @relation("CertificadoA1CriadoPor", fields: [criadoPorUserId], references: [id], onDelete: SetNull)
+  empresa              Empresa               @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  criadoPor            User?                 @relation("CertificadoA1CriadoPor", fields: [criadoPorUserId], references: [id], onDelete: SetNull)
+  documentosAssinatura DocumentoAssinatura[]
 
   @@index([empresaId, ativo])
   @@map("empresa_certificado_a1")
@@ -417,6 +419,7 @@ model EnvelopeAssinatura {
   id              Int                      @id @default(autoincrement())
   candidaturaId   Int                      @map("candidatura_id")
   userId          Int                      @map("user_id")
+  geradoPorUserId Int?                     @map("gerado_por_user_id")
   setor           SetorAssinatura
   status          StatusEnvelopeAssinatura @default(RASCUNHO)
   otpIdentifier   String?                  @map("otp_identifier")
@@ -429,6 +432,7 @@ model EnvelopeAssinatura {
 
   candidatura           Candidatura            @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
   user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  geradoPor             User?                  @relation("EnvelopeGeradoPor", fields: [geradoPorUserId], references: [id], onDelete: SetNull)
   documentos            DocumentoAssinatura[]
   eventos               EventoAssinatura[]
   biometriaSolicitacoes BiometriaSolicitacao[]
@@ -446,7 +450,8 @@ model DocumentoAssinatura {
   nome                   String
   descricao              String?
   ordem                  Int                       @default(0)
-  conteudo               String
+  conteudo               String?
+  conteudoStoragePath    String?                   @map("conteudo_storage_path")
   hashOriginal           String                    @map("hash_original")
   hashAssinado           String?                   @map("hash_assinado")
   status                 StatusDocumentoAssinatura @default(PENDENTE)
@@ -466,8 +471,9 @@ model DocumentoAssinatura {
   empresaCertSubject         String?                   @map("empresa_cert_subject")
   empresaCertIssuer          String?                   @map("empresa_cert_issuer")
   empresaCertSerial          String?                   @map("empresa_cert_serial")
-  empresaPdfHash             String?                   @map("empresa_pdf_hash")
-  empresaPdfFinal            Bytes?                    @map("empresa_pdf_final")
+  empresaPdfHash                 String?                   @map("empresa_pdf_hash")
+  empresaPdfFinal                Bytes?                    @map("empresa_pdf_final")
+  empresaPdfFinalStoragePath     String?                   @map("empresa_pdf_final_storage_path")
   empresaRepresentanteNome   String?                   @map("empresa_representante_nome")
   empresaRepresentanteCpf    String?                   @map("empresa_representante_cpf")
   empresaRepresentanteCargo  String?                   @map("empresa_representante_cargo")
@@ -479,6 +485,7 @@ model DocumentoAssinatura {
 
   envelope             EnvelopeAssinatura    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
   biometriaSolicitacao BiometriaSolicitacao? @relation(fields: [biometriaSolicitacaoId], references: [id], onDelete: SetNull)
+  empresaCertificado   EmpresaCertificadoA1? @relation(fields: [empresaCertificadoId], references: [id], onDelete: SetNull)
 
   @@unique([envelopeId, codigo])
   @@index([status])

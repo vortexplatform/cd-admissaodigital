@@ -43,6 +43,7 @@ export interface DocumentoAdmissao {
 export interface DocumentosCandidatura {
   id: number;
   status: string;
+  admissao: string | null;
   candidato: {
     id: number;
     nome: string | null;

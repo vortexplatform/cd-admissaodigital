@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
+  ArrowLeft,
   CheckCircle2,
   Download,
   Eye,
@@ -25,7 +26,6 @@ import {
 const documentosProntosParaAssinatura = (candidatura: DocumentosCandidatura) => {
   const obrigatorios = candidatura.documentos.filter((documento) => documento.obrigatorio);
   if (obrigatorios.length === 0) return false;
-
   return obrigatorios.every(
     (documento) => documento.dispensadoPorId != null || documento.status === 'APROVADO',
   );
@@ -34,11 +34,11 @@ const documentosProntosParaAssinatura = (candidatura: DocumentosCandidatura) => 
 const getEnvelopeStats = (envelopes: EnvelopeAssinatura[]) => {
   const total = envelopes.reduce((sum, envelope) => sum + envelope.documentos.length, 0);
   const signed = envelopes.reduce(
-    (sum, envelope) => sum + envelope.documentos.filter((documento) => documento.status === 'ASSINADO').length,
+    (sum, envelope) =>
+      sum + envelope.documentos.filter((documento) => documento.status === 'ASSINADO').length,
     0,
   );
   const pending = total - signed;
-
   return { total, signed, pending };
 };
 
@@ -46,8 +46,10 @@ const envelopeTitle = (envelope: EnvelopeAssinatura) =>
   envelope.setor === 'ADM_PESSOAL' ? 'Adm Pessoal' : 'SESMT';
 
 export default function AssinaturasRhPage() {
-  const [searchParams] = useSearchParams();
-  const candidatoId = searchParams.get('candidatoId') ? Number(searchParams.get('candidatoId')) : null;
+  const { candidatoId: candidatoIdParam } = useParams<{ candidatoId: string }>();
+  const candidatoId = candidatoIdParam ? Number(candidatoIdParam) : null;
+  const navigate = useNavigate();
+
   const [documentos, setDocumentos] = useState<DocumentosCandidatura[]>([]);
   const [assinaturas, setAssinaturas] = useState<AssinaturasCandidatura[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +64,6 @@ export default function AssinaturasRhPage() {
       api.get<DocumentosCandidatura[]>('/documentos/rh'),
       api.get<AssinaturasCandidatura[]>('/documentos/assinaturas/rh'),
     ]);
-
     setDocumentos(
       candidatoId ? documentosData.filter((item) => item.candidato.id === candidatoId) : documentosData,
     );
@@ -72,6 +73,7 @@ export default function AssinaturasRhPage() {
   }, [candidatoId]);
 
   useEffect(() => {
+    setIsLoading(true);
     loadData()
       .catch(() => setError('Não foi possível carregar assinaturas.'))
       .finally(() => setIsLoading(false));
@@ -94,13 +96,13 @@ export default function AssinaturasRhPage() {
     if (!row.assinatura) return row.prontoParaGerar;
     return getEnvelopeStats(row.assinatura.envelopesAssinatura).pending > 0;
   }).length;
+
   const concluidas = rows.filter((row) => {
     if (!row.assinatura) return false;
     const stats = getEnvelopeStats(row.assinatura.envelopesAssinatura);
     return stats.total > 0 && stats.pending === 0;
   }).length;
 
-  // Conta envelopes concluídos individualmente (não candidaturas inteiras)
   const envelopesConcluidos = useMemo(
     () =>
       rows.reduce((count, row) => {
@@ -110,8 +112,6 @@ export default function AssinaturasRhPage() {
     [rows],
   );
 
-  // Polling ativo quando: há solicitação pendente aguardando o dispositivo
-  // OU há envelopes com documentos pendentes e biometria cadastrada
   const devePolling = useMemo(
     () =>
       message.includes('Aguarde') ||
@@ -187,20 +187,28 @@ export default function AssinaturasRhPage() {
     }
   };
 
+  const candidatoNome = rows[0]?.candidatura.candidato.nome ?? rows[0]?.candidatura.candidato.cpf;
+
   return (
     <>
       <PageHeader
         eyebrow="Assinaturas"
-        title="Documentos para assinatura"
-        description="Gere envelopes para candidatos prontos e acompanhe contratos pendentes de assinatura."
+        title={candidatoNome ?? 'Documentos para assinatura'}
+        description="Gere envelopes e acompanhe contratos pendentes de assinatura."
         actions={
-          <div className="grid grid-cols-2 gap-2 text-sm sm:flex">
-            <span className="rounded-full border bg-card px-3 py-2 font-semibold text-muted-foreground">
-              Pendentes · {pendentes}
-            </span>
-            <span className="rounded-full border bg-card px-3 py-2 font-semibold text-muted-foreground">
-              Concluídas · {concluidas}
-            </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/assinaturas')}>
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+            <div className="grid grid-cols-2 gap-2 text-sm sm:flex">
+              <span className="rounded-full border bg-card px-3 py-2 font-semibold text-muted-foreground">
+                Pendentes · {pendentes}
+              </span>
+              <span className="rounded-full border bg-card px-3 py-2 font-semibold text-muted-foreground">
+                Concluídas · {concluidas}
+              </span>
+            </div>
           </div>
         }
       />
@@ -220,7 +228,9 @@ export default function AssinaturasRhPage() {
           <CardContent className="p-10 text-sm text-muted-foreground">
             <FileSignature className="mx-auto h-10 w-10 opacity-40" />
             <p className="mt-3 font-semibold text-foreground">Nenhum candidato pronto para assinatura</p>
-            <p className="mt-1">Quando todos os documentos obrigatórios forem aprovados, o candidato aparecerá aqui.</p>
+            <p className="mt-1">
+              Quando todos os documentos obrigatórios forem aprovados, o candidato aparecerá aqui.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -303,8 +313,17 @@ function AssinaturaCandidaturaCard({
         {assinatura ? (
           <div className="flex flex-wrap items-center gap-2">
             {!biometriaCadastrada && (
-              <Button type="button" variant="outline" disabled={isCadastrandoBiometria} onClick={onCadastrarBiometria}>
-                {isCadastrandoBiometria ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isCadastrandoBiometria}
+                onClick={onCadastrarBiometria}
+              >
+                {isCadastrandoBiometria ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Fingerprint className="h-4 w-4" />
+                )}
                 Cadastrar biometria
               </Button>
             )}
@@ -316,13 +335,26 @@ function AssinaturaCandidaturaCard({
         ) : (
           <div className="flex flex-wrap gap-2">
             {!biometriaCadastrada && (
-              <Button type="button" variant="outline" disabled={isCadastrandoBiometria} onClick={onCadastrarBiometria}>
-                {isCadastrandoBiometria ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isCadastrandoBiometria}
+                onClick={onCadastrarBiometria}
+              >
+                {isCadastrandoBiometria ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Fingerprint className="h-4 w-4" />
+                )}
                 Cadastrar biometria
               </Button>
             )}
             <Button type="button" disabled={isGerando} onClick={onGerar}>
-              {isGerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSignature className="h-4 w-4" />}
+              {isGerando ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileSignature className="h-4 w-4" />
+              )}
               Gerar documentos
             </Button>
           </div>
@@ -380,7 +412,11 @@ function EnvelopeCard({
             disabled={!biometriaCadastrada || pending === 0 || isSolicitandoBiometria}
             onClick={onSolicitarBiometria}
           >
-            {isSolicitandoBiometria ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
+            {isSolicitandoBiometria ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Fingerprint className="h-4 w-4" />
+            )}
             Solicitar biometria
           </Button>
         )}
@@ -431,7 +467,10 @@ function EnvelopeCard({
                 </a>
               </Button>
               <Button type="button" size="sm" variant="outline" asChild>
-                <a href={getDocumentoAssinaturaRhUrl(documento.id)} download={`documento-assinatura-${documento.id}.pdf`}>
+                <a
+                  href={getDocumentoAssinaturaRhUrl(documento.id)}
+                  download={`documento-assinatura-${documento.id}.pdf`}
+                >
                   <Download className="h-4 w-4" /> Baixar
                 </a>
               </Button>

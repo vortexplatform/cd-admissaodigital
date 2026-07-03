@@ -1,8 +1,8 @@
 import { Controller, Get, Param, ParseIntPipe, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ContratoExperienciaService } from './contrato-experiencia.service';
-import { DeclaracaoTreinamentoService } from './declaracao-treinamento.service';
+import { ContratoExperienciaService } from './relatorios/contrato-experiencia.service';
+import { DeclaracaoTreinamentoService } from './relatorios/declaracao-treinamento.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('documentos-templates')

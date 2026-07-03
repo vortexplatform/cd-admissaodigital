@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts } from 'pdf-lib';
-import { SeniorApiService } from '../general/senior-api.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { SeniorApiService } from '../../general/senior-api.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import {
   PAGE_HEIGHT,
   PAGE_WIDTH,
@@ -10,7 +10,7 @@ import {
   drawFooter,
   drawHeader,
   drawParagraphs,
-} from './pdf-render.utils';
+} from '../pdf-render.utils';
 
 export type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
   include: { candidato: true; requisicao: { include: { empresa: true } } };
@@ -60,7 +60,6 @@ export class ContratoExperienciaService {
 
   async gerarPdf(candidatura: CandidaturaContrato): Promise<Buffer> {
     const prazoContratoDias = candidatura.requisicao.prazoContratoDias ?? 30;
-    const prorrogacaoDias = candidatura.requisicao.prorrogacaoDias ?? null;
 
     if (prazoContratoDias <= 0) {
       throw new BadRequestException('O prazo do contrato de experiência deve ser maior que zero.');
@@ -69,17 +68,6 @@ export class ContratoExperienciaService {
       throw new BadRequestException(
         'O prazo do contrato de experiência não pode exceder 90 dias (CLT Art. 445).',
       );
-    }
-    if (prorrogacaoDias !== null) {
-      if (prorrogacaoDias <= 0) {
-        throw new BadRequestException('O prazo de prorrogação deve ser maior que zero.');
-      }
-      const total = prazoContratoDias + prorrogacaoDias;
-      if (total > 90) {
-        throw new BadRequestException(
-          `O prazo total (${prazoContratoDias} + ${prorrogacaoDias} = ${total} dias) ultrapassa o limite legal de 90 dias (CLT Art. 445).`,
-        );
-      }
     }
 
     const numemp = parseInt(candidatura.requisicao.empresa?.codigoEmpresaSenior ?? '1', 10);
@@ -140,14 +128,6 @@ export class ContratoExperienciaService {
       salarioFormatado,
       dataAdmissao,
       prazoContratoDias,
-    });
-
-    const page2 = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    this.desenharProrrogacao(pdf, page2, regular, bold, {
-      empresaNome,
-      candidatoNome,
-      prazoContratoDias,
-      prorrogacaoDias,
     });
 
     return Buffer.from(await pdf.save());
@@ -243,7 +223,7 @@ export class ContratoExperienciaService {
       `8 - O presente Contrato viger\u00e1 durante ${data.prazoContratoDias} dias, sendo celebrado para as partes verificarem reciprocamente a conveni\u00eancia ou n\u00e3o de se vincularem em car\u00e1ter definitivo a um Contrato de Trabalho. A Empresa passando a conhecer as aptid\u00f5es do EMPREGADO e suas qualidades pessoais e morais; o EMPREGADO verificando se o ambiente e os m\u00e9todos de trabalho atendem a sua conveni\u00eancia.`,
       `9 - Opera-se a rescis\u00e3o do presente Contrato pela decorr\u00eancia do prazo supra ou por vontade de uma das partes; rescindindo-se por vontade do EMPREGADO ou pela EMPREGADORA com justa causa, nenhuma indeniza\u00e7\u00e3o \u00e9 devida; rescindindo-se, antes do prazo, por qualquer uma das partes, fica esta obrigada a pagar 50% dos sal\u00e1rios at\u00e9 o final.`,
       `10 - Na hip\u00f3tese deste ajuste transformar-se em Contrato de Prazo Indeterminado pelo decurso do tempo, continuar\u00e3o em plena vig\u00eancia as cl\u00e1usulas de 1 (um) a 7 (sete), enquanto durarem as rela\u00e7\u00f5es do EMPREGADO com a EMPREGADORA.`,
-      `E por estarem de pleno acordo com as cl\u00e1usulas e condi\u00e7\u00f5es acima estabelecidas, as partes firmam o presente Contrato de Experi\u00eancia por meio de assinatura eletr\u00f4nica avan\u00e7ada, nos termos do Art. 10, \u00a72\u00ba, da MP 2.200-2/2001 e da Lei 14.063/2020, com for\u00e7a de instrumento particular entre as partes. O documento eletr\u00f4nico \u00e9 disponibilizado \u00e0s partes acompanhado de comprovante de assinatura, integridade e auditoria.`,
+      `E por estarem de pleno acordo com as cl\u00e1usulas e condi\u00e7\u00f5es acima estabelecidas, as partes firmam o presente Contrato de Experi\u00eancia por meio de assinatura eletr\u00f4nica/digital, conforme o m\u00e9todo utilizado por cada parte. A assinatura do empregado \u00e9 realizada por assinatura eletr\u00f4nica avan\u00e7ada por OTP, nos termos do Art. 10, \u00a72\u00ba, da MP 2.200-2/2001 e da Lei 14.063/2020, e a assinatura da empregadora \u00e9 realizada com certificado digital ICP-Brasil, garantindo autoria, integridade, rastreabilidade e for\u00e7a de instrumento particular entre as partes. O documento eletr\u00f4nico \u00e9 disponibilizado \u00e0s partes acompanhado de comprovante de assinatura, integridade e auditoria.`,
       `${data.empresaCidade}, ${this.formatarData(data.dataAdmissao)}.`,
     ].join('\n');
 
@@ -259,56 +239,6 @@ export class ContratoExperienciaService {
       regular,
       bold,
       lastY - 14,
-      data.empresaNome,
-      data.candidatoNome,
-    );
-    drawFooter(page);
-  }
-
-  private desenharProrrogacao(
-    pdf: PDFDocument,
-    page: PDFPage,
-    regular: PDFFont,
-    bold: PDFFont,
-    data: {
-      empresaNome: string;
-      candidatoNome: string;
-      prazoContratoDias: number;
-      prorrogacaoDias: number | null;
-    },
-  ): void {
-    let y = drawHeader(page, bold);
-
-    const title = 'Termo de Prorrogação do Contrato de Experiência';
-    page.drawText(title, {
-      x: (PAGE_WIDTH - bold.widthOfTextAtSize(title, 11)) / 2,
-      y,
-      size: 11,
-      font: bold,
-    });
-    y -= 30;
-
-    const prazoProrrogacao = data.prorrogacaoDias ?? 60;
-    const totalDias = data.prazoContratoDias + prazoProrrogacao;
-
-    const corpo = [
-      `Por mútuo acordo entre as partes, fica o presente Contrato de Experiência (${data.prazoContratoDias} dias) prorrogado por mais ${prazoProrrogacao} dias, totalizando ${totalDias} dias, nos termos do Art. 445, parágrafo único, da CLT.`,
-      `A prorrogação terá vigência a partir do vencimento do prazo inicial do contrato, encerrando-se automaticamente ao término do prazo acima estabelecido.`,
-      `Este Termo é firmado por meio de assinatura eletrônica avançada, nos termos do Art. 10, §2º, da MP 2.200-2/2001 e da Lei 14.063/2020.`,
-    ].join('\n\n');
-
-    const { y: lastY } = drawParagraphs(pdf, page, corpo, regular, y, 9.5, {
-      lineHeight: 13,
-      paragraphSpacing: 6,
-      x: 70,
-      maxWidth: 455,
-    });
-
-    drawAssinaturasEletronicas(
-      page,
-      regular,
-      bold,
-      lastY - 30,
       data.empresaNome,
       data.candidatoNome,
     );

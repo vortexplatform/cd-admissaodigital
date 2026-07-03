@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
-import { PrismaService } from '../prisma/prisma.service';
-import { PAGE_HEIGHT, PAGE_WIDTH, drawParagraphs, wrapText } from './pdf-render.utils';
+import { PrismaService } from '../../prisma/prisma.service';
+import { PAGE_HEIGHT, PAGE_WIDTH, drawParagraphs, wrapText } from '../pdf-render.utils';
 
 type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
   include: { candidato: true; requisicao: { include: { empresa: true } } };

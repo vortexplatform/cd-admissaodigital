@@ -112,9 +112,69 @@ export default function CandidateAssinaturasPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-64 items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Carregando assinaturas...
+      <div className="space-y-5">
+        <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
+          <div className="relative p-6 sm:p-8">
+            <div className="absolute right-0 top-0 h-40 w-40 rounded-bl-full bg-primary/10" />
+            <div className="h-7 w-20 animate-pulse rounded-lg bg-muted" />
+            <div className="mt-6 max-w-2xl space-y-3">
+              <div className="h-3 w-48 animate-pulse rounded bg-muted" />
+              <div className="h-8 w-80 animate-pulse rounded-lg bg-muted" />
+              <div className="h-3 w-64 animate-pulse rounded bg-muted" />
+              <div className="mt-2 space-y-2">
+                <div className="h-3 w-full animate-pulse rounded bg-muted" />
+                <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+              </div>
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="rounded-2xl border bg-background/70 p-4">
+                  <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+                  <div className="mt-2 h-7 w-16 animate-pulse rounded-lg bg-muted" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <div className="grid gap-4 xl:grid-cols-[18rem_1fr]">
+          <div className="h-fit rounded-2xl border bg-card p-4 shadow-sm">
+            <div className="h-4 w-36 animate-pulse rounded bg-muted" />
+            <div className="mt-4 space-y-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-3 rounded-xl border bg-background p-3">
+                  <div className="h-8 w-8 animate-pulse rounded-lg bg-muted" />
+                  <div className="space-y-1.5">
+                    <div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
+                    <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="rounded-2xl border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between border-b pb-4">
+                  <div className="space-y-1.5">
+                    <div className="h-5 w-28 animate-pulse rounded-lg bg-muted" />
+                    <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+                  </div>
+                  <div className="h-8 w-28 animate-pulse rounded-lg bg-muted" />
+                </div>
+                <div className="mt-4 space-y-3">
+                  {[1, 2].map((j) => (
+                    <div key={j} className="rounded-xl border bg-background p-4">
+                      <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+                      <div className="mt-1.5 h-3 w-64 animate-pulse rounded bg-muted" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

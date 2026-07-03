@@ -50,7 +50,7 @@ export default function AppSidebar() {
           </NavLink>
           <NavLink to="/assinaturas" className={linkClass}>
             <FileSignature className="h-4 w-4" />
-            Assinaturas pendentes
+            Assinaturas
           </NavLink>
         </div>
 

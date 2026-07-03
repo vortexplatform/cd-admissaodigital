@@ -9,6 +9,10 @@ interface ResultadoVerificacao {
   codigoVerificacao: string;
   nomeDocumento: string;
   statusDocumento: string;
+  integridade: {
+    status: 'INTEGRO' | 'PARCIAL';
+    descricao: string;
+  };
   colaborador: {
     nome: string;
     cpfMascarado: string | null;
@@ -19,16 +23,27 @@ interface ResultadoVerificacao {
   };
   empresa: {
     nome: string | null;
-    representanteNome: string | null;
+    cnpj: string | null;
     metodo: string;
+    certificadoSubject: string | null;
+    emissor: string | null;
+    serial: string | null;
+    certValidoDe: string | null;
+    certValidoAte: string | null;
     assinouEm: string;
     assinouEmBrasilia: string;
-    certificadoSerial: string | null;
+    responsavel: {
+      nome: string | null;
+      cargo: string | null;
+      email: string | null;
+      ip: string | null;
+      userAgent: string | null;
+    };
   } | null;
   hashes: {
     original: string;
     aposAssinaturaColaborador: string | null;
-    pdfFinalEmpresa: string | null;
+    documentoPrecertificacao: string | null;
   };
 }
 
@@ -77,7 +92,6 @@ export default function VerificacaoPage() {
     }
   }
 
-  // Busca automática ao carregar com código na URL
   useEffect(() => {
     if (codigoParam) {
       void verificar(codigoParam);
@@ -96,6 +110,7 @@ export default function VerificacaoPage() {
       </div>
 
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 16px' }}>
+        {/* Input de código */}
         <div style={{ backgroundColor: '#fff', borderRadius: 8, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.1)', marginBottom: 24 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: '#1a1a2e' }}>
             Verificar Autenticidade do Documento
@@ -103,7 +118,6 @@ export default function VerificacaoPage() {
           <p style={{ color: '#555', fontSize: 14, marginBottom: 20 }}>
             Informe o código de verificação (ex: <strong>AD-A1B2C3D4</strong>) para confirmar a autenticidade e integridade do documento assinado.
           </p>
-
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               type="text"
@@ -112,27 +126,16 @@ export default function VerificacaoPage() {
               onKeyDown={(e) => e.key === 'Enter' && verificar(codigo)}
               placeholder="AD-XXXXXXXX"
               style={{
-                flex: 1,
-                padding: '10px 14px',
-                border: '1px solid #ccc',
-                borderRadius: 6,
-                fontSize: 15,
-                fontFamily: 'monospace',
-                letterSpacing: 1,
-                color: '#111',
+                flex: 1, padding: '10px 14px', border: '1px solid #ccc', borderRadius: 6,
+                fontSize: 15, fontFamily: 'monospace', letterSpacing: 1, color: '#111',
               }}
             />
             <button
               onClick={() => verificar(codigo)}
               disabled={carregando || !codigo.trim()}
               style={{
-                padding: '10px 20px',
-                backgroundColor: '#1a1a2e',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: 600,
+                padding: '10px 20px', backgroundColor: '#1a1a2e', color: '#fff',
+                border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600,
                 cursor: carregando ? 'wait' : 'pointer',
                 opacity: carregando || !codigo.trim() ? 0.6 : 1,
               }}
@@ -159,6 +162,21 @@ export default function VerificacaoPage() {
               <div>
                 <div style={{ fontWeight: 700, color: '#155724', fontSize: 15 }}>Documento Autêntico</div>
                 <div style={{ color: '#155724', fontSize: 13 }}>{resultado.autenticidade}</div>
+              </div>
+            </div>
+
+            {/* Integridade */}
+            <div style={{
+              backgroundColor: resultado.integridade.status === 'INTEGRO' ? '#d4edda' : '#fff3cd',
+              border: `1px solid ${resultado.integridade.status === 'INTEGRO' ? '#c3e6cb' : '#ffeeba'}`,
+              borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+            }}>
+              <span style={{ fontSize: 18 }}>{resultado.integridade.status === 'INTEGRO' ? '🔒' : '⚠️'}</span>
+              <div>
+                <span style={{ fontWeight: 700, fontSize: 14, color: resultado.integridade.status === 'INTEGRO' ? '#155724' : '#856404' }}>
+                  {resultado.integridade.status === 'INTEGRO' ? 'Documento íntegro / Hash confere' : 'Assinatura parcial'}
+                </span>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#555' }}>{resultado.integridade.descricao}</p>
               </div>
             </div>
 
@@ -189,18 +207,53 @@ export default function VerificacaoPage() {
 
             {/* Assinatura da empresa */}
             {resultado.empresa && (
-              <Section titulo="Assinatura da Empresa">
-                {resultado.empresa.nome && <Row label="Empresa" value={resultado.empresa.nome} />}
-                {resultado.empresa.representanteNome && (
-                  <Row label="Representante" value={resultado.empresa.representanteNome} />
+              <>
+                <Section titulo="Empresa">
+                  {resultado.empresa.nome && <Row label="Razão social" value={resultado.empresa.nome} />}
+                  {resultado.empresa.cnpj && <Row label="CNPJ" value={resultado.empresa.cnpj} mono />}
+                  <Row label="Método" value={resultado.empresa.metodo} />
+                  {resultado.empresa.certificadoSubject && (
+                    <Row label="Subject do certificado" value={resultado.empresa.certificadoSubject} mono small />
+                  )}
+                  {resultado.empresa.emissor && (
+                    <Row label="Emissor" value={resultado.empresa.emissor} small />
+                  )}
+                  {resultado.empresa.serial && (
+                    <Row label="Número de série" value={resultado.empresa.serial} mono small />
+                  )}
+                  {resultado.empresa.certValidoDe && (
+                    <Row label="Certificado válido de" value={new Date(resultado.empresa.certValidoDe).toLocaleDateString('pt-BR')} />
+                  )}
+                  {resultado.empresa.certValidoAte && (
+                    <Row label="Certificado válido até" value={new Date(resultado.empresa.certValidoAte).toLocaleDateString('pt-BR')} />
+                  )}
+                  <Row label="Data/hora assinatura (Brasília)" value={resultado.empresa.assinouEmBrasilia} />
+                  <Row label="Data/hora assinatura (UTC)" value={resultado.empresa.assinouEm} mono />
+                </Section>
+
+                {(resultado.empresa.responsavel.nome || resultado.empresa.responsavel.cargo) && (
+                  <Section titulo="Responsável pela Assinatura da Empresa">
+                    {resultado.empresa.responsavel.nome && (
+                      <Row label="Nome" value={resultado.empresa.responsavel.nome} />
+                    )}
+                    {resultado.empresa.responsavel.cargo && (
+                      <Row label="Cargo/função" value={resultado.empresa.responsavel.cargo} />
+                    )}
+                    {resultado.empresa.responsavel.email && (
+                      <Row label="E-mail" value={resultado.empresa.responsavel.email} />
+                    )}
+                    {resultado.empresa.responsavel.ip && (
+                      <Row label="IP" value={resultado.empresa.responsavel.ip} mono />
+                    )}
+                    {resultado.empresa.responsavel.userAgent && (
+                      <Row label="Dispositivo/Navegador" value={resultado.empresa.responsavel.userAgent} small />
+                    )}
+                    <div style={{ fontSize: 12, color: '#777', marginTop: 4, fontStyle: 'italic' }}>
+                      Representante autorizado conforme certificado digital ICP-Brasil
+                    </div>
+                  </Section>
                 )}
-                <Row label="Método" value={resultado.empresa.metodo} />
-                <Row label="Data/hora (Brasília)" value={resultado.empresa.assinouEmBrasilia} />
-                <Row label="Data/hora (UTC)" value={resultado.empresa.assinouEm} mono />
-                {resultado.empresa.certificadoSerial && (
-                  <Row label="Serial do certificado" value={resultado.empresa.certificadoSerial} mono />
-                )}
-              </Section>
+              </>
             )}
 
             {/* Hashes de integridade */}
@@ -209,8 +262,8 @@ export default function VerificacaoPage() {
               {resultado.hashes.aposAssinaturaColaborador && (
                 <Row label="Hash após assinatura do colaborador" value={resultado.hashes.aposAssinaturaColaborador} mono small />
               )}
-              {resultado.hashes.pdfFinalEmpresa && (
-                <Row label="Hash do PDF final (empresa)" value={resultado.hashes.pdfFinalEmpresa} mono small />
+              {resultado.hashes.documentoPrecertificacao && (
+                <Row label="Hash do documento (pré-carimbo ICP-Brasil)" value={resultado.hashes.documentoPrecertificacao} mono small />
               )}
             </Section>
 
@@ -237,7 +290,7 @@ function Section({ titulo, children }: { titulo: string; children: React.ReactNo
 
 function Row({ label, value, mono, small }: { label: string; value: string; mono?: boolean; small?: boolean }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 8, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 8, alignItems: 'start' }}>
       <span style={{ fontSize: 13, color: '#666', fontWeight: 500 }}>{label}:</span>
       <span style={{ fontSize: small ? 11 : 13, fontFamily: mono ? 'monospace' : 'inherit', color: '#222', wordBreak: 'break-all' }}>
         {value}
