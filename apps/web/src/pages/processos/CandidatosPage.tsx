@@ -501,9 +501,8 @@ export default function CandidatosPage() {
           ) : (
             <div className="overflow-x-auto">
               <div className="min-w-[960px]">
-                <div className="grid grid-cols-[2fr_2fr_1.2fr_1.3fr_20rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[3fr_1.2fr_1.3fr_20rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <span>Candidato</span>
-                  <span>Posto de trabalho</span>
                   <span>Etapa</span>
                   <span>Admissão prevista</span>
                   <span className="text-right">Ações</span>
@@ -613,7 +612,7 @@ export default function CandidatosPage() {
                                 variant="outline"
                                 size="sm"
                                 className="gap-1.5"
-                                onClick={() => navigate(`/assinaturas?candidatoId=${candidato.id}`)}
+                                onClick={() => navigate(`/assinaturas/${candidato.id}`)}
                               >
                                 <FileSignature className="h-3.5 w-3.5" />
                                 Assinaturas

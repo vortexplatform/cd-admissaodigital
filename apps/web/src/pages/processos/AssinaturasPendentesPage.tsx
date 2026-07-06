@@ -700,9 +700,7 @@ export default function AssinaturasPendentesPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() =>
-                                navigate(`/assinaturas?candidatoId=${row.candidato.id}`)
-                              }
+                              onClick={() => navigate(`/assinaturas/${row.candidato.id}`)}
                             >
                               <Eye className="h-4 w-4" />
                               Ver documentos
