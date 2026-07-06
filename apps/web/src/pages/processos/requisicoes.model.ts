@@ -53,6 +53,7 @@ export interface Candidato {
 export interface Candidatura {
   id: number;
   status: StatusCandidatura;
+  dataAdmissaoPrevista: string | null;
   candidato: Candidato;
 }
 

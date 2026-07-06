@@ -2,6 +2,7 @@ import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
 
 export const PAGE_WIDTH = 595.28;
 export const PAGE_HEIGHT = 841.89;
+export const TEXTO_ASSINATURA_ELETRONICA = 'As partes reconhecem e aceitam que este documento poderá ser firmado por assinatura eletrônica, nos termos do Art. 10, §2º, da MP 2.200-2/2001 e da Lei 14.063/2020, mediante método de autenticação adotado pela plataforma Admissão Digital, incluindo assinatura eletrônica avançada por código OTP, validação biométrica e/ou reconhecimento facial, conforme aplicável. O método utilizado será registrado no comprovante de assinatura e auditoria do documento, com evidências de autoria, integridade, data/hora, identificação do signatário e rastreabilidade, produzindo validade jurídica e força de instrumento particular entre as partes. A assinatura da empregadora poderá ser realizada por representante autorizado com certificado digital ICP-Brasil ou outro meio eletrônico admitido pela legislação aplicável.';
 
 export function drawHeader(page: PDFPage, bold: PDFFont): number {
   const { height } = page.getSize();
@@ -110,6 +111,7 @@ export function drawAssinaturas(
  * Substitui as linhas de assinatura manual e campo de testemunhas.
  */
 export function drawAssinaturasEletronicas(
+  pdf: PDFDocument,
   page: PDFPage,
   regular: PDFFont,
   bold: PDFFont,
@@ -117,56 +119,57 @@ export function drawAssinaturasEletronicas(
   empregadora: string,
   empregado: string,
 ): void {
+  let currentPage = page;
   let y = startY;
 
-  if (y < 160) {
-    // Não há espaço suficiente — chamador deve garantir página adequada
+  if (y < 100) {
+    currentPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     y = 700;
   }
 
   const blockHeight = 46;
-  const blockX = 70;
-  const blockWidth = 455;
+  const blockGap = 12;
+  const blockWidth = 221.5;
+  const blockY = y - blockHeight + 14;
+  const empregadoraX = 70;
+  const empregadoX = empregadoraX + blockWidth + blockGap;
 
-  // Bloco EMPREGADORA
-  page.drawRectangle({
-    x: blockX,
-    y: y - blockHeight + 14,
+  currentPage.drawRectangle({
+    x: empregadoraX,
+    y: blockY,
     width: blockWidth,
     height: blockHeight,
     color: rgb(0.96, 0.96, 0.96),
     borderColor: rgb(0.75, 0.75, 0.75),
     borderWidth: 0.5,
   });
-  page.drawText('EMPREGADORA — Assinado eletronicamente por representante autorizado', {
-    x: blockX + 8, y: y + 6, size: 7.5, font: bold, color: rgb(0.25, 0.25, 0.25),
+  currentPage.drawText('EMPREGADORA — Assinado eletronicamente', {
+    x: empregadoraX + 8, y: y + 6, size: 7, font: bold, color: rgb(0.25, 0.25, 0.25),
   });
-  page.drawText(empregadora.toUpperCase(), {
-    x: blockX + 8, y: y - 6, size: 9, font: bold, color: rgb(0.1, 0.1, 0.1),
+  currentPage.drawText(empregadora.toUpperCase(), {
+    x: empregadoraX + 8, y: y - 6, size: 8, font: bold, color: rgb(0.1, 0.1, 0.1),
   });
-  page.drawText('Assinatura digital com certificado A1 | Admissão Digital', {
-    x: blockX + 8, y: y - 18, size: 7, font: regular, color: rgb(0.45, 0.45, 0.45),
+  currentPage.drawText('Certificado A1 | Admissão Digital', {
+    x: empregadoraX + 8, y: y - 18, size: 7, font: regular, color: rgb(0.45, 0.45, 0.45),
   });
-  y -= blockHeight + 10;
 
-  // Bloco EMPREGADO
-  page.drawRectangle({
-    x: blockX,
-    y: y - blockHeight + 14,
+  currentPage.drawRectangle({
+    x: empregadoX,
+    y: blockY,
     width: blockWidth,
     height: blockHeight,
     color: rgb(0.96, 0.96, 0.96),
     borderColor: rgb(0.75, 0.75, 0.75),
     borderWidth: 0.5,
   });
-  page.drawText('EMPREGADO — Assinado eletronicamente pelo colaborador', {
-    x: blockX + 8, y: y + 6, size: 7.5, font: bold, color: rgb(0.25, 0.25, 0.25),
+  currentPage.drawText('EMPREGADO — Assinado eletronicamente', {
+    x: empregadoX + 8, y: y + 6, size: 7, font: bold, color: rgb(0.25, 0.25, 0.25),
   });
-  page.drawText(empregado.toUpperCase(), {
-    x: blockX + 8, y: y - 6, size: 9, font: bold, color: rgb(0.1, 0.1, 0.1),
+  currentPage.drawText(empregado.toUpperCase(), {
+    x: empregadoX + 8, y: y - 6, size: 8, font: bold, color: rgb(0.1, 0.1, 0.1),
   });
-  page.drawText('Assinatura eletrônica avançada por OTP | Admissão Digital', {
-    x: blockX + 8, y: y - 18, size: 7, font: regular, color: rgb(0.45, 0.45, 0.45),
+  currentPage.drawText('OTP, biometria ou facial | Admissão Digital', {
+    x: empregadoX + 8, y: y - 18, size: 7, font: regular, color: rgb(0.45, 0.45, 0.45),
   });
 }
 

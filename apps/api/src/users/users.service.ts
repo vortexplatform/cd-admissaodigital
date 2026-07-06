@@ -5,6 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 
+const normalizeCpf = (value?: string | null) => {
+  const digits = value?.replace(/\D/g, '') ?? '';
+  return digits.length === 11 ? digits : null;
+};
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -36,32 +41,55 @@ export class UsersService {
     };
   }
 
-  async findOrCreate(identifier: string, type: 'email' | 'phone') {
-    const where = type === 'email' ? { email: identifier } : { telefone: identifier };
-    const existing = await this.prisma.user.findUnique({ where });
-    if (existing) {
-      await this.linkCandidato(existing.id, existing.email, existing.telefone);
-      return { user: existing, isNewUser: false };
+  async findOrCreate(identifier: string, type: 'email' | 'phone', cpf: string) {
+    const normalizedCpf = normalizeCpf(cpf);
+    if (!normalizedCpf) throw new BadRequestException('CPF inválido.');
+
+    const userByCpf = await this.prisma.user.findUnique({ where: { cpf: normalizedCpf } });
+    if (userByCpf) {
+      const userWithIdentifier = await this.prisma.user.update({
+        where: { id: userByCpf.id },
+        data: this.buildIdentifierUpdate(type, identifier, userByCpf.email, userByCpf.telefone),
+      });
+      const user = await this.linkCandidatoByCpf(userWithIdentifier.id, normalizedCpf);
+      return { user: user ?? userWithIdentifier, isNewUser: false };
     }
 
-    const data = type === 'email' ? { email: identifier } : { telefone: identifier };
-    const user = await this.prisma.user.create({ data });
-    await this.linkCandidato(user.id, user.email, user.telefone);
-    return { user, isNewUser: true };
+    const user = await this.prisma.user.create({
+      data: {
+        cpf: normalizedCpf,
+        ...this.buildIdentifierCreate(type, identifier),
+      },
+    });
+    const linkedUser = await this.linkCandidatoByCpf(user.id, normalizedCpf);
+    return { user: linkedUser ?? user, isNewUser: true };
   }
 
-  private async linkCandidato(userId: number, email?: string | null, telefone?: string | null) {
-    const conditions: { email: string }[] | { telefone: string }[] = [];
-    if (email) (conditions as { email: string }[]).push({ email });
-    if (telefone) (conditions as { telefone: string }[]).push({ telefone });
-    if (conditions.length === 0) return;
+  private buildIdentifierCreate(type: 'email' | 'phone', identifier: string) {
+    return type === 'email' ? { email: identifier } : { telefone: identifier };
+  }
 
-    const candidato = await this.prisma.candidato.findFirst({
-      where: { userId: null, OR: conditions },
-    });
-    if (candidato) {
-      await this.prisma.candidato.update({ where: { id: candidato.id }, data: { userId } });
-    }
+  private buildIdentifierUpdate(
+    type: 'email' | 'phone',
+    identifier: string,
+    email?: string | null,
+    telefone?: string | null,
+  ) {
+    return type === 'email'
+      ? { email: email ?? identifier }
+      : { telefone: telefone ?? identifier };
+  }
+
+  async linkCandidatoByCpf(userId: number, cpf: string) {
+    const normalizedCpf = normalizeCpf(cpf);
+    if (!normalizedCpf) return null;
+
+    const candidato = await this.prisma.candidato.findUnique({ where: { cpf: normalizedCpf } });
+    if (!candidato || (candidato.userId && candidato.userId !== userId)) return null;
+
+    await this.prisma.candidato.update({ where: { id: candidato.id }, data: { userId } });
+
+    return this.prisma.user.findUnique({ where: { id: userId } });
   }
 
   async createAdminUser(dto: CreateAdminUserDto) {
@@ -97,15 +125,25 @@ export class UsersService {
     });
   }
 
-  updateProfile(userId: number, dto: UpdateMeDto) {
-    return this.prisma.user.update({
+  async updateProfile(userId: number, dto: UpdateMeDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Usuário não encontrado.');
+
+    const cpf = normalizeCpf(dto.cpf);
+    if (!cpf) throw new BadRequestException('CPF inválido.');
+    if (user.cpf && user.cpf !== cpf) throw new BadRequestException('CPF não pode ser alterado.');
+
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         nome: dto.nome.trim(),
-        cpf: dto.cpf.trim(),
+        cpf: user.cpf ?? cpf,
         email: dto.email?.trim() || undefined,
         telefone: dto.telefone?.trim() || undefined,
       },
     });
+
+    await this.linkCandidatoByCpf(userId, updatedUser.cpf ?? cpf);
+    return updatedUser;
   }
 }

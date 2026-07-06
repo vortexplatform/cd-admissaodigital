@@ -13,6 +13,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CandidaturasService } from './candidaturas.service';
 import { CreateCandidaturaDto } from './dto/create-candidatura.dto';
+import { UpdateCandidaturaDataAdmissaoPrevistaDto } from './dto/update-candidatura-data-admissao-prevista.dto';
 import { UpdateCandidaturaStatusDto } from './dto/update-candidatura-status.dto';
 
 @UseGuards(JwtAuthGuard)
@@ -42,6 +43,14 @@ export class CandidaturasController {
   @Patch('candidaturas/:id/status')
   updateStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCandidaturaStatusDto) {
     return this.candidaturas.updateStatus(id, dto);
+  }
+
+  @Patch('candidaturas/:id/data-admissao-prevista')
+  updateDataAdmissaoPrevista(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCandidaturaDataAdmissaoPrevistaDto,
+  ) {
+    return this.candidaturas.updateDataAdmissaoPrevista(id, dto);
   }
 
   @Delete('candidaturas/:id')

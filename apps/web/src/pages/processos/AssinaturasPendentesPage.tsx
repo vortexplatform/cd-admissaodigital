@@ -272,11 +272,13 @@ export default function AssinaturasPendentesPage() {
   const loadDetalhe = useCallback(async () => {
     const [{ data: documentosData }, { data: assinaturasData }] = await Promise.all([
       api.get<DocumentosCandidatura[]>('/documentos/rh'),
-      api.get<AssinaturasCandidatura[]>('/documentos/assinaturas/rh'),
+      api.get<{ data: AssinaturasCandidatura[] }>('/documentos/assinaturas/rh', {
+        params: { candidatoId },
+      }),
     ]);
     setDocumentos(documentosData);
-    setAssinaturas(assinaturasData);
-  }, []);
+    setAssinaturas(assinaturasData.data);
+  }, [candidatoId]);
 
   useEffect(() => {
     if (candidatoId !== null) {

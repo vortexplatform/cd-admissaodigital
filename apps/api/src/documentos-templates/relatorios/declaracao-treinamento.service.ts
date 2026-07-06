@@ -2,7 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PAGE_HEIGHT, PAGE_WIDTH, drawParagraphs, wrapText } from '../pdf-render.utils';
+import {
+  PAGE_HEIGHT,
+  PAGE_WIDTH,
+  TEXTO_ASSINATURA_ELETRONICA,
+  drawAssinaturasEletronicas,
+  drawParagraphs,
+  wrapText,
+} from '../pdf-render.utils';
 
 type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
   include: { candidato: true; requisicao: { include: { empresa: true } } };
@@ -11,8 +18,6 @@ type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
 const EMPRESA_NOME = 'Supermercado Coelho Diniz Ltda';
 const EMPRESA_CNPJ = '41.930.199/0001-34';
 const EMPRESA_CIDADE = 'Governador Valadares';
-const EMPRESA_FOOTER = 'Matriz: Rua Marechal Floriano, 1495 - Centro - Fone (33) 3279-6104 | Gov. Valadares - MG - email: coelhodiniz@uol.com.br';
-
 const BULLETS = [
   'Não prestar serviços sem ter registrado sua entrada no ponto eletronicamente;',
   'Jamais cumprir menos do que uma hora ou mais de duas horas de intervalo para refeição e descanso;',
@@ -108,6 +113,18 @@ export class DeclaracaoTreinamentoService {
     }
 
     y -= 10;
+    const { page: assinaturaPage, y: yAposAssinatura } = drawParagraphs(
+      pdf,
+      page,
+      TEXTO_ASSINATURA_ELETRONICA,
+      regular,
+      y,
+      9,
+      { lineHeight: 12, paragraphSpacing: 10 },
+    );
+    page = assinaturaPage;
+    y = yAposAssinatura;
+
     page.drawText('Por ser verdade, firmo a presente.', { x: 70, y, size: 10, font: regular });
     y -= 30;
 
@@ -115,27 +132,14 @@ export class DeclaracaoTreinamentoService {
     const dataTexto = `${EMPRESA_CIDADE}, ________/________/____________.`;
     const dataWidth = regular.widthOfTextAtSize(dataTexto, 10);
     page.drawText(dataTexto, { x: (PAGE_WIDTH - dataWidth) / 2, y, size: 10, font: regular });
-    y -= 60;
+    y -= 30;
 
-    // Linha de assinatura (só candidato)
-    page.drawLine({ start: { x: 150, y }, end: { x: 445, y }, thickness: 0.6, color: rgb(0.4, 0.4, 0.4) });
-    const nomeCandWidth = bold.widthOfTextAtSize(candidatoNome, 10);
-    page.drawText(candidatoNome, { x: (PAGE_WIDTH - nomeCandWidth) / 2, y: y - 16, size: 10, font: bold });
-
-    // Footer específico desta declaração
-    this.drawFooterDeclaracao(page, regular);
+    drawAssinaturasEletronicas(pdf, page, regular, bold, y, EMPRESA_NOME, candidatoNome);
+    this.drawFooterDeclaracao(page);
   }
 
-  private drawFooterDeclaracao(page: PDFPage, regular: PDFFont): void {
+  private drawFooterDeclaracao(page: PDFPage): void {
     page.drawLine({ start: { x: 36, y: 50 }, end: { x: 559, y: 50 }, thickness: 0.7, color: rgb(0, 0, 0) });
     page.drawLine({ start: { x: 36, y: 46 }, end: { x: 559, y: 46 }, thickness: 2, color: rgb(0, 0, 0) });
-    const footerWidth = regular.widthOfTextAtSize(EMPRESA_FOOTER, 8);
-    page.drawText(EMPRESA_FOOTER, {
-      x: (PAGE_WIDTH - footerWidth) / 2,
-      y: 32,
-      size: 8,
-      font: regular,
-      color: rgb(0.2, 0.2, 0.2),
-    });
   }
 }

@@ -73,6 +73,7 @@ interface RequisicaoResumo {
 interface CandidaturaResumo {
   id: number;
   status: string;
+  dataAdmissaoPrevista: string | null;
   requisicao: RequisicaoResumo;
   createdAt: string;
 }
@@ -341,6 +342,18 @@ export default function CandidatosPage() {
     }
   };
 
+  const atualizarDataAdmissaoPrevista = async (candidatura: CandidaturaResumo, value: string) => {
+    setError('');
+    try {
+      await api.patch(`/candidaturas/${candidatura.id}/data-admissao-prevista`, {
+        dataAdmissaoPrevista: value || null,
+      });
+      await reloadCurrentPage();
+    } catch {
+      setError('Não foi possível atualizar a data prevista de admissão.');
+    }
+  };
+
   const hasShortSearchTerm = Boolean(searchTerm.trim()) && searchTerm.trim().length < 3;
   const firstItem = pagination.total === 0 ? 0 : (page - 1) * pagination.limit + 1;
   const lastItem = Math.min(page * pagination.limit, pagination.total);
@@ -488,10 +501,11 @@ export default function CandidatosPage() {
           ) : (
             <div className="overflow-x-auto">
               <div className="min-w-[960px]">
-                <div className="grid grid-cols-[2fr_2fr_1.4fr_20rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[2fr_2fr_1.2fr_1.3fr_20rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <span>Candidato</span>
                   <span>Posto de trabalho</span>
                   <span>Etapa</span>
+                  <span>Admissão prevista</span>
                   <span className="text-right">Ações</span>
                 </div>
                 <div className="divide-y">
@@ -507,7 +521,7 @@ export default function CandidatosPage() {
                     return (
                       <div
                         key={candidato.id}
-                        className={`grid grid-cols-[2fr_2fr_1.4fr_20rem] gap-4 px-5 py-4 ${
+                        className={`grid grid-cols-[2fr_2fr_1.2fr_1.3fr_20rem] gap-4 px-5 py-4 ${
                           sla.urgent ? 'bg-yellow-100/70 dark:bg-yellow-950/30' : 'bg-background'
                         }`}
                       >
@@ -541,6 +555,21 @@ export default function CandidatosPage() {
                           <p className="text-sm font-medium">
                             {status ? statusLabels[status] : 'Aguardando vínculo'}
                           </p>
+                        </div>
+                        <div className="self-center">
+                          {candidatura && status === 'APROVADO' ? (
+                            <Input
+                              type="date"
+                              value={toDateInputValue(candidatura.dataAdmissaoPrevista)}
+                              onChange={(event) =>
+                                atualizarDataAdmissaoPrevista(candidatura, event.target.value)
+                              }
+                            />
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              {toDateInputValue(candidatura?.dataAdmissaoPrevista ?? null) || '-'}
+                            </p>
+                          )}
                         </div>
                         <div className="flex flex-wrap justify-end gap-1.5 self-center">
                           {canVincular && (

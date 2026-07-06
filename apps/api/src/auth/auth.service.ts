@@ -41,12 +41,12 @@ export class AuthService {
     }
   }
 
-  async verifyOtp(identifier: string, code: string) {
+  async verifyOtp(identifier: string, cpf: string, code: string) {
     const valid = await this.otp.verify(identifier, code);
     if (!valid) throw new UnauthorizedException('Código inválido ou expirado.');
 
     const type = this.detectType(identifier);
-    const { user, isNewUser } = await this.users.findOrCreate(identifier, type);
+    const { user, isNewUser } = await this.users.findOrCreate(identifier, type, cpf);
     const session = await this.users.findSessionById(user.id);
     if (!session) throw new NotFoundException('Usuário não encontrado.');
 

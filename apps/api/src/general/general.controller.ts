@@ -6,6 +6,8 @@ import {
   type EscalaSenior,
   type PostoTrabalhoSenior,
   type PostoTrabalhoCaracteristicaSenior,
+  type TipoDependenteEsocial,
+  type TipoGrauParentesco,
 } from './general.service';
 
 @UseGuards(JwtAuthGuard)
@@ -59,6 +61,16 @@ export class GeneralController {
   @Get('etnia')
   getEtnia() {
     return this.general.getEtnia();
+  }
+
+  @Get('tipos-grau-parentesco')
+  getTiposGrauParentesco(): Promise<TipoGrauParentesco[]> {
+    return this.general.getTiposGrauParentesco();
+  }
+
+  @Get('tipos-dependente-esocial')
+  getTiposDependenteEsocial(): Promise<TipoDependenteEsocial[]> {
+    return this.general.getTiposDependenteEsocial();
   }
 
   @Get('filial')

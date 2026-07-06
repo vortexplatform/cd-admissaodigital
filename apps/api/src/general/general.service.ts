@@ -45,6 +45,16 @@ export interface TipoCertidaoCivil {
   VALKEY: string;
 }
 
+export interface TipoGrauParentesco {
+  KEYNAM: string;
+  VALKEY: string;
+}
+
+export interface TipoDependenteEsocial {
+  codigo: number;
+  descricao: string;
+}
+
 export interface Etnicidade {
   CODETN: number;
   DESETN: string;
@@ -109,6 +119,14 @@ export class GeneralService {
 
   getTiposCertidaoCivil(): Promise<TipoCertidaoCivil[]> {
     return this.seniorApi.get('/general/tipos-certidao-civil');
+  }
+
+  getTiposGrauParentesco(): Promise<TipoGrauParentesco[]> {
+    return this.seniorApi.get('/admissao/tipo-grau-parentesco');
+  }
+
+  getTiposDependenteEsocial(): Promise<TipoDependenteEsocial[]> {
+    return this.seniorApi.get('/admissao/tipo-dependente-esocial');
   }
 
   getEtnia(): Promise<Etnicidade[]> {

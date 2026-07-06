@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   PAGE_HEIGHT,
   PAGE_WIDTH,
+  TEXTO_ASSINATURA_ELETRONICA,
   drawAssinaturasEletronicas,
   drawFooter,
   drawHeader,
@@ -164,7 +165,7 @@ export class AcordoDomingosFeriadosService {
 
     const conteudo = [
       `Pelo presente instrumento de acordo de trabalho, firmado entre a Empresa ${data.empresaNome}, CNPJ ${data.empresaCnpj} com sede em ${data.empresaCidade} na ${data.empresaEndereco} e seu empregado(a) ${data.candidatoNome}${enderecoEmpregado}, portador(a) do CPF n\xba ${data.candidatoCpf}. Fica acordado que aos domingos e feriados haver\u00e1 jornada de trabalho de acordo com a escala.`,
-      `Por estarem de pleno acordo com as condi\u00e7\u00f5es acima estabelecidas, as partes firmam o presente instrumento por meio de assinatura eletr\u00f4nica/digital, conforme o m\u00e9todo utilizado por cada parte. A assinatura do empregado \u00e9 realizada por assinatura eletr\u00f4nica avan\u00e7ada por OTP, nos termos do Art. 10, \u00a72\u00ba, da MP 2.200-2/2001 e da Lei 14.063/2020, e a assinatura da empregadora \u00e9 realizada com certificado digital ICP-Brasil, garantindo autoria, integridade, rastreabilidade e for\u00e7a de instrumento particular entre as partes. O documento eletr\u00f4nico \u00e9 disponibilizado \u00e0s partes acompanhado de comprovante de assinatura, integridade e auditoria.`,
+      TEXTO_ASSINATURA_ELETRONICA,
       `${data.empresaCidade}, ${this.formatarData(data.dataAdmissao)}.`,
     ].join('\n');
 
@@ -177,6 +178,7 @@ export class AcordoDomingosFeriadosService {
     });
 
     drawAssinaturasEletronicas(
+      pdf,
       lastPage,
       regular,
       bold,

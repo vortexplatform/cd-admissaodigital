@@ -37,6 +37,8 @@ type UploadedMemoryFile = {
   buffer: Buffer;
 };
 
+const ASSINATURAS_RH_PAGE_LIMIT = 20;
+
 const contentDispositionInline = (filename: string) => {
   const asciiFilename = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
   return `inline; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
@@ -61,8 +63,17 @@ export class DocumentosController {
   }
 
   @Get('assinaturas/rh')
-  listAssinaturasRh(@Request() req: AuthRequest) {
-    return this.assinaturas.listForRh(req.user.id);
+  listAssinaturasRh(
+    @Request() req: AuthRequest,
+    @Query('page') page = '1',
+    @Query('candidatoId') candidatoId?: string,
+  ) {
+    return this.assinaturas.listForRh(
+      req.user.id,
+      Math.max(1, Number(page)),
+      ASSINATURAS_RH_PAGE_LIMIT,
+      candidatoId ? Number(candidatoId) : undefined,
+    );
   }
 
   @Get('assinaturas/rh/filtros')
@@ -74,7 +85,6 @@ export class DocumentosController {
   listAssinaturasRhPaginado(
     @Request() req: AuthRequest,
     @Query('page') page = '1',
-    @Query('limit') limit = '20',
     @Query('situacao') situacao: 'PENDENTES' | 'CONCLUIDAS' | 'TODAS' | 'APROVADOS' = 'PENDENTES',
     @Query('filial') filial?: string,
     @Query('setor') setor?: string,
@@ -83,7 +93,7 @@ export class DocumentosController {
     return this.assinaturas.listForRhPaginado(
       req.user.id,
       Math.max(1, Number(page)),
-      Math.min(100, Math.max(1, Number(limit))),
+      ASSINATURAS_RH_PAGE_LIMIT,
       situacao,
       {
         filial: filial ? Number(filial) : undefined,

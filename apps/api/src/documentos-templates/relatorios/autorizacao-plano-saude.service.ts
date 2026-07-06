@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   PAGE_HEIGHT,
   PAGE_WIDTH,
+  TEXTO_ASSINATURA_ELETRONICA,
   drawAssinaturasEletronicas,
   drawFooter,
   drawParagraphs,
@@ -114,7 +115,7 @@ export class AutorizacaoPlanoSaudeService {
     const conteudo = [
       'Declaro para os devidos fins que recebi todas as orienta\u00e7\u00f5es e regras do Plano de Sa\u00fade, estando ciente que devo utiliz\u00e1-lo de forma consciente, bem como autorizo a empresa a efetuar mensalmente desconto em meus proventos dos valores relativos ao custeio sob minha responsabilidade, tudo conforme estabelecido pela cl\u00e1usula da conven\u00e7\u00e3o coletiva firmada pelo sindicato de minha categoria, qual seja o SINDICATO DOS EMPREGADOS NO COMERCIO DE TIMOTEO E CORONEL FABRICIANO \u2013 SECTEO \u2013 CF , tendo conhecimento que os valores poder\u00e3o sofrer altera\u00e7\u00f5es peri\u00f3dicas.',
       'Declaro ainda, que fui cientificado que a hip\u00f3tese de rescis\u00e3o do meu contrato de trabalho, por for\u00e7a da Lei 9656/98, poderei permanecer no Plano nos termos e condi\u00e7\u00f5es previstas na Lei n\u00ba 9656/98, desde que assuma o custeio integral da contribui\u00e7\u00e3o mensal.',
-      'Este documento \u00e9 assinado por meio de assinatura eletr\u00f4nica/digital, conforme o m\u00e9todo utilizado por cada parte. A assinatura do empregado \u00e9 realizada por assinatura eletr\u00f4nica avan\u00e7ada por OTP, nos termos do Art. 10, \u00a72\u00ba, da MP 2.200-2/2001 e da Lei 14.063/2020, e a assinatura da empregadora \u00e9 realizada com certificado digital ICP-Brasil.',
+      TEXTO_ASSINATURA_ELETRONICA,
     ].join('\n');
 
     const { page: lastPage, y: lastY } = drawParagraphs(pdf, page, conteudo, regular, y, 10, {
@@ -126,6 +127,7 @@ export class AutorizacaoPlanoSaudeService {
     });
 
     drawAssinaturasEletronicas(
+      pdf,
       lastPage,
       regular,
       bold,

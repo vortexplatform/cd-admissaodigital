@@ -7,6 +7,7 @@ import {
 import { Prisma, StatusCandidatura, StatusRequisicaoVaga } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCandidaturaDto } from './dto/create-candidatura.dto';
+import { UpdateCandidaturaDataAdmissaoPrevistaDto } from './dto/update-candidatura-data-admissao-prevista.dto';
 import { UpdateCandidaturaStatusDto } from './dto/update-candidatura-status.dto';
 
 const candidaturaInclude = {
@@ -21,7 +22,7 @@ export class CandidaturasService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(requisicaoId: number, dto: CreateCandidaturaDto, criadoPorUserId: number) {
-    await this.ensureRequisicaoExists(requisicaoId);
+    const requisicao = await this.ensureRequisicaoExists(requisicaoId);
     await this.ensureCandidatoExists(dto.candidatoId);
 
     try {
@@ -31,6 +32,7 @@ export class CandidaturasService {
             requisicaoId,
             candidatoId: dto.candidatoId,
             criadoPorUserId,
+            dataAdmissaoPrevista: requisicao.dataPrevistaAdmissao,
           },
           include: candidaturaInclude,
         });
@@ -77,6 +79,21 @@ export class CandidaturasService {
     return this.prisma.candidatura.update({
       where: { id },
       data: { status: dto.status },
+      include: candidaturaInclude,
+    });
+  }
+
+  async updateDataAdmissaoPrevista(
+    id: number,
+    dto: UpdateCandidaturaDataAdmissaoPrevistaDto,
+  ) {
+    await this.findOne(id);
+
+    return this.prisma.candidatura.update({
+      where: { id },
+      data: {
+        dataAdmissaoPrevista: dto.dataAdmissaoPrevista ? new Date(dto.dataAdmissaoPrevista) : null,
+      },
       include: candidaturaInclude,
     });
   }

@@ -27,7 +27,11 @@ export class AuthController {
 
   @Post('verify-otp')
   async verifyOtp(@Body() dto: VerifyOtpDto, @Res({ passthrough: true }) response: Response) {
-    const { accessToken, refreshToken, ...session } = await this.auth.verifyOtp(dto.identifier, dto.code);
+    const { accessToken, refreshToken, ...session } = await this.auth.verifyOtp(
+      dto.identifier,
+      dto.cpf,
+      dto.code,
+    );
     this.setSessionCookies(response, accessToken, refreshToken);
     return session;
   }

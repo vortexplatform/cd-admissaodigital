@@ -5,7 +5,6 @@ import {
   Role,
   SetorAssinatura,
   StatusCandidatura,
-  StatusDocumentoAdmissao,
   StatusDocumentoAssinatura,
   StatusEnvelopeAssinatura,
   StatusRequisicaoVaga,
@@ -36,6 +35,8 @@ const assinaturaTemplates = {
   ],
   [SetorAssinatura.SESMT]: [],
 } satisfies Record<SetorAssinatura, [string, string][]>;
+
+const filiaisAutorizacaoPlanoSaude = new Set([12, 13, 17, 22, 23, 24]);
 
 @Injectable()
 export class AssinaturasService {
@@ -68,21 +69,32 @@ export class AssinaturasService {
     });
   }
 
-  async listForRh(userId: number) {
+  async listForRh(userId: number, page: number, limit: number, candidatoId?: number) {
     await this.ensureRh(userId);
 
-    return this.prisma.candidatura.findMany({
-      where: { envelopesAssinatura: { some: {} } },
-      include: {
-        candidato: true,
-        requisicao: { include: { empresa: true } },
-        envelopesAssinatura: {
-          include: { documentos: { orderBy: { ordem: 'asc' } } },
-          orderBy: { id: 'asc' },
+    const where: Prisma.CandidaturaWhereInput = {
+      envelopesAssinatura: { some: {} },
+      ...(candidatoId ? { candidatoId } : {}),
+    };
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.candidatura.count({ where }),
+      this.prisma.candidatura.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          candidato: true,
+          requisicao: { include: { empresa: true } },
+          envelopesAssinatura: {
+            include: { documentos: { orderBy: { ordem: 'asc' } } },
+            orderBy: { id: 'asc' },
+          },
         },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+        orderBy: { updatedAt: 'desc' },
+      }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async listFiltrosRh(userId: number) {
@@ -199,17 +211,12 @@ export class AssinaturasService {
 
     const candidatura = await this.prisma.candidatura.findUnique({
       where: { id: candidaturaId },
-      include: { candidato: true, documentos: true },
+      include: { candidato: true },
     });
     if (!candidatura) throw new NotFoundException('Candidatura não encontrada.');
-    if (!candidatura.candidato.userId) {
-      throw new BadRequestException('Candidato ainda não possui usuário vinculado para assinar.');
-    }
-    if (!this.canStartSignature(candidatura.documentos)) {
-      throw new BadRequestException('Aprove ou dispense todos os documentos obrigatórios antes de gerar assinaturas.');
-    }
+    const candidatoUserId = await this.ensureCandidateUser(candidatura.candidato);
 
-    await this.ensureEnvelopes(candidatura.id, candidatura.candidato.userId, userId);
+    await this.ensureEnvelopes(candidatura.id, candidatoUserId, userId);
 
     return this.prisma.candidatura.findUnique({
       where: { id: candidatura.id },
@@ -428,6 +435,58 @@ export class AssinaturasService {
     await this.concludeEnvelopeIfComplete(envelope.id);
   }
 
+  private async ensureCandidateUser(candidato: {
+    id: number;
+    userId: number | null;
+    cpf: string;
+    nome: string | null;
+    email: string | null;
+    telefone: string | null;
+  }) {
+    if (candidato.userId) return candidato.userId;
+
+    const cpf = this.normalizeCpf(candidato.cpf);
+    if (!cpf) throw new BadRequestException('Candidato sem CPF para vincular usuário.');
+
+    const existingUser = await this.prisma.user.findUnique({ where: { cpf } });
+    if (existingUser) {
+      await this.prisma.candidato.update({ where: { id: candidato.id }, data: { userId: existingUser.id } });
+      return existingUser.id;
+    }
+
+    const contactConditions: Prisma.UserWhereInput[] = [];
+    if (candidato.email) contactConditions.push({ email: candidato.email });
+    if (candidato.telefone) contactConditions.push({ telefone: candidato.telefone });
+
+    const contactUser = contactConditions.length
+      ? await this.prisma.user.findFirst({ where: { OR: contactConditions } })
+      : null;
+    if (contactUser?.cpf) {
+      throw new BadRequestException('E-mail ou telefone do candidato já está vinculado a outro CPF.');
+    }
+    if (contactUser) {
+      const user = await this.prisma.user.update({
+        where: { id: contactUser.id },
+        data: { cpf, nome: contactUser.nome ?? candidato.nome },
+      });
+      await this.prisma.candidato.update({ where: { id: candidato.id }, data: { userId: user.id } });
+      return user.id;
+    }
+
+    const user = await this.prisma.user.create({
+      data: {
+        cpf,
+        nome: candidato.nome,
+        email: candidato.email,
+        telefone: candidato.telefone,
+        role: Role.CANDIDATO,
+      },
+    });
+    await this.prisma.candidato.update({ where: { id: candidato.id }, data: { userId: user.id } });
+
+    return user.id;
+  }
+
   private async ensureEnvelopes(candidaturaId: number, userId: number, geradoPorUserId?: number) {
     for (const setor of Object.values(SetorAssinatura)) {
       const templates = assinaturaTemplates[setor];
@@ -451,12 +510,17 @@ export class AssinaturasService {
   private async ensureDocuments(envelopeId: number, candidaturaId: number, setor: SetorAssinatura) {
     const candidatura = await this.prisma.candidatura.findUnique({
       where: { id: candidaturaId },
-      select: { candidato: { select: { cpf: true } }, requisicao: { select: { prorrogacaoDias: true } } },
+      select: {
+        candidato: { select: { cpf: true } },
+        requisicao: { select: { filial: true, prorrogacaoDias: true } },
+      },
     });
     const cpf = candidatura?.candidato?.cpf ?? null;
+    const filial = candidatura?.requisicao?.filial;
     const prorrogacaoDias = candidatura?.requisicao?.prorrogacaoDias;
 
     const templates = assinaturaTemplates[setor].filter(([codigo]) => {
+      if (codigo === 'autorizacao-plano-saude') return filial != null && filiaisAutorizacaoPlanoSaude.has(filial);
       if (codigo === 'termo-prorrogacao-experiencia') return !!prorrogacaoDias && prorrogacaoDias > 0;
       return true;
     });
@@ -481,19 +545,6 @@ export class AssinaturasService {
         });
       }),
     );
-  }
-
-  private canStartSignature(documentos: { obrigatorio: boolean; status: StatusDocumentoAdmissao; dispensadoPorId: number | null; templateId: number | null }[]) {
-    const documentosAtuais = documentos.some((documento) => documento.templateId !== null)
-      ? documentos.filter((documento) => documento.templateId !== null)
-      : documentos;
-    const obrigatorios = documentosAtuais.filter((documento) => documento.obrigatorio);
-    if (obrigatorios.length === 0) return false;
-
-    return obrigatorios.every((documento) => {
-      if (documento.dispensadoPorId) return true;
-      return documento.status === StatusDocumentoAdmissao.APROVADO;
-    });
   }
 
   private async renderDocumentoPdf(documento: {
@@ -706,6 +757,11 @@ export class AssinaturasService {
     const digits = cpf.replace(/\D/g, '');
     if (digits.length !== 11) return cpf;
     return `${digits.slice(0, 3)}.***.***-${digits.slice(9)}`;
+  }
+
+  private normalizeCpf(cpf?: string | null): string | null {
+    const digits = cpf?.replace(/\D/g, '') ?? '';
+    return digits.length === 11 ? digits : null;
   }
 
   private formatDateBrasilia(date: Date): string {

@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
+import { CreateCandidatoDependenteDto } from './dto/create-candidato-dependente.dto';
 import { CreateCandidatoDto } from './dto/create-candidato.dto';
+import { UpdateCandidatoDependenteDto } from './dto/update-candidato-dependente.dto';
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
 
 const candidatoInclude = {
@@ -17,6 +20,9 @@ const candidatoInclude = {
       },
     },
     orderBy: { createdAt: 'desc' },
+  },
+  dependentes: {
+    orderBy: { nome: 'asc' },
   },
 } satisfies Prisma.CandidatoInclude;
 
@@ -39,6 +45,18 @@ const normalizePage = (value?: string) => {
 
   return Math.max(Math.trunc(page), 1);
 };
+
+const buildDependenteData = (dto: CreateCandidatoDependenteDto | UpdateCandidatoDependenteDto) => ({
+  nome: cleanString(dto.nome),
+  codigoGrauParentesco: cleanString(dto.codigoGrauParentesco),
+  descricaoGrauParentesco: cleanString(dto.descricaoGrauParentesco),
+  codigoTipoEsocial: dto.codigoTipoEsocial,
+  descricaoTipoEsocial: cleanString(dto.descricaoTipoEsocial),
+  sexo: cleanString(dto.sexo),
+  dependenteIr: dto.dependenteIr,
+  dataNascimento: dto.dataNascimento ? new Date(dto.dataNascimento) : undefined,
+  cpf: normalizeCpf(dto.cpf),
+});
 
 const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   cpf: normalizeCpf(dto.cpf),
@@ -115,14 +133,19 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
 
 @Injectable()
 export class CandidatosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly users: UsersService,
+  ) {}
 
   async create(dto: CreateCandidatoDto) {
     try {
-      return await this.prisma.candidato.create({
+      const candidato = await this.prisma.candidato.create({
         data: buildCandidatoData(dto) as Prisma.CandidatoCreateInput,
         include: candidatoInclude,
       });
+      await this.linkUserByCpf(candidato.cpf);
+      return this.findOne(candidato.id);
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -264,17 +287,47 @@ export class CandidatosService {
   }
 
   async update(id: number, dto: UpdateCandidatoDto) {
-    await this.findOne(id);
+    const candidato = await this.findOne(id);
+    const cpf = normalizeCpf(dto.cpf);
+    if (cpf && cpf !== candidato.cpf) throw new BadRequestException('CPF não pode ser alterado.');
 
     try {
+      const data = buildCandidatoData({ ...dto, cpf: undefined });
       return await this.prisma.candidato.update({
         where: { id },
-        data: buildCandidatoData(dto),
+        data,
         include: candidatoInclude,
       });
     } catch (error) {
       this.handlePrismaError(error);
     }
+  }
+
+  async createDependente(candidatoId: number, dto: CreateCandidatoDependenteDto) {
+    await this.ensureCandidatoExists(candidatoId);
+
+    return this.prisma.candidatoDependente.create({
+      data: {
+        ...(buildDependenteData(dto) as Prisma.CandidatoDependenteUncheckedCreateInput),
+        candidatoId,
+      },
+    });
+  }
+
+  async updateDependente(candidatoId: number, dependenteId: number, dto: UpdateCandidatoDependenteDto) {
+    await this.ensureDependenteBelongsToCandidato(candidatoId, dependenteId);
+
+    return this.prisma.candidatoDependente.update({
+      where: { id: dependenteId },
+      data: buildDependenteData(dto),
+    });
+  }
+
+  async removeDependente(candidatoId: number, dependenteId: number) {
+    await this.ensureDependenteBelongsToCandidato(candidatoId, dependenteId);
+    await this.prisma.candidatoDependente.delete({ where: { id: dependenteId } });
+
+    return { deleted: true };
   }
 
   async remove(id: number) {
@@ -288,6 +341,26 @@ export class CandidatosService {
     await this.prisma.candidato.delete({ where: { id } });
 
     return { deleted: true };
+  }
+
+  private async ensureCandidatoExists(id: number) {
+    const candidato = await this.prisma.candidato.findUnique({ where: { id }, select: { id: true } });
+    if (!candidato) throw new NotFoundException('Candidato não encontrado');
+  }
+
+  private async ensureDependenteBelongsToCandidato(candidatoId: number, dependenteId: number) {
+    const dependente = await this.prisma.candidatoDependente.findFirst({
+      where: { id: dependenteId, candidatoId },
+      select: { id: true },
+    });
+    if (!dependente) throw new NotFoundException('Dependente não encontrado');
+  }
+
+  private async linkUserByCpf(cpf: string) {
+    const user = await this.prisma.user.findUnique({ where: { cpf } });
+    if (!user) return;
+
+    await this.users.linkCandidatoByCpf(user.id, cpf);
   }
 
   private handlePrismaError(error: unknown): never {

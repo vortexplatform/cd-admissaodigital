@@ -11,7 +11,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateCandidatoDependenteDto } from './dto/create-candidato-dependente.dto';
 import { CreateCandidatoDto } from './dto/create-candidato.dto';
+import { UpdateCandidatoDependenteDto } from './dto/update-candidato-dependente.dto';
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
 import { CandidatosService } from './candidatos.service';
 
@@ -37,6 +39,31 @@ export class CandidatosController {
   @Get('search')
   search(@Query('nome') nome?: string, @Query('limit') limit?: string) {
     return this.candidatos.searchByNome(nome, limit);
+  }
+
+  @Post(':id/dependentes')
+  createDependente(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateCandidatoDependenteDto,
+  ) {
+    return this.candidatos.createDependente(id, dto);
+  }
+
+  @Patch(':id/dependentes/:dependenteId')
+  updateDependente(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('dependenteId', ParseIntPipe) dependenteId: number,
+    @Body() dto: UpdateCandidatoDependenteDto,
+  ) {
+    return this.candidatos.updateDependente(id, dependenteId, dto);
+  }
+
+  @Delete(':id/dependentes/:dependenteId')
+  removeDependente(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('dependenteId', ParseIntPipe) dependenteId: number,
+  ) {
+    return this.candidatos.removeDependente(id, dependenteId);
   }
 
   @Get(':id')

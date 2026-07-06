@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   PAGE_HEIGHT,
   PAGE_WIDTH,
+  TEXTO_ASSINATURA_ELETRONICA,
   drawAssinaturasEletronicas,
   drawFooter,
   drawHeader,
@@ -106,6 +107,12 @@ export class ContratoExperienciaService {
       candidatura.requisicao.cargo ??
       'CARGO NÃO INFORMADO'
     ).toUpperCase();
+    const codigoCargo = candidatura.requisicao.cargo ?? '';
+    const menorDe18 = this.calcularIdade(candidatura.candidato.dataNascimento, dataAdmissao) < 18;
+    const candidatoEndereco = this.montarEnderecoResidencial(candidatura.candidato);
+    const candidatoBairro = candidatura.candidato.bairroNome ?? '__________';
+    const candidatoCep = candidatura.candidato.cep ? this.formatarCep(candidatura.candidato.cep) : '__________';
+    const candidatoPis = candidatura.candidato.pis ?? '__________';
 
     const pdf = await PDFDocument.create();
     pdf.setTitle(ContratoExperienciaService.NOME);
@@ -125,9 +132,15 @@ export class ContratoExperienciaService {
       candidatoNome,
       candidatoCpf,
       cargo,
+      codigoCargo,
       salarioFormatado,
       dataAdmissao,
       prazoContratoDias,
+      menorDe18,
+      candidatoEndereco,
+      candidatoBairro,
+      candidatoCep,
+      candidatoPis,
     });
 
     return Buffer.from(await pdf.save());
@@ -182,6 +195,28 @@ export class ContratoExperienciaService {
     }).format(date);
   }
 
+  private formatarCep(cep: string): string {
+    const d = cep.replace(/\D/g, '').padStart(8, '0');
+    return d.replace(/^(\d{5})(\d{3})$/, '$1-$2');
+  }
+
+  private calcularIdade(dataNascimento: Date, dataReferencia: Date): number {
+    let idade = dataReferencia.getUTCFullYear() - dataNascimento.getUTCFullYear();
+    const mes = dataReferencia.getUTCMonth() - dataNascimento.getUTCMonth();
+    if (mes < 0 || (mes === 0 && dataReferencia.getUTCDate() < dataNascimento.getUTCDate())) {
+      idade -= 1;
+    }
+    return idade;
+  }
+
+  private montarEnderecoResidencial(candidato: CandidaturaContrato['candidato']): string {
+    const partes: string[] = [];
+    if (candidato.tipoLogradouro) partes.push(candidato.tipoLogradouro);
+    if (candidato.endereco) partes.push(candidato.endereco);
+    if (candidato.numero) partes.push(candidato.numero);
+    return partes.length ? partes.join(' ') : '__________';
+  }
+
   private desenharContrato(
     pdf: PDFDocument,
     page: PDFPage,
@@ -195,9 +230,15 @@ export class ContratoExperienciaService {
       candidatoNome: string;
       candidatoCpf: string;
       cargo: string;
+      codigoCargo: string;
       salarioFormatado: string;
       dataAdmissao: Date;
       prazoContratoDias: number;
+      menorDe18: boolean;
+      candidatoEndereco: string;
+      candidatoBairro: string;
+      candidatoCep: string;
+      candidatoPis: string;
     },
   ): void {
     let y = drawHeader(page, bold);
@@ -211,21 +252,7 @@ export class ContratoExperienciaService {
     });
     y -= 18;
 
-    const conteudo = [
-      `Entre a firma ${data.empresaNome}, CNPJ ${data.empresaCnpj} com sede em ${data.empresaCidade} na ${data.empresaEndereco}, doravante designada simplesmente EMPREGADORA e ${data.candidatoNome} portador(a) do CPF n\xba ${data.candidatoCpf}, a seguir chamado apenas EMPREGADO, e celebrado o presente CONTRATO DE EXPERI\u00caNCIA, que ter\u00e1 vig\u00eancia a partir da data de in\u00edcio de servi\u00e7os, de acordo com as condi\u00e7\u00f5es a seguir especificadas:`,
-      `1 - Fica o EMPREGADO admitido no quadro de funcion\u00e1rios da EMPREGADORA para exercer as fun\u00e7\u00f5es de ${data.cargo} mediante a remunera\u00e7\u00e3o de ${data.salarioFormatado} por m\u00eas. A circunst\u00e2ncia, por\u00e9m, de ser a fun\u00e7\u00e3o especificada n\u00e3o importa na intransferibilidade do EMPREGADO para outro servi\u00e7o, o qual demonstre melhor capacidade de adapta\u00e7\u00e3o desde que compat\u00edvel com a sua condi\u00e7\u00e3o pessoal.`,
-      `2 - O hor\u00e1rio de trabalho ser\u00e1 anotado na sua ficha de registro e a eventual redu\u00e7\u00e3o de jornada, por determina\u00e7\u00e3o da EMPREGADORA, n\u00e3o inovar\u00e1 este ajuste, permanecendo sempre \u00edntegra a obriga\u00e7\u00e3o do EMPREGADO de cumprir o hor\u00e1rio que lhe for determinado, observando o limite legal.`,
-      `3 - Obriga-se tamb\u00e9m o EMPREGADO a prestar servi\u00e7os em horas extraordin\u00e1rias, sempre que lhe for determinado pela EMPREGADORA na forma prevista em Lei. Na hip\u00f3tese desta faculdade pela EMPREGADORA, o EMPREGADO receber\u00e1 as horas extraordin\u00e1rias em acr\u00e9scimo legal, salvo a ocorr\u00eancia de compensa\u00e7\u00e3o, com a consequente redu\u00e7\u00e3o da jornada de trabalho em outro dia.`,
-      `4 - Aceita o EMPREGADO, expressamente, a condi\u00e7\u00e3o de prestar servi\u00e7os em qualquer dos turnos de trabalho, isto \u00e9, tanto durante o dia como a noite, desde que sem simultaneidade, observadas as prescri\u00e7\u00f5es legais, reguladoras do assunto, quanto \u00e0 remunera\u00e7\u00e3o.`,
-      `5 - Fica ajustado nos termos do que disp\u00f5e o Par. 1\u00ba do artigo 469 da Consolida\u00e7\u00e3o das Leis do Trabalho, que o EMPREGADO acatar\u00e1 ordem emanada da EMPREGADORA para presta\u00e7\u00e3o de servi\u00e7os tanto na localidade de celebra\u00e7\u00e3o do Contrato de Trabalho, como em qualquer outra Cidade, Capital ou Vila do Territ\u00f3rio Nacional, quer essa transfer\u00eancia seja transit\u00f3ria, quer seja definitiva.`,
-      `6 - No ato da assinatura deste contrato, o EMPREGADO recebe o Regulamento Interno da Empresa cujas cl\u00e1usulas fazem parte do Contrato de Trabalho, e a viola\u00e7\u00e3o de qualquer delas implicar\u00e1 em san\u00e7\u00e3o, cuja gradua\u00e7\u00e3o depender\u00e1 da gravidade da mesma, culminando com a rescis\u00e3o do Contrato.`,
-      `7 - Em caso de dano causado pelo EMPREGADO, fica a EMPREGADORA autorizada a efetivar o desconto da import\u00e2ncia correspondente ao preju\u00edzo, com fundamento no Par\u00e1grafo 1\u00ba do Artigo 462 da Consolida\u00e7\u00e3o das Leis do Trabalho, j\u00e1 que essa possibilidade fica expressamente prevista em Contrato.`,
-      `8 - O presente Contrato viger\u00e1 durante ${data.prazoContratoDias} dias, sendo celebrado para as partes verificarem reciprocamente a conveni\u00eancia ou n\u00e3o de se vincularem em car\u00e1ter definitivo a um Contrato de Trabalho. A Empresa passando a conhecer as aptid\u00f5es do EMPREGADO e suas qualidades pessoais e morais; o EMPREGADO verificando se o ambiente e os m\u00e9todos de trabalho atendem a sua conveni\u00eancia.`,
-      `9 - Opera-se a rescis\u00e3o do presente Contrato pela decorr\u00eancia do prazo supra ou por vontade de uma das partes; rescindindo-se por vontade do EMPREGADO ou pela EMPREGADORA com justa causa, nenhuma indeniza\u00e7\u00e3o \u00e9 devida; rescindindo-se, antes do prazo, por qualquer uma das partes, fica esta obrigada a pagar 50% dos sal\u00e1rios at\u00e9 o final.`,
-      `10 - Na hip\u00f3tese deste ajuste transformar-se em Contrato de Prazo Indeterminado pelo decurso do tempo, continuar\u00e3o em plena vig\u00eancia as cl\u00e1usulas de 1 (um) a 7 (sete), enquanto durarem as rela\u00e7\u00f5es do EMPREGADO com a EMPREGADORA.`,
-      `E por estarem de pleno acordo com as cl\u00e1usulas e condi\u00e7\u00f5es acima estabelecidas, as partes firmam o presente Contrato de Experi\u00eancia por meio de assinatura eletr\u00f4nica/digital, conforme o m\u00e9todo utilizado por cada parte. A assinatura do empregado \u00e9 realizada por assinatura eletr\u00f4nica avan\u00e7ada por OTP, nos termos do Art. 10, \u00a72\u00ba, da MP 2.200-2/2001 e da Lei 14.063/2020, e a assinatura da empregadora \u00e9 realizada com certificado digital ICP-Brasil, garantindo autoria, integridade, rastreabilidade e for\u00e7a de instrumento particular entre as partes. O documento eletr\u00f4nico \u00e9 disponibilizado \u00e0s partes acompanhado de comprovante de assinatura, integridade e auditoria.`,
-      `${data.empresaCidade}, ${this.formatarData(data.dataAdmissao)}.`,
-    ].join('\n');
+    const conteudo = this.montarClausulasContrato(data, TEXTO_ASSINATURA_ELETRONICA).join('\n');
 
     const { page: lastPage, y: lastY } = drawParagraphs(pdf, page, conteudo, regular, y, 8.5, {
       lineHeight: 11,
@@ -235,6 +262,7 @@ export class ContratoExperienciaService {
       maxWidth: 511,
     });
     drawAssinaturasEletronicas(
+      pdf,
       lastPage,
       regular,
       bold,
@@ -243,6 +271,103 @@ export class ContratoExperienciaService {
       data.candidatoNome,
     );
     drawFooter(page);
+  }
+
+  private montarClausulasContrato(
+    data: {
+      empresaNome: string;
+      empresaCnpj: string;
+      empresaCidade: string;
+      empresaEndereco: string;
+      candidatoNome: string;
+      candidatoCpf: string;
+      cargo: string;
+      codigoCargo: string;
+      salarioFormatado: string;
+      dataAdmissao: Date;
+      prazoContratoDias: number;
+      menorDe18: boolean;
+      candidatoEndereco: string;
+      candidatoBairro: string;
+      candidatoCep: string;
+      candidatoPis: string;
+    },
+    assinaturaEletronica: string,
+  ): string[] {
+    if (data.menorDe18) return this.montarClausulasMenorIdade(data, assinaturaEletronica);
+    if (data.codigoCargo === '00024') return this.montarClausulasCargoExterno(data, assinaturaEletronica);
+    return this.montarClausulasPadrao(data, assinaturaEletronica);
+  }
+
+  private montarClausulasPadrao(
+    data: {
+      empresaNome: string;
+      empresaCnpj: string;
+      empresaCidade: string;
+      empresaEndereco: string;
+      candidatoNome: string;
+      candidatoCpf: string;
+      cargo: string;
+      salarioFormatado: string;
+      dataAdmissao: Date;
+      prazoContratoDias: number;
+    },
+    assinaturaEletronica: string,
+  ): string[] {
+    return [
+      `Entre a firma ${data.empresaNome}, CNPJ ${data.empresaCnpj} com sede em ${data.empresaCidade} na ${data.empresaEndereco}, doravante designada simplesmente EMPREGADORA e ${data.candidatoNome} portador(a) do CPF nº ${data.candidatoCpf}, a seguir chamado apenas EMPREGADO, e celebrado o presente CONTRATO DE EXPERIÊNCIA, que terá vigência a partir da data de início de serviços, de acordo com as condições a seguir especificadas:`,
+      `1 - Fica o EMPREGADO admitido no quadro de funcionários da EMPREGADORA para exercer as funções de ${data.cargo} mediante a remuneração de ${data.salarioFormatado} por mês. A circunstância, porém, de ser a função especificada não importa na intransferibilidade do EMPREGADO para outro serviço, o qual demonstre melhor capacidade de adaptação desde que compatível com a sua condição pessoal.`,
+      `2 - O horário de trabalho será anotado na sua ficha de registro e a eventual redução de jornada, por determinação da EMPREGADORA, não inovará este ajuste, permanecendo sempre íntegra a obrigação do EMPREGADO de cumprir o horário que lhe for determinado, observando o limite legal.`,
+      `3 - Obriga-se também o EMPREGADO a prestar serviços em horas extraordinárias, sempre que lhe for determinado pela EMPREGADORA na forma prevista em Lei. Na hipótese desta faculdade pela EMPREGADORA, o EMPREGADO receberá as horas extraordinárias em acréscimo legal, salvo a ocorrência de compensação, com a consequente redução da jornada de trabalho em outro dia.`,
+      `4 - Aceita o EMPREGADO, expressamente, a condição de prestar serviços em qualquer dos turnos de trabalho, isto é, tanto durante o dia como a noite, desde que sem simultaneidade, observadas as prescrições legais, reguladoras do assunto, quanto à remuneração.`,
+      `5 - Fica ajustado nos termos do que dispõe o Par. 1º do artigo 469 da Consolidação das Leis do Trabalho, que o EMPREGADO acatará ordem emanada da EMPREGADORA para prestação de serviços tanto na localidade de celebração do Contrato de Trabalho, como em qualquer outra Cidade, Capital ou Vila do Território Nacional, quer essa transferência seja transitória, quer seja definitiva.`,
+      `6 - No ato da assinatura deste contrato, o EMPREGADO recebe o Regulamento Interno da Empresa cujas cláusulas fazem parte do Contrato de Trabalho, e a violação de qualquer delas implicará em sanção, cuja graduação dependerá da gravidade da mesma, culminando com a rescisão do Contrato.`,
+      `7 - Em caso de dano causado pelo EMPREGADO, fica a EMPREGADORA autorizada a efetivar o desconto da importância correspondente ao prejuízo, com fundamento no Parágrafo 1º do Artigo 462 da Consolidação das Leis do Trabalho, já que essa possibilidade fica expressamente prevista em Contrato.`,
+      `8 - O presente Contrato vigerá durante ${data.prazoContratoDias} dias, sendo celebrado para as partes verificarem reciprocamente a conveniência ou não de se vincularem em caráter definitivo a um Contrato de Trabalho. A Empresa passando a conhecer as aptidões do EMPREGADO e suas qualidades pessoais e morais; o EMPREGADO verificando se o ambiente e os métodos de trabalho atendem a sua conveniência.`,
+      `9 - Opera-se a rescisão do presente Contrato pela decorrência do prazo supra ou por vontade de uma das partes; rescindindo-se por vontade do EMPREGADO ou pela EMPREGADORA com justa causa, nenhuma indenização é devida; rescindindo-se, antes do prazo, por qualquer uma das partes, fica esta obrigada a pagar 50% dos salários até o final.`,
+      `10 - Na hipótese deste ajuste transformar-se em Contrato de Prazo Indeterminado pelo decurso do tempo, continuarão em plena vigência as cláusulas de 1 (um) a 7 (sete), enquanto durarem as relações do EMPREGADO com a EMPREGADORA.`,
+      assinaturaEletronica,
+      `${data.empresaCidade}, ${this.formatarData(data.dataAdmissao)}.`,
+    ];
+  }
+
+  private montarClausulasMenorIdade(
+    data: Parameters<ContratoExperienciaService['montarClausulasContrato']>[0],
+    assinaturaEletronica: string,
+  ): string[] {
+    const clausulas = this.montarClausulasPadrao(data, assinaturaEletronica);
+    clausulas[1] = `1 - Fica o EMPREGADO admitido no quadro de funcionários da EMPREGADORA para exercer as funções de ${data.cargo} mediante a remuneração de ${data.salarioFormatado} por mês. A circunstância, porém, de ser a função especificada não importa na intransferibilidade do EMPREGADO para outro serviço, o qual demonstre melhor capacidade de adaptação desde que compatível com a sua condição pessoal, e respeitado o disposto no inciso XXXIII do artigo 7º, da Constituição Federal e nos artigos 403 a 405, da Consolidação da Leis do Trabalho, que vedam a realização de trabalho perigoso, insalubre ou prejudicial ao desenvolvimento físico, psicológico e moral do menor de 18 anos.`;
+    clausulas[3] = `3 - Obriga-se também o EMPREGADO a prestar serviços em horas extraordinárias, sempre que lhe for determinado pela EMPREGADORA, observando-se as limitações impostas pela legislação vigente para menores de 18 anos, em especial o artigo 413 da Consolidação das Leis do Trabalho. Na hipótese desta faculdade pela EMPREGADORA, o EMPREGADO receberá as horas extraordinárias em acréscimo legal, salvo a ocorrência de compensação, com a consequente redução da jornada de trabalho em outro dia.`;
+    clausulas[4] = `4 - Aceita o EMPREGADO, expressamente, a condição de prestar serviços em qualquer dos turnos de trabalho, isto é, tanto durante o dia como a noite, desde que sem simultaneidade, observadas as prescrições legais, reguladoras do assunto e o disposto no artigo 7º, inciso XXXIII, da Constituição Federal e no artigo 404 da Consolidação das Leis do Trabalho, que vedam a realização de trabalho noturno (entre 22h e 5h) ao menor de 18 anos.`;
+    clausulas[5] = `5 - Fica ajustado nos termos do que dispõe o Par. 1º do artigo 469, da Consolidação das Leis do Trabalho, que o EMPREGADO acatará ordem emanada da EMPREGADORA para prestação de serviços tanto na localidade de celebração do Contrato de Trabalho, como em qualquer outra Cidade, Capital ou Vila do Território Nacional, quer essa transferência seja transitória, quer seja definitiva, desde que expressamente autorizada pelos pais ou responsáveis legais do menor.`;
+    clausulas.splice(8, 0, `8 - O EMPREGADO e seu responsável legal autorizam, de forma irrevogável e gratuita, por prazo indeterminado, a EMPREGADORA a utilizar a imagem do EMPREGADO em fotografias, vídeos e outros materiais audiovisuais produzidos no âmbito das atividades relacionadas à empresa, exclusivamente para fins institucionais, promocionais ou publicitários, tais como divulgação em redes sociais, site oficial, material interno e campanhas de marketing.`);
+    clausulas[9] = `9 - O presente Contrato vigerá durante ${data.prazoContratoDias} dias, sendo celebrado para as partes verificarem reciprocamente a conveniência ou não de se vincularem em caráter definitivo a um Contrato de Trabalho. A Empresa passando a conhecer as aptidões do EMPREGADO e suas qualidades pessoais e morais; o EMPREGADO verificando se o ambiente e os métodos de trabalho atendem a sua conveniência.`;
+    clausulas[10] = `10 - Opera-se a rescisão do presente Contrato pela decorrência do prazo supra ou por vontade de uma das partes; rescindindo-se por vontade do EMPREGADO ou pela EMPREGADORA com justa causa, nenhuma indenização é devida; rescindindo-se, antes do prazo, por qualquer uma das partes, fica esta obrigada a pagar 50% dos salários até o final.`;
+    clausulas[11] = `11 - Na hipótese deste ajuste transformar-se em Contrato de Prazo Indeterminado pelo decurso do tempo, continuarão em plena vigência as cláusulas de 1 (um) a 7 (sete), enquanto durarem as relações do EMPREGADO com a EMPREGADORA.`;
+    return clausulas;
+  }
+
+  private montarClausulasCargoExterno(
+    data: Parameters<ContratoExperienciaService['montarClausulasContrato']>[0],
+    assinaturaEletronica: string,
+  ): string[] {
+    return [
+      `Por este instrumento de contrato de trabalho que entre si fazem a empresa ${data.empresaNome}, inscrita no CNPJ/MF sob o nº ${data.empresaCnpj}, com sede em ${data.empresaCidade}, na ${data.empresaEndereco}, neste ato denominada EMPREGADORA e o Sr. ${data.candidatoNome}, residente e domiciliado nesta cidade na ${data.candidatoEndereco}, bairro ${data.candidatoBairro}, CEP: ${data.candidatoCep}, inscrito no CPF sob o nº ${data.candidatoCpf}, PIS/PASEP sob nº ${data.candidatoPis}, doravante EMPREGADO, firmam o presente, contando com as seguintes cláusulas e condições:`,
+      `CLÁUSULA PRIMEIRA: O EMPREGADO, doravante, na função de ${data.cargo}, exercerá suas funções em regime de trabalho externo, iniciando e finalizando sua jornada, em ambiente fora da empresa, sem qualquer controle do empregador, visando o exercício das suas funções junto aos fornecedores e correlatos;`,
+      `CLÁUSULA SEGUNDA: As partes pactuam que, nos termos do artigo 62, Inciso I da CLT, em razão da incompatibilidade o EMPREGADO não terá sua jornada de trabalho controlada;`,
+      `CLÁUSULA TERCEIRA: A remuneração mensal do EMPREGADO será de ${data.salarioFormatado};`,
+      `CLÁUSULA QUARTA: O EMPREGADO se obriga a respeitar e fazer respeitar os regulamentos internos de trabalho, defendendo os interesses da EMPREGADORA, agindo com correção, dedicação, lealdade e solicitude, não só com os diretores da EMPREGADORA que são seus superiores hierárquicos, como também com colegas de trabalho, terceiros e todos que, em decorrência deste, com ele mantiverem contato.`,
+      `CLÁUSULA QUINTA: O EMPREGADO, durante a vigência do contrato de trabalho, receberá, desenvolverá ou, de qualquer forma, obterá várias informações de natureza confidencial. Sendo certo que estas informações confidenciais não poderão ser assinadas, reveladas ou usadas direta ou indiretamente, sejam referentes a implantação de técnicas de gestão voltadas para a atividade exercida, processos, procedimentos, assuntos de negócios, planos futuros, idéias, certificados, documentos, manuais de organização, de rotinas, procedimentos e instruções ou quaisquer outros aqui não especificados, sem EXPRESSA AUTORIZAÇÃO E POR ESCRITO DA EMPREGADORA. Devendo o EMPREGADO manter o sigilo e confidencialidade destas informações, sendo certo que a não observância desta prática constituíra violação de segredo profissional e industrial, nos termos do artigo 482, “g” da Consolidação das Leis do Trabalho, sem prejuízo das responsabilidades civis e penais cabíveis.`,
+      `Parágrafo Primeiro: O EMPREGADO agirá diligentemente no sentido de proteger e guardar toda e qualquer “informação confidencial” da EMPREGADORA, bem como das empresas que, direta ou indiretamente, sejam coligadas a esta, considerando-se como “informação confidencial” toda e qualquer informação técnica, administrativa e organizacional que não sejam de domínio público.`,
+      `Parágrafo Segundo: Durante o período em que perdurar a relação de emprego, e pelo período de 05 (cinco) anos depois de terminada, o EMPREGADO compromete-se, quer direta ou indiretamente, a não utilizar para si, ou para outrem, não revelar a terceiros, qualquer “informação confidencial” (tenha esta sido ou não adquirida, obtida ou desenvolvida pelo Empregado, ou por este em conjunto com outros) da EMPREGADORA, bem como das empresas direta ou indiretamente coligadas, exceto se tal uso ou revelação seja necessário e decorrente ao desenvolvimento normal de suas atividades da relação de emprego, prevista neste instrumento, ou seja permitida pela EMPREGADORA.`,
+      `Parágrafo Terceiro: Todos e quaisquer materiais e/ou documentos relacionados à “informação confidencial”, estejam estes sob meios físicos ou eletrônicos, só poderão ser removidos do estabelecimento da EMPREGADORA, seja através de original, cópias ou transferências de dados ou arquivos eletrônicos, mediante prévia autorização desta última, exceto se necessário e decorrente ao desenvolvimento normal de suas atividades da relação de emprego, prevista neste instrumento.`,
+      `CLÁUSULA SEXTA: Terminada sua relação de emprego, o EMPREGADO deverá, de imediato, devolver todos e quaisquer materiais e/ou documentos eventualmente em seu poder, não podendo ser reproduzida ou retida qualquer cópia, seja de forma total ou parcial.`,
+      `CLÁUSULA SÉTIMA: No caso de mudança de residência, alterações de estado civil, nascimento de filhos ou modificações de nome, fica o EMPREGADO na obrigação de comunicar o fato à EMPREGADORA até o terceiro dia após a ocorrência do fato.`,
+      `CLÁUSULA OITAVA: O EMPREGADO se obriga a colocar todo o seu empenho nas atividades consubstanciadas no contrato de trabalho já assinado, bem como nas demais que sejam determinadas, executando-as com absoluta diligência, rapidez e dedicação, por toda a duração da relação de emprego.`,
+      `CLÁUSULA NONA: O EMPREGADO se obriga a não executar nem dirigir qualquer atividade estranha à EMPREGADORA, nem dela participar de qualquer forma, por si ou por terceiros, por toda duração da relação empregatícia, salvo expresso consentimento por escrito da EMPREGADORA.`,
+      assinaturaEletronica,
+      `${data.empresaCidade}, ${this.formatarData(data.dataAdmissao)}.`,
+    ];
   }
 
   private formatarData(date: Date): string {

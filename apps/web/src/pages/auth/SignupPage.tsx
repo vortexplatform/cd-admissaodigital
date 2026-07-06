@@ -10,6 +10,10 @@ import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 
 const signupSchema = z.object({
+  cpf: z
+    .string()
+    .trim()
+    .regex(/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/, 'Informe um CPF válido'),
   identifier: z
     .string()
     .trim()
@@ -19,6 +23,8 @@ const signupSchema = z.object({
       'Informe um e-mail ou telefone válido',
     ),
 });
+
+const onlyDigits = (value: string) => value.replace(/\D/g, '');
 
 type SignupForm = z.infer<typeof signupSchema>;
 
@@ -32,16 +38,17 @@ export default function SignupPage() {
     formState: { errors },
   } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { identifier: '' },
+    defaultValues: { cpf: '', identifier: '' },
   });
 
-  const onSubmit = async ({ identifier }: SignupForm) => {
+  const onSubmit = async ({ cpf, identifier }: SignupForm) => {
     setIsLoading(true);
     setError('');
+    const normalizedCpf = onlyDigits(cpf);
 
     try {
-      await api.post('/auth/send-otp', { identifier });
-      navigate(`/verify-otp?identifier=${encodeURIComponent(identifier)}`);
+      await api.post('/auth/send-otp', { identifier, cpf: normalizedCpf });
+      navigate(`/verify-otp?identifier=${encodeURIComponent(identifier)}&cpf=${normalizedCpf}`);
     } catch {
       setError('Não foi possível iniciar seu cadastro. Tente novamente.');
     } finally {
@@ -54,11 +61,21 @@ export default function SignupPage() {
       <CardHeader className="text-center">
         <CardTitle className="font-display text-2xl">Criar acesso</CardTitle>
         <CardDescription>
-          Informe seu e-mail ou telefone para receber o código de primeiro acesso.
+          Informe seu CPF e e-mail ou telefone para receber o código de primeiro acesso.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="signup-cpf">CPF</Label>
+            <Input
+              id="signup-cpf"
+              inputMode="numeric"
+              placeholder="000.000.000-00"
+              {...register('cpf')}
+            />
+            {errors.cpf && <p className="text-sm text-destructive">{errors.cpf.message}</p>}
+          </div>
           <div className="space-y-2">
             <Label htmlFor="signup-identifier">E-mail ou telefone</Label>
             <Input

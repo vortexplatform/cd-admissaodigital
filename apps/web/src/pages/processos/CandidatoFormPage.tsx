@@ -3,12 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, BriefcaseBusiness, Edit3, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Control, Controller, Path, useForm } from 'react-hook-form';
+import { Control, Controller, FieldValues, Path, useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import ReactSelect from 'react-select';
 import { z } from 'zod';
@@ -43,6 +44,22 @@ interface Bairro {
 interface OpcaoChave {
   KEYNAM: string;
   VALKEY: string;
+}
+interface TipoDependenteEsocial {
+  codigo: number;
+  descricao: string;
+}
+interface CandidatoDependenteData {
+  id: number;
+  nome: string;
+  codigoGrauParentesco: string;
+  descricaoGrauParentesco: string;
+  codigoTipoEsocial: number;
+  descricaoTipoEsocial: string;
+  sexo: 'MASCULINO' | 'FEMININO';
+  dependenteIr: boolean;
+  dataNascimento: string;
+  cpf: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +200,7 @@ interface CandidatoData {
   cidadeCertidaoCivilNome: string | null;
   raccor: number | null;
   candidaturas: CandidaturaResumo[];
+  dependentes: CandidatoDependenteData[];
 }
 
 // ---------------------------------------------------------------------------
@@ -262,8 +280,36 @@ const candidatoSchema = z.object({
   cidadeCertidaoCivilNome: z.string().trim().optional(),
 });
 
+const dependenteSchema = z.object({
+  nome: z.string().trim().min(1, 'Informe o nome'),
+  codigoGrauParentesco: z.string().trim().min(1, 'Informe o grau de parentesco'),
+  descricaoGrauParentesco: z.string().trim().optional(),
+  codigoTipoEsocial: z.string().trim().min(1, 'Informe o tipo eSocial'),
+  descricaoTipoEsocial: z.string().trim().optional(),
+  sexo: z.enum(['', 'MASCULINO', 'FEMININO']).refine((value) => value !== '', 'Informe o sexo'),
+  dependenteIr: z.boolean().optional(),
+  dataNascimento: z.string().trim().min(1, 'Informe a data de nascimento'),
+  cpf: z
+    .string()
+    .trim()
+    .refine((v) => v.replace(/\D/g, '').length === 11, 'Informe um CPF com 11 dígitos'),
+});
+
 type CandidatoForm = z.infer<typeof candidatoSchema>;
+type DependenteForm = z.input<typeof dependenteSchema>;
 type CandidatoMode = 'create' | 'edit' | 'view';
+
+const dependenteDefaultValues: DependenteForm = {
+  nome: '',
+  codigoGrauParentesco: '',
+  descricaoGrauParentesco: '',
+  codigoTipoEsocial: '',
+  descricaoTipoEsocial: '',
+  sexo: '',
+  dependenteIr: false,
+  dataNascimento: '',
+  cpf: '',
+};
 
 const defaultValues: CandidatoForm = {
   cpf: '',
@@ -334,6 +380,18 @@ const optionalInt = (value?: string) => {
   const n = parseInt(value ?? '', 10);
   return Number.isFinite(n) ? n : undefined;
 };
+
+const buildDependentePayload = (values: DependenteForm) => ({
+  nome: values.nome.trim(),
+  codigoGrauParentesco: values.codigoGrauParentesco,
+  descricaoGrauParentesco: values.descricaoGrauParentesco?.trim() || '',
+  codigoTipoEsocial: parseInt(values.codigoTipoEsocial, 10),
+  descricaoTipoEsocial: values.descricaoTipoEsocial?.trim() || '',
+  sexo: values.sexo,
+  dependenteIr: Boolean(values.dependenteIr),
+  dataNascimento: values.dataNascimento,
+  cpf: values.cpf.replace(/\D/g, ''),
+});
 
 const buildPayload = (values: CandidatoForm) => ({
   cpf: values.cpf.replace(/\D/g, ''),
@@ -472,7 +530,7 @@ function TextField({
   );
 }
 
-function ReactSelectField({
+function ReactSelectField<TForm extends FieldValues>({
   id,
   label,
   control,
@@ -487,8 +545,8 @@ function ReactSelectField({
 }: {
   id: string;
   label: string;
-  control: Control<CandidatoForm>;
-  name: Path<CandidatoForm>;
+  control: Control<TForm, unknown, TForm>;
+  name: Path<TForm>;
   options: SelectOption[];
   isDisabled?: boolean;
   error?: string;
@@ -597,6 +655,11 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [estadosCivis, setEstadosCivis] = useState<OpcaoChave[]>([]);
   const [tiposCertidao, setTiposCertidao] = useState<OpcaoChave[]>([]);
   const [etnia, setEtnia] = useState<{ CODETN: number; DESETN: string }[]>([]);
+  const [tiposGrauParentesco, setTiposGrauParentesco] = useState<OpcaoChave[]>([]);
+  const [tiposDependenteEsocial, setTiposDependenteEsocial] = useState<TipoDependenteEsocial[]>([]);
+  const [dependenteEditando, setDependenteEditando] = useState<CandidatoDependenteData | null>(null);
+  const [isSavingDependente, setIsSavingDependente] = useState(false);
+  const [dependenteError, setDependenteError] = useState('');
 
   // Cascata: Naturalidade
   const [estadosNasc, setEstadosNasc] = useState<Estado[]>([]);
@@ -620,6 +683,18 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     control,
     formState: { errors },
   } = useForm<CandidatoForm>({ resolver: zodResolver(candidatoSchema), defaultValues });
+
+  const {
+    register: registerDependente,
+    handleSubmit: handleSubmitDependente,
+    reset: resetDependente,
+    setValue: setDependenteValue,
+    control: dependenteControl,
+    formState: { errors: dependenteErrors },
+  } = useForm<DependenteForm>({
+    resolver: zodResolver(dependenteSchema),
+    defaultValues: dependenteDefaultValues,
+  });
 
   // Carregar dados estáticos ao montar
   useEffect(() => {
@@ -647,6 +722,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       api
         .get<{ CODETN: number; DESETN: string }[]>('/general/etnia')
         .then((r) => setEtnia(r.data))
+        .catch(() => {}),
+      api
+        .get<OpcaoChave[]>('/general/tipos-grau-parentesco')
+        .then((r) => setTiposGrauParentesco(r.data))
+        .catch(() => {}),
+      api
+        .get<TipoDependenteEsocial[]>('/general/tipos-dependente-esocial')
+        .then((r) => setTiposDependenteEsocial(r.data))
         .catch(() => {}),
     ]);
   }, []);
@@ -935,6 +1018,70 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     api.get<CandidatoData>(`/candidatos/${id}`).then(({ data }) => setCandidato(data)).catch(() => {});
   };
 
+  const handleGrauParentescoChange = (value: string) => {
+    const tipo = tiposGrauParentesco.find((item) => item.KEYNAM === value);
+    setDependenteValue('descricaoGrauParentesco', tipo?.VALKEY ?? '');
+  };
+
+  const handleTipoEsocialChange = (value: string) => {
+    const tipo = tiposDependenteEsocial.find((item) => String(item.codigo) === value);
+    setDependenteValue('descricaoTipoEsocial', tipo?.descricao ?? '');
+  };
+
+  const handleEditarDependente = (dependente: CandidatoDependenteData) => {
+    setDependenteEditando(dependente);
+    resetDependente({
+      nome: dependente.nome,
+      codigoGrauParentesco: dependente.codigoGrauParentesco,
+      descricaoGrauParentesco: dependente.descricaoGrauParentesco,
+      codigoTipoEsocial: String(dependente.codigoTipoEsocial),
+      descricaoTipoEsocial: dependente.descricaoTipoEsocial,
+      sexo: dependente.sexo,
+      dependenteIr: dependente.dependenteIr,
+      dataNascimento: toDateInputValue(dependente.dataNascimento),
+      cpf: dependente.cpf,
+    });
+  };
+
+  const handleCancelarDependente = () => {
+    setDependenteEditando(null);
+    setDependenteError('');
+    resetDependente(dependenteDefaultValues);
+  };
+
+  const onSubmitDependente = async (values: DependenteForm) => {
+    if (!id || isViewMode) return;
+
+    setIsSavingDependente(true);
+    setDependenteError('');
+
+    try {
+      const payload = buildDependentePayload(values);
+      if (dependenteEditando) {
+        await api.patch(`/candidatos/${id}/dependentes/${dependenteEditando.id}`, payload);
+      } else {
+        await api.post(`/candidatos/${id}/dependentes`, payload);
+      }
+      handleCancelarDependente();
+      reloadCandidato();
+    } catch {
+      setDependenteError('Não foi possível salvar o dependente.');
+    } finally {
+      setIsSavingDependente(false);
+    }
+  };
+
+  const handleExcluirDependente = async (dependenteId: number) => {
+    if (!id || isViewMode) return;
+    try {
+      await api.delete(`/candidatos/${id}/dependentes/${dependenteId}`);
+      if (dependenteEditando?.id === dependenteId) handleCancelarDependente();
+      reloadCandidato();
+    } catch {
+      setDependenteError('Não foi possível excluir o dependente.');
+    }
+  };
+
   // Consulta matrícula ativa para candidaturas EFETIVADAS ou com admissão dentro de ±7 dias
   useEffect(() => {
     if (!candidato) return;
@@ -1211,10 +1358,17 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             </Card>
           )}
 
-          {/* ================================================================
-              Grade do formulário — 2 colunas em telas grandes
-          ================================================================= */}
-          <div className="grid gap-4 xl:grid-cols-2">
+          <Tabs defaultValue="cadastro" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="cadastro">Cadastro</TabsTrigger>
+              {mode !== 'create' && <TabsTrigger value="dependentes">Dependentes</TabsTrigger>}
+            </TabsList>
+
+            <TabsContent value="cadastro" className="space-y-4">
+              {/* ================================================================
+                  Grade do formulário — 2 colunas em telas grandes
+              ================================================================= */}
+              <div className="grid gap-4 xl:grid-cols-2">
 
             {/* ---- Coluna A ---- */}
             <div className="space-y-4">
@@ -1778,8 +1932,164 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 </CardContent>
               </Card>
 
-            </div>
-          </div>
+              </div>
+              </div>
+            </TabsContent>
+
+            {mode !== 'create' && (
+              <TabsContent value="dependentes" className="space-y-4">
+                <Card className="shadow-corporate">
+                  <CardHeader>
+                    <CardTitle>{dependenteEditando ? 'Editar dependente' : 'Novo dependente'}</CardTitle>
+                    <CardDescription>Cadastro dos dependentes vinculados ao candidato.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <TextField
+                        id="dependenteNome"
+                        label="Nome"
+                        required
+                        disabled={isViewMode}
+                        error={dependenteErrors.nome?.message}
+                        {...registerDependente('nome')}
+                      />
+                      <TextField
+                        id="dependenteCpf"
+                        label="CPF"
+                        required
+                        disabled={isViewMode}
+                        error={dependenteErrors.cpf?.message}
+                        {...registerDependente('cpf')}
+                      />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <ReactSelectField
+                        id="codigoGrauParentesco"
+                        label="Grau de parentesco"
+                        required
+                        control={dependenteControl}
+                        name="codigoGrauParentesco"
+                        isDisabled={isViewMode}
+                        options={tiposGrauParentesco.map((tipo) => ({
+                          value: tipo.KEYNAM,
+                          label: `${tipo.KEYNAM} - ${tipo.VALKEY}`,
+                        }))}
+                        error={dependenteErrors.codigoGrauParentesco?.message}
+                        onChange={handleGrauParentescoChange}
+                      />
+                      <ReactSelectField
+                        id="codigoTipoEsocial"
+                        label="Tipo eSocial"
+                        required
+                        control={dependenteControl}
+                        name="codigoTipoEsocial"
+                        isDisabled={isViewMode}
+                        options={tiposDependenteEsocial.map((tipo) => ({
+                          value: String(tipo.codigo),
+                          label: `${tipo.codigo} - ${tipo.descricao}`,
+                        }))}
+                        error={dependenteErrors.codigoTipoEsocial?.message}
+                        onChange={handleTipoEsocialChange}
+                      />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <SelectField
+                        id="dependenteSexo"
+                        label="Sexo"
+                        required
+                        disabled={isViewMode}
+                        error={dependenteErrors.sexo?.message}
+                        {...registerDependente('sexo')}
+                      >
+                        <option value="">Selecione</option>
+                        <option value="MASCULINO">Masculino</option>
+                        <option value="FEMININO">Feminino</option>
+                      </SelectField>
+                      <TextField
+                        id="dependenteDataNascimento"
+                        label="Data de nascimento"
+                        required
+                        type="date"
+                        disabled={isViewMode}
+                        error={dependenteErrors.dataNascimento?.message}
+                        {...registerDependente('dataNascimento')}
+                      />
+                      <label className="mt-7 flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm">
+                        <input type="checkbox" disabled={isViewMode} {...registerDependente('dependenteIr')} />
+                        Dependente IR
+                      </label>
+                    </div>
+
+                    <input type="hidden" {...registerDependente('descricaoGrauParentesco')} />
+                    <input type="hidden" {...registerDependente('descricaoTipoEsocial')} />
+
+                    {dependenteError && <p className="text-sm text-destructive">{dependenteError}</p>}
+                    {!isViewMode && (
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          type="button"
+                          disabled={isSavingDependente}
+                          onClick={handleSubmitDependente(onSubmitDependente)}
+                        >
+                          {isSavingDependente ? 'Salvando...' : 'Salvar dependente'}
+                        </Button>
+                        {dependenteEditando && (
+                          <Button type="button" variant="outline" onClick={handleCancelarDependente}>
+                            Cancelar edição
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-corporate">
+                  <CardHeader>
+                    <CardTitle>Dependentes cadastrados</CardTitle>
+                    <CardDescription>
+                      {candidato?.dependentes.length ?? 0} dependente(s) vinculado(s).
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {!candidato || candidato.dependentes.length === 0 ? (
+                      <div className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
+                        Nenhum dependente cadastrado.
+                      </div>
+                    ) : (
+                      candidato.dependentes.map((dependente) => (
+                        <div
+                          key={dependente.id}
+                          className="flex flex-col gap-3 rounded-xl border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
+                        >
+                          <div>
+                            <p className="font-semibold">{dependente.nome}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {dependente.cpf} • {dependente.descricaoGrauParentesco} • {dependente.descricaoTipoEsocial}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {dependente.sexo === 'MASCULINO' ? 'Masculino' : 'Feminino'} • Nascimento {toDateInputValue(dependente.dataNascimento)} • IR {dependente.dependenteIr ? 'Sim' : 'Não'}
+                            </p>
+                          </div>
+                          {!isViewMode && (
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" onClick={() => handleEditarDependente(dependente)}>
+                                Editar
+                              </Button>
+                              <Button type="button" variant="outline" onClick={() => handleExcluirDependente(dependente.id)}>
+                                Excluir
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+          </Tabs>
 
           {/* ---- Ações ---- */}
           {error && <p className="text-sm text-destructive">{error}</p>}

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Eye,
   FileSignature,
@@ -42,6 +44,16 @@ const getEnvelopeStats = (envelopes: EnvelopeAssinatura[]) => {
   return { total, signed, pending };
 };
 
+interface AssinaturasRhResponse {
+  data: AssinaturasCandidatura[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+const LIMIT = 20;
+
 const envelopeTitle = (envelope: EnvelopeAssinatura) =>
   envelope.setor === 'ADM_PESSOAL' ? 'Adm Pessoal' : 'SESMT';
 
@@ -49,9 +61,11 @@ export default function AssinaturasRhPage() {
   const { candidatoId: candidatoIdParam } = useParams<{ candidatoId: string }>();
   const candidatoId = candidatoIdParam ? Number(candidatoIdParam) : null;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = Math.max(1, Number(searchParams.get('page') ?? '1'));
 
   const [documentos, setDocumentos] = useState<DocumentosCandidatura[]>([]);
-  const [assinaturas, setAssinaturas] = useState<AssinaturasCandidatura[]>([]);
+  const [assinaturas, setAssinaturas] = useState<AssinaturasRhResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [gerandoId, setGerandoId] = useState<number | null>(null);
   const [cadastrandoBiometriaId, setCadastrandoBiometriaId] = useState<number | null>(null);
@@ -60,17 +74,16 @@ export default function AssinaturasRhPage() {
   const [message, setMessage] = useState('');
 
   const loadData = useCallback(async () => {
+    const params = candidatoId ? { candidatoId } : { page, limit: LIMIT };
     const [{ data: documentosData }, { data: assinaturasData }] = await Promise.all([
       api.get<DocumentosCandidatura[]>('/documentos/rh'),
-      api.get<AssinaturasCandidatura[]>('/documentos/assinaturas/rh'),
+      api.get<AssinaturasRhResponse>('/documentos/assinaturas/rh', { params }),
     ]);
     setDocumentos(
       candidatoId ? documentosData.filter((item) => item.candidato.id === candidatoId) : documentosData,
     );
-    setAssinaturas(
-      candidatoId ? assinaturasData.filter((item) => item.candidato.id === candidatoId) : assinaturasData,
-    );
-  }, [candidatoId]);
+    setAssinaturas(assinaturasData);
+  }, [candidatoId, page]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -80,9 +93,13 @@ export default function AssinaturasRhPage() {
   }, [loadData]);
 
   const rows = useMemo(() => {
-    return documentos
+    const assinaturasData = assinaturas?.data ?? [];
+    const documentosDaPagina = candidatoId
+      ? documentos
+      : documentos.filter((candidatura) => assinaturasData.some((item) => item.id === candidatura.id));
+    return documentosDaPagina
       .map((candidatura) => {
-        const assinatura = assinaturas.find((item) => item.id === candidatura.id) ?? null;
+        const assinatura = assinaturasData.find((item) => item.id === candidatura.id) ?? null;
         return {
           candidatura,
           assinatura,
@@ -90,7 +107,7 @@ export default function AssinaturasRhPage() {
         };
       })
       .filter((row) => row.assinatura || row.prontoParaGerar);
-  }, [assinaturas, documentos]);
+  }, [assinaturas, candidatoId, documentos]);
 
   const pendentes = rows.filter((row) => {
     if (!row.assinatura) return row.prontoParaGerar;
@@ -248,6 +265,33 @@ export default function AssinaturasRhPage() {
               onSolicitarBiometria={solicitarAssinaturaBiometrica}
             />
           ))}
+          {!candidatoId && assinaturas && assinaturas.totalPages > 1 && (
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                Página {assinaturas.page} de {assinaturas.totalPages} · {assinaturas.total} candidatos
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={assinaturas.page <= 1}
+                  onClick={() => setSearchParams({ page: String(assinaturas.page - 1) })}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={assinaturas.page >= assinaturas.totalPages}
+                  onClick={() => setSearchParams({ page: String(assinaturas.page + 1) })}
+                >
+                  Próxima
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </section>
       )}
     </>

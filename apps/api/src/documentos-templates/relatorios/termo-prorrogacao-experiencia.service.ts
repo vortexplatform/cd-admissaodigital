@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   PAGE_HEIGHT,
   PAGE_WIDTH,
+  TEXTO_ASSINATURA_ELETRONICA,
   drawAssinaturasEletronicas,
   drawFooter,
   drawHeader,
@@ -98,7 +99,7 @@ export class TermoProrrogacaoExperienciaService {
     const conteudo = [
       `Por m\u00fatuo acordo entre as partes, fica o presente Contrato de Experi\u00eancia (${data.prazoContratoDias} dias) prorrogado por mais ${data.prorrogacaoDias} dias, totalizando ${total} dias, nos termos do Art. 445, par\u00e1grafo \u00fanico, da CLT.`,
       `A prorroga\u00e7\u00e3o ter\u00e1 vig\u00eancia a partir do vencimento do prazo inicial do contrato, encerrando-se automaticamente ao t\u00e9rmino do prazo acima estabelecido.`,
-      `Este Termo \u00e9 firmado por meio de assinatura eletr\u00f4nica/digital, conforme o m\u00e9todo utilizado por cada parte. A assinatura do empregado \u00e9 realizada por assinatura eletr\u00f4nica avan\u00e7ada por OTP, nos termos do Art. 10, \u00a72\u00ba, da MP 2.200-2/2001 e da Lei 14.063/2020, e a assinatura da empregadora \u00e9 realizada com certificado digital ICP-Brasil, garantindo autoria, integridade, rastreabilidade e for\u00e7a de instrumento particular entre as partes. O documento eletr\u00f4nico \u00e9 disponibilizado \u00e0s partes acompanhado de comprovante de assinatura, integridade e auditoria.`,
+      TEXTO_ASSINATURA_ELETRONICA,
     ].join('\n');
 
     const { page: lastPage, y: lastY } = drawParagraphs(pdf, page, conteudo, regular, y, 10, {
@@ -110,6 +111,7 @@ export class TermoProrrogacaoExperienciaService {
     });
 
     drawAssinaturasEletronicas(
+      pdf,
       lastPage,
       regular,
       bold,

@@ -22,6 +22,7 @@ export default function OtpPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const identifier = searchParams.get('identifier') ?? '';
+  const cpf = searchParams.get('cpf') ?? '';
 
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
@@ -30,8 +31,8 @@ export default function OtpPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!identifier) navigate('/login');
-  }, [identifier, navigate]);
+    if (!identifier || !cpf) navigate('/login');
+  }, [cpf, identifier, navigate]);
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
@@ -49,7 +50,7 @@ export default function OtpPage() {
   const handleResend = async () => {
     setError('');
     try {
-      await api.post('/auth/send-otp', { identifier });
+      await api.post('/auth/send-otp', { identifier, cpf });
       setCountdown(RESEND_SECONDS);
       timerRef.current = setInterval(() => {
         setCountdown((c) => {
@@ -71,6 +72,7 @@ export default function OtpPage() {
     try {
       const { data } = await api.post<AuthSession>('/auth/verify-otp', {
         identifier,
+        cpf,
         code,
       });
       login(data);

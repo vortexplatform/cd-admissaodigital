@@ -120,8 +120,30 @@ model Candidato {
   biometriaSolicitacoes         BiometriaSolicitacao[]
   biometriaTemplates            BiometriaTemplate[]
   aceitesRegulamento            AceiteRegulamento[]
+  dependentes                   CandidatoDependente[]
 
   @@map("candidato")
+}
+
+model CandidatoDependente {
+  id                         Int      @id @default(autoincrement())
+  candidatoId                Int      @map("candidato_id")
+  nome                       String
+  codigoGrauParentesco       String   @map("codigo_grau_parentesco")
+  descricaoGrauParentesco    String   @map("descricao_grau_parentesco")
+  codigoTipoEsocial          Int      @map("codigo_tipo_esocial")
+  descricaoTipoEsocial       String   @map("descricao_tipo_esocial")
+  sexo                       String
+  dependenteIr               Boolean  @default(false) @map("dependente_ir")
+  dataNascimento             DateTime @db.Date @map("data_nascimento")
+  cpf                        String
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
+
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@index([candidatoId])
+  @@map("candidato_dependentes")
 }
 
 model AceiteRegulamento {
@@ -329,9 +351,10 @@ model Candidatura {
   id           Int               @id @default(autoincrement())
   requisicaoId Int               @map("requisicao_id")
   candidatoId  Int               @map("candidato_id")
-  status       StatusCandidatura @default(INSCRITO)
-  admissao     DateTime?         @db.Date
-  matricula    String?           @map("matricula")
+  status                StatusCandidatura @default(INSCRITO)
+  admissao              DateTime?         @db.Date
+  dataAdmissaoPrevista  DateTime?         @map("data_admissao_prevista") @db.Date
+  matricula             String?           @map("matricula")
 
   criadoPorUserId           Int?      @map("criado_por_user_id")
   admissaoGeradaPorUserId   Int?      @map("admissao_gerada_por_user_id")

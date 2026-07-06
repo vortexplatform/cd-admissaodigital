@@ -10,15 +10,25 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 
-const emailSchema = z.object({ identifier: z.string().email('E-mail inválido') });
+const cpfSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/, 'Informe um CPF válido');
+const emailSchema = z.object({
+  cpf: cpfSchema,
+  identifier: z.string().email('E-mail inválido'),
+});
 const phoneSchema = z.object({
+  cpf: cpfSchema,
   identifier: z
     .string()
     .min(10, 'Telefone inválido')
     .regex(/^\+?[\d\s\-()]+$/, 'Telefone inválido'),
 });
 
-type FormValues = { identifier: string };
+type FormValues = { cpf: string; identifier: string };
+
+const onlyDigits = (value: string) => value.replace(/\D/g, '');
 
 function IdentifierForm({ type }: { type: 'email' | 'phone' }) {
   const navigate = useNavigate();
@@ -32,12 +42,13 @@ function IdentifierForm({ type }: { type: 'email' | 'phone' }) {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
-  const onSubmit = async ({ identifier }: FormValues) => {
+  const onSubmit = async ({ cpf, identifier }: FormValues) => {
     setIsLoading(true);
     setError('');
+    const normalizedCpf = onlyDigits(cpf);
     try {
-      await api.post('/auth/send-otp', { identifier });
-      navigate(`/verify-otp?identifier=${encodeURIComponent(identifier)}`);
+      await api.post('/auth/send-otp', { identifier, cpf: normalizedCpf });
+      navigate(`/verify-otp?identifier=${encodeURIComponent(identifier)}&cpf=${normalizedCpf}`);
     } catch {
       setError('Não foi possível enviar o código. Tente novamente.');
     } finally {
@@ -47,6 +58,11 @@ function IdentifierForm({ type }: { type: 'email' | 'phone' }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="cpf">CPF</Label>
+        <Input id="cpf" inputMode="numeric" placeholder="000.000.000-00" {...register('cpf')} />
+        {errors.cpf && <p className="text-sm text-destructive">{errors.cpf.message}</p>}
+      </div>
       <div className="space-y-2">
         <Label htmlFor="identifier">{type === 'email' ? 'E-mail' : 'Telefone'}</Label>
         <Input
@@ -74,7 +90,7 @@ export default function LoginPage() {
       <CardHeader className="text-center">
         <CardTitle className="font-display text-2xl">Admissão Digital</CardTitle>
         <CardDescription>
-          Entre com seu e-mail ou telefone para receber um código de acesso.
+          Informe seu CPF e e-mail ou telefone para receber um código de acesso.
         </CardDescription>
       </CardHeader>
       <CardContent>
