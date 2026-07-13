@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 
 export class UpdateCandidatoDependenteDto {
   @IsString()
@@ -37,7 +37,9 @@ export class UpdateCandidatoDependenteDto {
   @IsOptional()
   dataNascimento?: string;
 
+  @ValidateIf((dependente: UpdateCandidatoDependenteDto) => dependente.dependenteIr || dependente.cpf != null)
   @IsString()
+  @IsNotEmpty()
   @Matches(/^\d{11}$/, { message: 'CPF deve conter 11 dígitos' })
   @IsOptional()
   cpf?: string;

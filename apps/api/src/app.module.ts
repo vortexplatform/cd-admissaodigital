@@ -15,6 +15,7 @@ import { DocumentosTemplatesModule } from './documentos-templates/documentos-tem
 import { BiometriaModule } from './biometria/biometria.module';
 import { IntegracaoSeniorModule } from './integracao-senior/integracao-senior.module';
 import { GeneralModule } from './general/general.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { GeneralModule } from './general/general.module';
     BiometriaModule,
     IntegracaoSeniorModule,
     GeneralModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,4 +1,6 @@
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEmail,
@@ -8,7 +10,10 @@ import {
   IsOptional,
   IsString,
   Matches,
+  ValidateNested,
 } from 'class-validator';
+import { CreateCandidatoDependenteDto } from './create-candidato-dependente.dto';
+import { CreateCandidatoValeTransporteDto } from './create-candidato-vale-transporte.dto';
 
 export class CreateCandidatoDto {
   @IsString()
@@ -21,8 +26,7 @@ export class CreateCandidatoDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  nome?: string;
+  nome!: string;
 
   @IsEmail()
   @IsOptional()
@@ -34,8 +38,16 @@ export class CreateCandidatoDto {
   telefone?: string;
 
   @IsIn(['M', 'F'])
+  genero!: string;
+
+  @IsIn(['ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO'])
   @IsOptional()
-  genero?: string;
+  situacao?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  justificativaReprovacao?: string;
 
   @IsBoolean()
   @IsOptional()
@@ -43,19 +55,16 @@ export class CreateCandidatoDto {
 
   // Admissão
   @IsIn(['PRIMEIRO_EMPREGO', 'REEMPREGO'])
-  @IsOptional()
-  tipoAdmissao?: string;
+  tipoAdmissao!: string;
 
   // Dados pessoais adicionais
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  estadoCivil?: string;
+  estadoCivil!: string;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  grauInstrucao?: string;
+  grauInstrucao!: string;
 
   @IsString()
   @IsNotEmpty()
@@ -63,27 +72,22 @@ export class CreateCandidatoDto {
   pis?: string;
 
   @IsInt()
-  @IsOptional()
-  raccor?: number;
+  raccor!: number;
 
   // Naturalidade
   @IsInt()
-  @IsOptional()
-  nacionalidade?: number;
+  nacionalidade!: number;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  paisNascimento?: string;
+  paisNascimento!: string;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  estadoNascimento?: string;
+  estadoNascimento!: string;
 
   @IsInt()
-  @IsOptional()
-  cidadeNascimentoCod?: number;
+  cidadeNascimentoCod!: number;
 
   @IsString()
   @IsNotEmpty()
@@ -93,22 +97,18 @@ export class CreateCandidatoDto {
   // Endereço
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  pais?: string;
+  pais!: string;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  cep?: string;
+  cep!: string;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  estadoEndereco?: string;
+  estadoEndereco!: string;
 
   @IsInt()
-  @IsOptional()
-  cidadeCod?: number;
+  cidadeCod!: number;
 
   @IsString()
   @IsNotEmpty()
@@ -121,23 +121,19 @@ export class CreateCandidatoDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  bairroNome?: string;
+  bairroNome!: string;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  tipoLogradouro?: string;
+  tipoLogradouro!: string;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  endereco?: string;
+  endereco!: string;
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  numero?: string;
+  numero!: string;
 
   @IsString()
   @IsNotEmpty()
@@ -255,4 +251,16 @@ export class CreateCandidatoDto {
   @IsNotEmpty()
   @IsOptional()
   cidadeCertidaoCivilNome?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCandidatoDependenteDto)
+  @IsOptional()
+  dependentes?: CreateCandidatoDependenteDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCandidatoValeTransporteDto)
+  @IsOptional()
+  valeTransportes?: CreateCandidatoValeTransporteDto[];
 }

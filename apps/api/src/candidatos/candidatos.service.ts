@@ -8,8 +8,10 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreateCandidatoDependenteDto } from './dto/create-candidato-dependente.dto';
+import { CreateCandidatoValeTransporteDto } from './dto/create-candidato-vale-transporte.dto';
 import { CreateCandidatoDto } from './dto/create-candidato.dto';
 import { UpdateCandidatoDependenteDto } from './dto/update-candidato-dependente.dto';
+import { UpdateCandidatoValeTransporteDto } from './dto/update-candidato-vale-transporte.dto';
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
 
 const candidatoInclude = {
@@ -23,6 +25,9 @@ const candidatoInclude = {
   },
   dependentes: {
     orderBy: { nome: 'asc' },
+  },
+  valeTransportes: {
+    orderBy: { id: 'asc' },
   },
 } satisfies Prisma.CandidatoInclude;
 
@@ -55,8 +60,26 @@ const buildDependenteData = (dto: CreateCandidatoDependenteDto | UpdateCandidato
   sexo: cleanString(dto.sexo),
   dependenteIr: dto.dependenteIr,
   dataNascimento: dto.dataNascimento ? new Date(dto.dataNascimento) : undefined,
-  cpf: normalizeCpf(dto.cpf),
+  cpf: normalizeCpf(dto.cpf) ?? '',
 });
+
+const buildValeTransporteData = (
+  dto: CreateCandidatoValeTransporteDto | UpdateCandidatoValeTransporteDto,
+) => ({
+  tipoTransporte: cleanString(dto.tipoTransporte),
+  tipoTrajeto: cleanString(dto.tipoTrajeto),
+  transporteUsado: cleanString(dto.transporteUsado),
+  preco: dto.preco,
+});
+
+const exigeJustificativaReprovacao = (situacao?: string) =>
+  situacao === 'ELIMINADO' || situacao === 'DESISTENTE';
+
+const validateSituacaoCandidato = (dto: CreateCandidatoDto | UpdateCandidatoDto) => {
+  if (exigeJustificativaReprovacao(dto.situacao) && !cleanString(dto.justificativaReprovacao)) {
+    throw new BadRequestException('Informe a justificativa para candidato eliminado ou desistente.');
+  }
+};
 
 const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   cpf: normalizeCpf(dto.cpf),
@@ -65,6 +88,8 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   email: cleanString(dto.email),
   telefone: cleanString(dto.telefone),
   genero: cleanString(dto.genero),
+  situacao: cleanString(dto.situacao),
+  justificativaReprovacao: cleanString(dto.justificativaReprovacao),
   possuiFilhos: dto.possuiFilhos,
 
   // Admissão
@@ -139,9 +164,30 @@ export class CandidatosService {
   ) {}
 
   async create(dto: CreateCandidatoDto) {
+    validateSituacaoCandidato(dto);
+
     try {
+      const { dependentes, valeTransportes } = dto;
       const candidato = await this.prisma.candidato.create({
-        data: buildCandidatoData(dto) as Prisma.CandidatoCreateInput,
+        data: {
+          ...(buildCandidatoData(dto) as Prisma.CandidatoCreateInput),
+          dependentes: dependentes?.length
+            ? {
+                create: dependentes.map((dependente) =>
+                  buildDependenteData(dependente) as Prisma.CandidatoDependenteCreateWithoutCandidatoInput,
+                ),
+              }
+            : undefined,
+          valeTransportes: valeTransportes?.length
+            ? {
+                create: valeTransportes.map((valeTransporte) =>
+                  buildValeTransporteData(
+                    valeTransporte,
+                  ) as Prisma.CandidatoValeTransporteCreateWithoutCandidatoInput,
+                ),
+              }
+            : undefined,
+        },
         include: candidatoInclude,
       });
       await this.linkUserByCpf(candidato.cpf);
@@ -288,6 +334,8 @@ export class CandidatosService {
 
   async update(id: number, dto: UpdateCandidatoDto) {
     const candidato = await this.findOne(id);
+    validateSituacaoCandidato(dto);
+
     const cpf = normalizeCpf(dto.cpf);
     if (cpf && cpf !== candidato.cpf) throw new BadRequestException('CPF não pode ser alterado.');
 
@@ -330,6 +378,37 @@ export class CandidatosService {
     return { deleted: true };
   }
 
+  async createValeTransporte(candidatoId: number, dto: CreateCandidatoValeTransporteDto) {
+    await this.ensureCandidatoExists(candidatoId);
+
+    return this.prisma.candidatoValeTransporte.create({
+      data: {
+        ...(buildValeTransporteData(dto) as Prisma.CandidatoValeTransporteUncheckedCreateInput),
+        candidatoId,
+      },
+    });
+  }
+
+  async updateValeTransporte(
+    candidatoId: number,
+    valeTransporteId: number,
+    dto: UpdateCandidatoValeTransporteDto,
+  ) {
+    await this.ensureValeTransporteBelongsToCandidato(candidatoId, valeTransporteId);
+
+    return this.prisma.candidatoValeTransporte.update({
+      where: { id: valeTransporteId },
+      data: buildValeTransporteData(dto),
+    });
+  }
+
+  async removeValeTransporte(candidatoId: number, valeTransporteId: number) {
+    await this.ensureValeTransporteBelongsToCandidato(candidatoId, valeTransporteId);
+    await this.prisma.candidatoValeTransporte.delete({ where: { id: valeTransporteId } });
+
+    return { deleted: true };
+  }
+
   async remove(id: number) {
     const candidato = await this.findOne(id);
     if (candidato.candidaturas.length > 0) {
@@ -354,6 +433,17 @@ export class CandidatosService {
       select: { id: true },
     });
     if (!dependente) throw new NotFoundException('Dependente não encontrado');
+  }
+
+  private async ensureValeTransporteBelongsToCandidato(
+    candidatoId: number,
+    valeTransporteId: number,
+  ) {
+    const valeTransporte = await this.prisma.candidatoValeTransporte.findFirst({
+      where: { id: valeTransporteId, candidatoId },
+      select: { id: true },
+    });
+    if (!valeTransporte) throw new NotFoundException('Vale transporte não encontrado');
   }
 
   private async linkUserByCpf(cpf: string) {

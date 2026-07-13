@@ -165,6 +165,13 @@ const fetchPaginatedCandidatos = (currentPage: number, nome: string) =>
 
 const toDateInputValue = (value: string | null) => (value ? value.slice(0, 10) : '');
 
+const formatDatePtBr = (value: string | null) => {
+  const inputValue = toDateInputValue(value);
+  if (!inputValue) return '';
+  const [year, month, day] = inputValue.split('-');
+  return `${day}/${month}/${year}`;
+};
+
 const formatCpf = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 11);
   return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, (_, a, b, c, d) =>
@@ -213,6 +220,38 @@ const formatRequisicaoOption = (requisicao: RequisicaoDisponivel): RequisicaoOpt
   label: `#${requisicao.id} - ${requisicao.postoTrabalho ?? 'Posto não informado'} - ${requisicao.postoTrabalhoNome ?? requisicao.cargoNome ?? requisicao.cargo ?? 'Descrição não informada'}`,
   requisicao,
 });
+
+function AdmissaoPrevistaInput({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (value: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inputValue = toDateInputValue(value);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      className="w-32 text-left"
+      onClick={() => inputRef.current?.showPicker?.()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') inputRef.current?.showPicker?.();
+      }}
+    >
+      <Input value={formatDatePtBr(value)} placeholder="dd/mm/aaaa" readOnly className="w-32 cursor-pointer" />
+      <input
+        ref={inputRef}
+        type="date"
+        value={inputValue}
+        className="sr-only"
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
 
 export default function CandidatosPage() {
   const navigate = useNavigate();
@@ -501,7 +540,7 @@ export default function CandidatosPage() {
           ) : (
             <div className="overflow-x-auto">
               <div className="min-w-[960px]">
-                <div className="grid grid-cols-[3fr_1.2fr_1.3fr_20rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="grid grid-cols-[3fr_1.2fr_9rem_20rem] gap-4 border-b bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <span>Candidato</span>
                   <span>Etapa</span>
                   <span>Admissão prevista</span>
@@ -520,7 +559,7 @@ export default function CandidatosPage() {
                     return (
                       <div
                         key={candidato.id}
-                        className={`grid grid-cols-[2fr_2fr_1.2fr_1.3fr_20rem] gap-4 px-5 py-4 ${
+                        className={`grid grid-cols-[3fr_1.2fr_9rem_20rem] gap-4 px-5 py-4 ${
                           sla.urgent ? 'bg-yellow-100/70 dark:bg-yellow-950/30' : 'bg-background'
                         }`}
                       >
@@ -533,22 +572,11 @@ export default function CandidatosPage() {
                               {candidato.nome || 'Nome não informado'}
                             </p>
                             <p className="truncate text-xs text-muted-foreground">
-                              {formatCpf(candidato.cpf)} ·{' '}
-                              {candidato.email ?? candidato.telefone ?? 'sem contato'}
+                              {candidatura
+                                ? `Req. #${candidatura.requisicao.id} · ${candidatura.requisicao.postoTrabalhoNome ?? candidatura.requisicao.postoTrabalho ?? 'Posto não informado'}`
+                                : 'Sem candidatura'}
                             </p>
                           </div>
-                        </div>
-                        <div className="self-center text-sm">
-                          <p className="truncate font-medium">
-                            {candidatura?.requisicao.postoTrabalhoNome ??
-                              candidatura?.requisicao.postoTrabalho ??
-                              'Sem candidatura'}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {candidatura
-                              ? `Req. #${candidatura.requisicao.id} · ${candidatura.requisicao.empresa?.nome ?? 'Empresa não informada'}`
-                              : `Nasc.: ${toDateInputValue(candidato.dataNascimento)}`}
-                          </p>
                         </div>
                         <div className="self-center">
                           <p className="text-sm font-medium">
@@ -557,16 +585,13 @@ export default function CandidatosPage() {
                         </div>
                         <div className="self-center">
                           {candidatura && status === 'APROVADO' ? (
-                            <Input
-                              type="date"
-                              value={toDateInputValue(candidatura.dataAdmissaoPrevista)}
-                              onChange={(event) =>
-                                atualizarDataAdmissaoPrevista(candidatura, event.target.value)
-                              }
+                            <AdmissaoPrevistaInput
+                              value={candidatura.dataAdmissaoPrevista}
+                              onChange={(value) => atualizarDataAdmissaoPrevista(candidatura, value)}
                             />
                           ) : (
                             <p className="text-sm text-muted-foreground">
-                              {toDateInputValue(candidatura?.dataAdmissaoPrevista ?? null) || '-'}
+                              {formatDatePtBr(candidatura?.dataAdmissaoPrevista ?? null) || '-'}
                             </p>
                           )}
                         </div>

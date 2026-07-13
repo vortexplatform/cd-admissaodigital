@@ -12,8 +12,10 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateCandidatoDependenteDto } from './dto/create-candidato-dependente.dto';
+import { CreateCandidatoValeTransporteDto } from './dto/create-candidato-vale-transporte.dto';
 import { CreateCandidatoDto } from './dto/create-candidato.dto';
 import { UpdateCandidatoDependenteDto } from './dto/update-candidato-dependente.dto';
+import { UpdateCandidatoValeTransporteDto } from './dto/update-candidato-vale-transporte.dto';
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
 import { CandidatosService } from './candidatos.service';
 
@@ -64,6 +66,31 @@ export class CandidatosController {
     @Param('dependenteId', ParseIntPipe) dependenteId: number,
   ) {
     return this.candidatos.removeDependente(id, dependenteId);
+  }
+
+  @Post(':id/vale-transportes')
+  createValeTransporte(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateCandidatoValeTransporteDto,
+  ) {
+    return this.candidatos.createValeTransporte(id, dto);
+  }
+
+  @Patch(':id/vale-transportes/:valeTransporteId')
+  updateValeTransporte(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('valeTransporteId', ParseIntPipe) valeTransporteId: number,
+    @Body() dto: UpdateCandidatoValeTransporteDto,
+  ) {
+    return this.candidatos.updateValeTransporte(id, valeTransporteId, dto);
+  }
+
+  @Delete(':id/vale-transportes/:valeTransporteId')
+  removeValeTransporte(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('valeTransporteId', ParseIntPipe) valeTransporteId: number,
+  ) {
+    return this.candidatos.removeValeTransporte(id, valeTransporteId);
   }
 
   @Get(':id')

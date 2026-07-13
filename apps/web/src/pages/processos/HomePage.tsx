@@ -9,7 +9,6 @@ import {
   ClipboardCheck,
   FileSignature,
   LayoutDashboard,
-  ScanLine,
   UserRoundCheck,
   UsersRound,
 } from 'lucide-react';
@@ -20,28 +19,12 @@ import { useAuth, type User } from '@/context/AuthContext';
 import api from '@/lib/api';
 import type { AssinaturasCandidatura, DocumentosCandidatura } from './documentos.model';
 
-const rhMetrics = [
-  { label: 'Vagas abertas', value: '18', detail: '+4 na semana', icon: BriefcaseBusiness },
-  { label: 'Em admissão', value: '42', detail: '9 aguardam RH', icon: UsersRound },
-  { label: 'Documentos pendentes', value: '11', detail: '3 críticos', icon: ClipboardCheck },
-  { label: 'Integrações Senior', value: '96%', detail: 'últimas 24h', icon: ScanLine },
-];
-
-const rhQueue = [
-  {
-    title: 'Analista Fiscal Jr.',
-    company: 'Filial 03',
-    status: 'Aguardando documentos',
-    priority: 'Alta',
-  },
-  {
-    title: 'Auxiliar de Logística',
-    company: 'Matriz',
-    status: 'Assinatura enviada',
-    priority: 'Média',
-  },
-  { title: 'Coordenador de Loja', company: 'Filial 12', status: 'Revisão RH', priority: 'Normal' },
-];
+type DashboardSummary = {
+  vagasAbertas: number;
+  aprovados: number;
+  efetivados: number;
+  admissoesNoMes: number;
+};
 
 const getDisplayName = (user: User) => user.nome?.trim().split(' ')[0] || 'Usuário';
 
@@ -68,15 +51,29 @@ const getCandidateStatus = (documentos: DocumentosCandidatura[], assinaturas: As
   };
 };
 
-function RhHome({ user }: { user: User }) {
+function RhHome() {
   const navigate = useNavigate();
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+
+  useEffect(() => {
+    api
+      .get<DashboardSummary>('/dashboard/summary')
+      .then((res) => setSummary(res.data))
+      .catch(() => undefined);
+  }, []);
+
+  const metrics = [
+    { label: 'Vagas abertas', value: summary?.vagasAbertas, detail: 'requisições ativas', icon: BriefcaseBusiness },
+    { label: 'Aprovados (30 dias)', value: summary?.aprovados, detail: 'candidatos aprovados', icon: UserRoundCheck },
+    { label: 'Efetivados (30 dias)', value: summary?.efetivados, detail: 'admissões concluídas', icon: BadgeCheck },
+    { label: 'Admissões no mês', value: summary?.admissoesNoMes, detail: 'últimos 30 dias', icon: UsersRound },
+  ];
 
   return (
     <>
       <PageHeader
         eyebrow="Resumo executivo"
-        title={`Bom trabalho, ${getDisplayName(user)}.`}
-        description="Acompanhe requisições, pendências documentais e integrações em uma visão objetiva para tomada de decisão."
+        title="Visão geral"
         actions={
           <Button
             type="button"
@@ -90,7 +87,7 @@ function RhHome({ user }: { user: User }) {
       />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {rhMetrics.map((metric) => {
+        {metrics.map((metric) => {
           const Icon = metric.icon;
           return (
             <Card key={metric.label} className="shadow-corporate">
@@ -101,58 +98,14 @@ function RhHome({ user }: { user: User }) {
                 </span>
               </CardHeader>
               <CardContent>
-                <p className="font-display text-3xl font-semibold tracking-tight">{metric.value}</p>
+                <p className="font-display text-3xl font-semibold tracking-tight">
+                  {metric.value ?? '—'}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">{metric.detail}</p>
               </CardContent>
             </Card>
           );
         })}
-      </section>
-
-      <section className="mt-6 grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-        <Card className="shadow-corporate">
-          <CardHeader>
-            <CardTitle>Fila de atenção</CardTitle>
-            <CardDescription>Processos que precisam de acompanhamento do RH.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {rhQueue.map((item) => (
-              <div
-                key={item.title}
-                className="grid gap-3 rounded-xl border bg-background p-4 md:grid-cols-[1fr_auto_auto] md:items-center"
-              >
-                <div>
-                  <p className="font-semibold">{item.title}</p>
-                  <p className="text-sm text-muted-foreground">{item.company}</p>
-                </div>
-                <span className="w-fit rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-                  {item.status}
-                </span>
-                <span className="w-fit rounded-full border px-3 py-1 text-xs font-semibold text-muted-foreground">
-                  {item.priority}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-corporate">
-          <CardHeader>
-            <CardTitle>Ações rápidas</CardTitle>
-            <CardDescription>Atalhos para atividades recorrentes.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {['Revisar documentos', 'Aprovar admissão', 'Sincronizar Senior'].map((action) => (
-              <button
-                key={action}
-                className="flex w-full items-center justify-between rounded-lg border bg-background px-3 py-2.5 text-sm font-medium transition hover:bg-muted"
-              >
-                {action}
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </button>
-            ))}
-          </CardContent>
-        </Card>
       </section>
     </>
   );
@@ -322,5 +275,5 @@ export default function HomePage() {
   if (!user) return null;
   if (user.role === 'CANDIDATO') return <CandidateHome user={user} identifier={identifier} />;
 
-  return <RhHome user={user} />;
+  return <RhHome />;
 }

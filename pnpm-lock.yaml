@@ -242,6 +242,8 @@ importers:
         specifier: ^6.0.0
         version: 6.4.2(@types/node@22.15.3)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)
 
+  packages/cloudflared: {}
+
   packages/eslint-config:
     devDependencies:
       '@eslint/js':

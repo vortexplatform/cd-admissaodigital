@@ -43,7 +43,7 @@ function needsCompanyLink(user: ReturnType<typeof useAuth>['user'], empresasCoun
 function ProtectedRoute({ children }: { children?: React.ReactNode }) {
   const { user, empresas, isLoading } = useAuth();
   if (isLoading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/rh/login" replace />;
   if (!hasCompleteProfile(user)) return <Navigate to="/complete-profile" replace />;
   if (needsCompanyLink(user, empresas.length))
     return <Navigate to="/empresa-obrigatoria" replace />;
@@ -53,7 +53,7 @@ function ProtectedRoute({ children }: { children?: React.ReactNode }) {
 function AdminRoute({ children }: { children?: React.ReactNode }) {
   const { user, empresas, isLoading } = useAuth();
   if (isLoading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/rh/login" replace />;
   if (!hasCompleteProfile(user)) return <Navigate to="/complete-profile" replace />;
   if (needsCompanyLink(user, empresas.length))
     return <Navigate to="/empresa-obrigatoria" replace />;
@@ -76,7 +76,7 @@ function AdminLayoutRoute() {
 function CandidateLayoutRoute() {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/rh/login" replace />;
   if (user?.role !== 'CANDIDATO') return <Navigate to="/" replace />;
   return (
     <ProtectedRoute>
@@ -88,7 +88,7 @@ function CandidateLayoutRoute() {
 function CompanyRequiredRoute() {
   const { user, empresas, isLoading } = useAuth();
   if (isLoading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/rh/login" replace />;
   if (!hasCompleteProfile(user)) return <Navigate to="/complete-profile" replace />;
   if (!needsCompanyLink(user, empresas.length)) return <Navigate to="/" replace />;
   return <CompanyAccessRequiredPage />;
@@ -97,7 +97,7 @@ function CompanyRequiredRoute() {
 function CompleteProfileRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/rh/login" replace />;
   if (hasCompleteProfile(user)) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
@@ -114,8 +114,9 @@ export default function Router() {
   return (
     <Routes>
       <Route element={<AuthLayout />}>
+        <Route path="/login" element={<Navigate to="/rh/login" replace />} />
         <Route
-          path="/login"
+          path="/rh/login-candidato"
           element={
             <PublicRoute>
               <LoginPage />

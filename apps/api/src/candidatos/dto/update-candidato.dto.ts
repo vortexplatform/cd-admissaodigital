@@ -39,6 +39,15 @@ export class UpdateCandidatoDto {
   @IsOptional()
   genero?: string;
 
+  @IsIn(['ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO'])
+  @IsOptional()
+  situacao?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  justificativaReprovacao?: string;
+
   @IsBoolean()
   @IsOptional()
   possuiFilhos?: boolean;

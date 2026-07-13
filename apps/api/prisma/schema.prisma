@@ -49,6 +49,8 @@ model Candidato {
   email                         String?
   telefone                      String?
   genero                        String?
+  situacao                      String                 @default("ATIVO_PROCESSO")
+  justificativaReprovacao       String?                @map("justificativa_reprovacao")
   possuiFilhos                  Boolean                @default(false) @map("possui_filhos")
   biometriaStatus               BiometriaStatus        @default(NAO_CADASTRADA) @map("biometria_status")
   biometriaCadastradaEm         DateTime?              @map("biometria_cadastrada_em")
@@ -121,6 +123,7 @@ model Candidato {
   biometriaTemplates            BiometriaTemplate[]
   aceitesRegulamento            AceiteRegulamento[]
   dependentes                   CandidatoDependente[]
+  valeTransportes               CandidatoValeTransporte[]
 
   @@map("candidato")
 }
@@ -135,7 +138,7 @@ model CandidatoDependente {
   descricaoTipoEsocial       String   @map("descricao_tipo_esocial")
   sexo                       String
   dependenteIr               Boolean  @default(false) @map("dependente_ir")
-  dataNascimento             DateTime @db.Date @map("data_nascimento")
+  dataNascimento             DateTime? @db.Date @map("data_nascimento")
   cpf                        String
   createdAt                  DateTime @default(now()) @map("created_at")
   updatedAt                  DateTime @updatedAt @map("updated_at")
@@ -144,6 +147,22 @@ model CandidatoDependente {
 
   @@index([candidatoId])
   @@map("candidato_dependentes")
+}
+
+model CandidatoValeTransporte {
+  id                  Int      @id @default(autoincrement())
+  candidatoId         Int      @map("candidato_id")
+  tipoTransporte      String   @map("tipo_transporte")
+  tipoTrajeto         String   @map("tipo_trajeto")
+  transporteUsado     String   @map("transporte_usado")
+  preco               Decimal  @db.Decimal(10, 2)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@index([candidatoId])
+  @@map("candidato_vale_transportes")
 }
 
 model AceiteRegulamento {

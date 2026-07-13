@@ -7,11 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, BriefcaseBusiness, Edit3, Save } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowLeft, BriefcaseBusiness, Edit3, Save, UserRoundPlus, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Control, Controller, FieldValues, Path, useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import ReactSelect from 'react-select';
+import type { StylesConfig } from 'react-select';
+import AsyncSelect from 'react-select/async';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +53,7 @@ interface TipoDependenteEsocial {
 }
 interface CandidatoDependenteData {
   id: number;
+  draftId?: string;
   nome: string;
   codigoGrauParentesco: string;
   descricaoGrauParentesco: string;
@@ -58,8 +61,16 @@ interface CandidatoDependenteData {
   descricaoTipoEsocial: string;
   sexo: 'MASCULINO' | 'FEMININO';
   dependenteIr: boolean;
-  dataNascimento: string;
+  dataNascimento: string | null;
   cpf: string;
+}
+interface CandidatoValeTransporteData {
+  id: number;
+  draftId?: string;
+  tipoTransporte: 'ONIBUS' | 'METRO' | 'TREM';
+  tipoTrajeto: 'RESIDENCIA_TRABALHO' | 'TRABALHO_RESIDENCIA';
+  transporteUsado: string;
+  preco: string | number;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +158,29 @@ interface CandidaturaResumo {
   requisicao: RequisicaoResumo;
   createdAt: string;
 }
+interface RequisicaoDisponivel {
+  id: number;
+  quantidadeVagas: number;
+  vagasDisponiveis: number;
+  empresa: Empresa | null;
+  filialNome: string | null;
+  postoTrabalho: string | null;
+  postoTrabalhoNome: string | null;
+  cargo: string | null;
+  cargoNome: string | null;
+  ccustoNome: string | null;
+  dataPrevistaAdmissao: string | null;
+}
+
+interface RequisicaoSelectOption {
+  value: string;
+  label: string;
+}
+
+interface RequisicaoOption extends RequisicaoSelectOption {
+  requisicao: RequisicaoDisponivel;
+}
+
 interface CandidatoData {
   id: number;
   cpf: string;
@@ -155,6 +189,8 @@ interface CandidatoData {
   email: string | null;
   telefone: string | null;
   genero: string | null;
+  situacao: string;
+  justificativaReprovacao: string | null;
   possuiFilhos: boolean;
   tipoAdmissao: string | null;
   estadoCivil: string | null;
@@ -201,50 +237,68 @@ interface CandidatoData {
   raccor: number | null;
   candidaturas: CandidaturaResumo[];
   dependentes: CandidatoDependenteData[];
+  valeTransportes: CandidatoValeTransporteData[];
 }
+
+type CandidatoResponse = Omit<CandidatoData, 'candidaturas' | 'dependentes' | 'valeTransportes'> & {
+  candidaturas?: CandidaturaResumo[] | null;
+  dependentes?: CandidatoDependenteData[] | null;
+  valeTransportes?: CandidatoValeTransporteData[] | null;
+};
+
+const normalizeCandidato = (data: CandidatoResponse): CandidatoData => ({
+  ...data,
+  candidaturas: data.candidaturas ?? [],
+  dependentes: data.dependentes ?? [],
+  valeTransportes: data.valeTransportes ?? [],
+});
 
 // ---------------------------------------------------------------------------
 // Schema Zod
 // ---------------------------------------------------------------------------
-const candidatoSchema = z.object({
+const candidatoSchema = z
+  .object({
   cpf: z
     .string()
     .trim()
     .refine((v) => v.replace(/\D/g, '').length === 11, 'Informe um CPF com 11 dígitos'),
   dataNascimento: z.string().trim().min(1, 'Informe a data de nascimento'),
-  nome: z.string().trim().optional(),
+  nome: z.string().trim().min(1, 'Informe o nome'),
   email: z.string().trim().email('Informe um e-mail válido').optional().or(z.literal('')),
   telefone: z.string().trim().optional(),
-  genero: z.enum(['', 'M', 'F']).optional(),
-  possuiFilhos: z.boolean().optional(),
+  genero: z.enum(['', 'M', 'F']).refine((value) => value !== '', 'Informe o gênero'),
+  situacao: z.enum(['ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO']),
+  justificativaReprovacao: z.string().trim().optional(),
 
   // Admissão
-  tipoAdmissao: z.enum(['', 'PRIMEIRO_EMPREGO', 'REEMPREGO']).optional(),
+  tipoAdmissao: z
+    .enum(['', 'PRIMEIRO_EMPREGO', 'REEMPREGO'])
+    .refine((value) => value !== '', 'Informe o tipo de admissão'),
 
   // Dados pessoais adicionais
-  estadoCivil: z.string().trim().optional(),
-  grauInstrucao: z.string().trim().optional(),
+  estadoCivil: z.string().trim().min(1, 'Informe o estado civil'),
+  grauInstrucao: z.string().trim().min(1, 'Informe o grau de instrução'),
   pis: z.string().trim().optional(),
-  raccor: z.string().trim().optional(),
+  raccor: z.string().trim().min(1, 'Informe a raça'),
 
   // Naturalidade
-  nacionalidade: z.string().trim().optional(),
-  paisNascimento: z.string().trim().optional(),
-  estadoNascimento: z.string().trim().optional(),
-  cidadeNascimentoCod: z.string().trim().optional(),
+  nacionalidade: z.string().trim().min(1, 'Informe a nacionalidade'),
+  paisNascimento: z.string().trim().min(1, 'Informe o país de nascimento'),
+  estadoNascimento: z.string().trim().min(1, 'Informe o estado de nascimento'),
+  cidadeNascimentoCod: z.string().trim().min(1, 'Informe a cidade de nascimento'),
   cidadeNascimentoNome: z.string().trim().optional(),
 
   // Endereço
-  pais: z.string().trim().optional(),
-  cep: z.string().trim().optional(),
-  estadoEndereco: z.string().trim().optional(),
-  cidadeCod: z.string().trim().optional(),
+  pais: z.string().trim().min(1, 'Informe o país do endereço'),
+  cep: z.string().trim().min(1, 'Informe o CEP'),
+  estadoEndereco: z.string().trim().min(1, 'Informe o estado do endereço'),
+  cidadeCod: z.string().trim().min(1, 'Informe a cidade do endereço'),
   cidadeNome: z.string().trim().optional(),
   bairroCod: z.string().trim().optional(),
-  bairroNome: z.string().trim().optional(),
-  tipoLogradouro: z.string().trim().optional(),
-  endereco: z.string().trim().optional(),
-  numero: z.string().trim().optional(),
+  bairroNome: z.string().trim().min(1, 'Informe o bairro'),
+  tipoLogradouro: z.string().trim().min(1, 'Informe o tipo de logradouro'),
+  endereco: z.string().trim().min(1, 'Informe o logradouro'),
+  numero: z.string().trim().min(1, 'Informe o número'),
   complemento: z.string().trim().optional(),
 
   // Contatos
@@ -278,25 +332,59 @@ const candidatoSchema = z.object({
   estadoCertidaoCivil: z.string().trim().optional(),
   cidadeCertidaoCivilCod: z.string().trim().optional(),
   cidadeCertidaoCivilNome: z.string().trim().optional(),
+}).superRefine((values, ctx) => {
+  if (
+    (values.situacao === 'ELIMINADO' || values.situacao === 'DESISTENTE') &&
+    !values.justificativaReprovacao?.trim()
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['justificativaReprovacao'],
+      message: 'Informe a justificativa',
+    });
+  }
 });
 
-const dependenteSchema = z.object({
-  nome: z.string().trim().min(1, 'Informe o nome'),
-  codigoGrauParentesco: z.string().trim().min(1, 'Informe o grau de parentesco'),
-  descricaoGrauParentesco: z.string().trim().optional(),
-  codigoTipoEsocial: z.string().trim().min(1, 'Informe o tipo eSocial'),
-  descricaoTipoEsocial: z.string().trim().optional(),
-  sexo: z.enum(['', 'MASCULINO', 'FEMININO']).refine((value) => value !== '', 'Informe o sexo'),
-  dependenteIr: z.boolean().optional(),
-  dataNascimento: z.string().trim().min(1, 'Informe a data de nascimento'),
-  cpf: z
-    .string()
-    .trim()
-    .refine((v) => v.replace(/\D/g, '').length === 11, 'Informe um CPF com 11 dígitos'),
+const dependenteSchema = z
+  .object({
+    nome: z.string().trim().min(1, 'Informe o nome'),
+    codigoGrauParentesco: z.string().trim().min(1, 'Informe o grau de parentesco'),
+    descricaoGrauParentesco: z.string().trim().optional(),
+    codigoTipoEsocial: z.string().trim().min(1, 'Informe o tipo eSocial'),
+    descricaoTipoEsocial: z.string().trim().optional(),
+    sexo: z.enum(['', 'MASCULINO', 'FEMININO']).refine((value) => value !== '', 'Informe o sexo'),
+    dependenteIr: z.boolean().optional(),
+    dataNascimento: z.string().trim().optional(),
+    cpf: z.string().trim().optional(),
+  })
+  .superRefine((values, ctx) => {
+    const cpfDigits = values.cpf?.replace(/\D/g, '') ?? '';
+    if (!values.dependenteIr && cpfDigits.length === 0) return;
+    if (cpfDigits.length === 11) return;
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['cpf'],
+      message: values.dependenteIr ? 'Informe o CPF do dependente IR' : 'Informe um CPF com 11 dígitos',
+    });
+  });
+
+const valeTransporteSchema = z.object({
+  tipoTransporte: z
+    .enum(['', 'ONIBUS', 'METRO', 'TREM'])
+    .refine((value) => value !== '', 'Informe o tipo de transporte'),
+  tipoTrajeto: z
+    .enum(['', 'RESIDENCIA_TRABALHO', 'TRABALHO_RESIDENCIA'])
+    .refine((value) => value !== '', 'Informe o tipo de trajeto'),
+  transporteUsado: z.string().trim().min(1, 'Informe o transporte usado'),
+  preco: z.string().trim().min(1, 'Informe o preço'),
 });
 
-type CandidatoForm = z.infer<typeof candidatoSchema>;
+type CandidatoForm = z.input<typeof candidatoSchema>;
 type DependenteForm = z.input<typeof dependenteSchema>;
+type DependentePayload = Omit<CandidatoDependenteData, 'id' | 'draftId'>;
+type ValeTransporteForm = z.input<typeof valeTransporteSchema>;
+type ValeTransportePayload = Omit<CandidatoValeTransporteData, 'id' | 'draftId'>;
 type CandidatoMode = 'create' | 'edit' | 'view';
 
 const dependenteDefaultValues: DependenteForm = {
@@ -311,6 +399,52 @@ const dependenteDefaultValues: DependenteForm = {
   cpf: '',
 };
 
+const valeTransporteDefaultValues: ValeTransporteForm = {
+  tipoTransporte: '',
+  tipoTrajeto: '',
+  transporteUsado: '',
+  preco: '',
+};
+
+const selectStyles: StylesConfig<RequisicaoSelectOption, false> = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 40,
+    borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
+    borderRadius: 'calc(var(--radius) - 2px)',
+    backgroundColor: 'hsl(var(--background))',
+    boxShadow: state.isFocused ? '0 0 0 1px hsl(var(--ring))' : 'none',
+    ':hover': { borderColor: 'hsl(var(--ring))' },
+  }),
+  menu: (base) => ({
+    ...base,
+    zIndex: 60,
+    overflow: 'hidden',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: 'var(--radius)',
+    backgroundColor: 'hsl(var(--popover))',
+    color: 'hsl(var(--popover-foreground))',
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? 'hsl(var(--primary))'
+      : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'transparent',
+    color: state.isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+  }),
+  placeholder: (base) => ({ ...base, color: 'hsl(var(--muted-foreground))' }),
+  singleValue: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
+  input: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
+};
+
+const formatRequisicaoOption = (requisicao: RequisicaoDisponivel): RequisicaoOption => ({
+  value: String(requisicao.id),
+  label: `#${requisicao.id} - ${requisicao.postoTrabalho ?? 'Posto não informado'} - ${requisicao.postoTrabalhoNome ?? requisicao.cargoNome ?? requisicao.cargo ?? 'Descrição não informada'}`,
+  requisicao,
+});
+
 const defaultValues: CandidatoForm = {
   cpf: '',
   dataNascimento: '',
@@ -318,7 +452,8 @@ const defaultValues: CandidatoForm = {
   email: '',
   telefone: '',
   genero: '',
-  possuiFilhos: false,
+  situacao: 'ATIVO_PROCESSO',
+  justificativaReprovacao: '',
   tipoAdmissao: '',
   estadoCivil: '',
   grauInstrucao: '',
@@ -381,26 +516,61 @@ const optionalInt = (value?: string) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
-const buildDependentePayload = (values: DependenteForm) => ({
+const buildDependentePayload = (values: DependenteForm): DependentePayload => ({
   nome: values.nome.trim(),
   codigoGrauParentesco: values.codigoGrauParentesco,
   descricaoGrauParentesco: values.descricaoGrauParentesco?.trim() || '',
   codigoTipoEsocial: parseInt(values.codigoTipoEsocial, 10),
   descricaoTipoEsocial: values.descricaoTipoEsocial?.trim() || '',
-  sexo: values.sexo,
+  sexo: values.sexo as DependentePayload['sexo'],
   dependenteIr: Boolean(values.dependenteIr),
-  dataNascimento: values.dataNascimento,
-  cpf: values.cpf.replace(/\D/g, ''),
+  dataNascimento: values.dataNascimento || null,
+  cpf: values.dependenteIr ? values.cpf?.replace(/\D/g, '') ?? '' : '',
 });
 
-const buildPayload = (values: CandidatoForm) => ({
+const buildPayloadDependentes = (dependentes?: CandidatoDependenteData[]) =>
+  dependentes?.map((dependente) => ({
+    nome: dependente.nome,
+    codigoGrauParentesco: dependente.codigoGrauParentesco,
+    descricaoGrauParentesco: dependente.descricaoGrauParentesco,
+    codigoTipoEsocial: dependente.codigoTipoEsocial,
+    descricaoTipoEsocial: dependente.descricaoTipoEsocial,
+    sexo: dependente.sexo,
+    dependenteIr: dependente.dependenteIr,
+    dataNascimento: dependente.dataNascimento,
+    cpf: dependente.cpf,
+  }));
+
+const parseMoney = (value: string | number) => Number(String(value).replace(',', '.'));
+
+const buildValeTransportePayload = (values: ValeTransporteForm): ValeTransportePayload => ({
+  tipoTransporte: values.tipoTransporte as ValeTransportePayload['tipoTransporte'],
+  tipoTrajeto: values.tipoTrajeto as ValeTransportePayload['tipoTrajeto'],
+  transporteUsado: values.transporteUsado.trim(),
+  preco: parseMoney(values.preco),
+});
+
+const buildPayloadValeTransportes = (valeTransportes?: CandidatoValeTransporteData[]) =>
+  valeTransportes?.map((valeTransporte) => ({
+    tipoTransporte: valeTransporte.tipoTransporte,
+    tipoTrajeto: valeTransporte.tipoTrajeto,
+    transporteUsado: valeTransporte.transporteUsado,
+    preco: parseMoney(valeTransporte.preco),
+  }));
+
+const buildPayload = (
+  values: CandidatoForm,
+  dependentes?: CandidatoDependenteData[],
+  valeTransportes?: CandidatoValeTransporteData[],
+) => ({
   cpf: values.cpf.replace(/\D/g, ''),
   dataNascimento: values.dataNascimento,
   nome: optionalString(values.nome),
   email: optionalString(values.email),
   telefone: optionalString(values.telefone),
   genero: optionalString(values.genero),
-  possuiFilhos: Boolean(values.possuiFilhos),
+  situacao: values.situacao,
+  justificativaReprovacao: optionalString(values.justificativaReprovacao),
   tipoAdmissao: optionalString(values.tipoAdmissao),
   estadoCivil: optionalString(values.estadoCivil),
   grauInstrucao: optionalString(values.grauInstrucao),
@@ -444,12 +614,21 @@ const buildPayload = (values: CandidatoForm) => ({
   estadoCertidaoCivil: optionalString(values.estadoCertidaoCivil),
   cidadeCertidaoCivilCod: optionalInt(values.cidadeCertidaoCivilCod),
   cidadeCertidaoCivilNome: optionalString(values.cidadeCertidaoCivilNome),
+  dependentes: buildPayloadDependentes(dependentes),
+  valeTransportes: buildPayloadValeTransportes(valeTransportes),
 });
 
 const getPageTitle = (mode: CandidatoMode) => {
   if (mode === 'create') return 'Novo candidato';
   if (mode === 'edit') return 'Editar candidato';
   return 'Visualizar candidato';
+};
+
+const formatCpf = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, (_, a, b, c, d) =>
+    d ? `${a}.${b}.${c}-${d}` : `${a}.${b}.${c}`,
+  );
 };
 
 // ---------------------------------------------------------------------------
@@ -628,6 +807,11 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [isLoading, setIsLoading] = useState(mode !== 'create');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [selectedRequisicao, setSelectedRequisicao] = useState<RequisicaoOption | null>(null);
+  const [isSavingLink, setIsSavingLink] = useState(false);
+  const [linkModalError, setLinkModalError] = useState('');
+  const requisicaoSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isViewMode = mode === 'view';
 
   // Modal de admissão — null = fechado; number = id da candidatura alvo
@@ -657,9 +841,16 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [etnia, setEtnia] = useState<{ CODETN: number; DESETN: string }[]>([]);
   const [tiposGrauParentesco, setTiposGrauParentesco] = useState<OpcaoChave[]>([]);
   const [tiposDependenteEsocial, setTiposDependenteEsocial] = useState<TipoDependenteEsocial[]>([]);
+  const [dependentesDraft, setDependentesDraft] = useState<CandidatoDependenteData[]>([]);
+  const [dependenteModalOpen, setDependenteModalOpen] = useState(false);
   const [dependenteEditando, setDependenteEditando] = useState<CandidatoDependenteData | null>(null);
   const [isSavingDependente, setIsSavingDependente] = useState(false);
   const [dependenteError, setDependenteError] = useState('');
+  const [valeTransportesDraft, setValeTransportesDraft] = useState<CandidatoValeTransporteData[]>([]);
+  const [valeTransporteModalOpen, setValeTransporteModalOpen] = useState(false);
+  const [valeTransporteEditando, setValeTransporteEditando] = useState<CandidatoValeTransporteData | null>(null);
+  const [isSavingValeTransporte, setIsSavingValeTransporte] = useState(false);
+  const [valeTransporteError, setValeTransporteError] = useState('');
 
   // Cascata: Naturalidade
   const [estadosNasc, setEstadosNasc] = useState<Estado[]>([]);
@@ -673,6 +864,13 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   // Cascata: Certidão civil (estado via ESTADOS_BR, cidades carregadas da API)
   const [estadosCert, setEstadosCert] = useState<Estado[]>([]);
   const [cidadesCert, setCidadesCert] = useState<Cidade[]>([]);
+
+  useEffect(
+    () => () => {
+      if (requisicaoSearchTimeout.current) clearTimeout(requisicaoSearchTimeout.current);
+    },
+    [],
+  );
 
   const {
     register,
@@ -688,6 +886,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     register: registerDependente,
     handleSubmit: handleSubmitDependente,
     reset: resetDependente,
+    watch: watchDependente,
     setValue: setDependenteValue,
     control: dependenteControl,
     formState: { errors: dependenteErrors },
@@ -695,6 +894,29 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     resolver: zodResolver(dependenteSchema),
     defaultValues: dependenteDefaultValues,
   });
+
+  const {
+    register: registerValeTransporte,
+    handleSubmit: handleSubmitValeTransporte,
+    reset: resetValeTransporte,
+    formState: { errors: valeTransporteErrors },
+  } = useForm<ValeTransporteForm>({
+    resolver: zodResolver(valeTransporteSchema),
+    defaultValues: valeTransporteDefaultValues,
+  });
+
+  const situacaoSelecionada = watch('situacao');
+  const exigeJustificativaReprovacao =
+    situacaoSelecionada === 'ELIMINADO' || situacaoSelecionada === 'DESISTENTE';
+  const dependenteIrSelecionado = watchDependente('dependenteIr');
+
+  useEffect(() => {
+    if (!exigeJustificativaReprovacao) setValue('justificativaReprovacao', '');
+  }, [exigeJustificativaReprovacao, setValue]);
+
+  useEffect(() => {
+    if (!dependenteIrSelecionado) setDependenteValue('cpf', '');
+  }, [dependenteIrSelecionado, setDependenteValue]);
 
   // Carregar dados estáticos ao montar
   useEffect(() => {
@@ -859,13 +1081,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     if (mode === 'create') return;
 
     api
-      .get<CandidatoData>(`/candidatos/${id}`)
+      .get<CandidatoResponse>(`/candidatos/${id}`)
       .then(async ({ data }) => {
-        setCandidato(data);
+        const candidatoData = normalizeCandidato(data);
+        setCandidato(candidatoData);
 
         // Inicializa status editável por candidatura
         const statusInit: Record<number, string> = {};
-        data.candidaturas.forEach((c) => { statusInit[c.id] = c.status; });
+        candidatoData.candidaturas.forEach((c) => { statusInit[c.id] = c.status; });
         setStatusEdit(statusInit);
 
         // Pré-carregar dados de cascata com base nos valores existentes
@@ -941,7 +1164,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           email: toText(data.email),
           telefone: toText(data.telefone),
           genero: (data.genero as 'M' | 'F' | null) ?? '',
-          possuiFilhos: data.possuiFilhos,
+          situacao: (data.situacao ?? 'ATIVO_PROCESSO') as CandidatoForm['situacao'],
+          justificativaReprovacao: toText(data.justificativaReprovacao),
           tipoAdmissao: (data.tipoAdmissao ?? '') as CandidatoForm['tipoAdmissao'],
           estadoCivil: toText(data.estadoCivil),
           grauInstrucao: toText(data.grauInstrucao),
@@ -1003,7 +1227,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       if (mode === 'edit') {
         await api.patch(`/candidatos/${id}`, buildPayload(values));
       } else {
-        await api.post('/candidatos', buildPayload(values));
+        await api.post('/candidatos', buildPayload(values, dependentesDraft, valeTransportesDraft));
       }
       navigate('/candidatos');
     } catch {
@@ -1015,7 +1239,64 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
   const reloadCandidato = () => {
     if (!id) return;
-    api.get<CandidatoData>(`/candidatos/${id}`).then(({ data }) => setCandidato(data)).catch(() => {});
+    api
+      .get<CandidatoResponse>(`/candidatos/${id}`)
+      .then(({ data }) => setCandidato(normalizeCandidato(data)))
+      .catch(() => {});
+  };
+
+  const closeLinkModal = (force = false) => {
+    if (isSavingLink && !force) return;
+
+    setLinkModalOpen(false);
+    setSelectedRequisicao(null);
+    setLinkModalError('');
+  };
+
+  const loadRequisicaoOptions = (
+    inputValue: string,
+    callback: (options: RequisicaoOption[]) => void,
+  ) => {
+    if (!candidato) {
+      callback([]);
+      return;
+    }
+
+    if (requisicaoSearchTimeout.current) clearTimeout(requisicaoSearchTimeout.current);
+
+    requisicaoSearchTimeout.current = setTimeout(() => {
+      api
+        .get<RequisicaoDisponivel[]>('/requisicoes/disponiveis', {
+          params: {
+            candidatoId: candidato.id,
+            limit: 20,
+            q: inputValue.trim() || undefined,
+          },
+        })
+        .then(({ data }) => callback(data.map(formatRequisicaoOption)))
+        .catch(() => {
+          setLinkModalError('Não foi possível carregar as requisições disponíveis.');
+          callback([]);
+        });
+    }, 350);
+  };
+
+  const vincularRequisicao = async () => {
+    if (!candidato || !selectedRequisicao) return;
+
+    setIsSavingLink(true);
+    setLinkModalError('');
+    try {
+      await api.post(`/requisicoes/${selectedRequisicao.value}/candidaturas`, {
+        candidatoId: candidato.id,
+      });
+      reloadCandidato();
+      closeLinkModal(true);
+    } catch {
+      setLinkModalError('Não foi possível vincular o candidato à requisição.');
+    } finally {
+      setIsSavingLink(false);
+    }
   };
 
   const handleGrauParentescoChange = (value: string) => {
@@ -1028,8 +1309,16 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     setDependenteValue('descricaoTipoEsocial', tipo?.descricao ?? '');
   };
 
+  const handleNovoDependente = () => {
+    setDependenteEditando(null);
+    setDependenteError('');
+    resetDependente(dependenteDefaultValues);
+    setDependenteModalOpen(true);
+  };
+
   const handleEditarDependente = (dependente: CandidatoDependenteData) => {
     setDependenteEditando(dependente);
+    setDependenteModalOpen(true);
     resetDependente({
       nome: dependente.nome,
       codigoGrauParentesco: dependente.codigoGrauParentesco,
@@ -1038,32 +1327,47 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       descricaoTipoEsocial: dependente.descricaoTipoEsocial,
       sexo: dependente.sexo,
       dependenteIr: dependente.dependenteIr,
-      dataNascimento: toDateInputValue(dependente.dataNascimento),
+      dataNascimento: dependente.dataNascimento ? toDateInputValue(dependente.dataNascimento) : '',
       cpf: dependente.cpf,
     });
   };
 
   const handleCancelarDependente = () => {
+    setDependenteModalOpen(false);
     setDependenteEditando(null);
     setDependenteError('');
     resetDependente(dependenteDefaultValues);
   };
 
   const onSubmitDependente = async (values: DependenteForm) => {
-    if (!id || isViewMode) return;
+    if (isViewMode) return;
 
     setIsSavingDependente(true);
     setDependenteError('');
 
     try {
       const payload = buildDependentePayload(values);
-      if (dependenteEditando) {
-        await api.patch(`/candidatos/${id}/dependentes/${dependenteEditando.id}`, payload);
-      } else {
-        await api.post(`/candidatos/${id}/dependentes`, payload);
+      if (mode === 'create') {
+        const draft = {
+          ...payload,
+          id: dependenteEditando?.id ?? -Date.now(),
+          draftId: dependenteEditando?.draftId ?? crypto.randomUUID(),
+        };
+        setDependentesDraft((current) => {
+          if (!dependenteEditando) return [...current, draft];
+          return current.map((dependente) =>
+            dependente.draftId === dependenteEditando.draftId ? draft : dependente,
+          );
+        });
+      } else if (id) {
+        if (dependenteEditando) {
+          await api.patch(`/candidatos/${id}/dependentes/${dependenteEditando.id}`, payload);
+        } else {
+          await api.post(`/candidatos/${id}/dependentes`, payload);
+        }
+        reloadCandidato();
       }
       handleCancelarDependente();
-      reloadCandidato();
     } catch {
       setDependenteError('Não foi possível salvar o dependente.');
     } finally {
@@ -1071,14 +1375,107 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     }
   };
 
-  const handleExcluirDependente = async (dependenteId: number) => {
-    if (!id || isViewMode) return;
+  const dependentesList = mode === 'create' ? dependentesDraft : (candidato?.dependentes ?? []);
+
+  const handleExcluirDependente = async (dependente: CandidatoDependenteData) => {
+    if (isViewMode) return;
     try {
-      await api.delete(`/candidatos/${id}/dependentes/${dependenteId}`);
-      if (dependenteEditando?.id === dependenteId) handleCancelarDependente();
+      if (mode === 'create') {
+        setDependentesDraft((current) =>
+          current.filter((item) => item.draftId !== dependente.draftId),
+        );
+        if (dependenteEditando?.draftId === dependente.draftId) handleCancelarDependente();
+        return;
+      }
+      if (!id) return;
+      await api.delete(`/candidatos/${id}/dependentes/${dependente.id}`);
+      if (dependenteEditando?.id === dependente.id) handleCancelarDependente();
       reloadCandidato();
     } catch {
       setDependenteError('Não foi possível excluir o dependente.');
+    }
+  };
+
+  const handleNovoValeTransporte = () => {
+    setValeTransporteEditando(null);
+    setValeTransporteError('');
+    resetValeTransporte(valeTransporteDefaultValues);
+    setValeTransporteModalOpen(true);
+  };
+
+  const handleEditarValeTransporte = (valeTransporte: CandidatoValeTransporteData) => {
+    setValeTransporteEditando(valeTransporte);
+    setValeTransporteModalOpen(true);
+    resetValeTransporte({
+      tipoTransporte: valeTransporte.tipoTransporte,
+      tipoTrajeto: valeTransporte.tipoTrajeto,
+      transporteUsado: valeTransporte.transporteUsado,
+      preco: String(valeTransporte.preco).replace('.', ','),
+    });
+  };
+
+  const handleCancelarValeTransporte = () => {
+    setValeTransporteModalOpen(false);
+    setValeTransporteEditando(null);
+    setValeTransporteError('');
+    resetValeTransporte(valeTransporteDefaultValues);
+  };
+
+  const onSubmitValeTransporte = async (values: ValeTransporteForm) => {
+    if (isViewMode) return;
+
+    setIsSavingValeTransporte(true);
+    setValeTransporteError('');
+
+    try {
+      const payload = buildValeTransportePayload(values);
+      if (mode === 'create') {
+        const draft = {
+          ...payload,
+          id: valeTransporteEditando?.id ?? -Date.now(),
+          draftId: valeTransporteEditando?.draftId ?? crypto.randomUUID(),
+        };
+        setValeTransportesDraft((current) => {
+          if (!valeTransporteEditando) return [...current, draft];
+          return current.map((valeTransporte) =>
+            valeTransporte.draftId === valeTransporteEditando.draftId ? draft : valeTransporte,
+          );
+        });
+      } else if (id) {
+        if (valeTransporteEditando) {
+          await api.patch(`/candidatos/${id}/vale-transportes/${valeTransporteEditando.id}`, payload);
+        } else {
+          await api.post(`/candidatos/${id}/vale-transportes`, payload);
+        }
+        reloadCandidato();
+      }
+      handleCancelarValeTransporte();
+    } catch {
+      setValeTransporteError('Não foi possível salvar o vale transporte.');
+    } finally {
+      setIsSavingValeTransporte(false);
+    }
+  };
+
+  const valeTransportesList =
+    mode === 'create' ? valeTransportesDraft : (candidato?.valeTransportes ?? []);
+
+  const handleExcluirValeTransporte = async (valeTransporte: CandidatoValeTransporteData) => {
+    if (isViewMode) return;
+    try {
+      if (mode === 'create') {
+        setValeTransportesDraft((current) =>
+          current.filter((item) => item.draftId !== valeTransporte.draftId),
+        );
+        if (valeTransporteEditando?.draftId === valeTransporte.draftId) handleCancelarValeTransporte();
+        return;
+      }
+      if (!id) return;
+      await api.delete(`/candidatos/${id}/vale-transportes/${valeTransporte.id}`);
+      if (valeTransporteEditando?.id === valeTransporte.id) handleCancelarValeTransporte();
+      reloadCandidato();
+    } catch {
+      setValeTransporteError('Não foi possível excluir o vale transporte.');
     }
   };
 
@@ -1182,6 +1579,29 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         </Card>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <Card className="shadow-corporate">
+            <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Nome</p>
+                <p className="mt-1 font-semibold">{watch('nome') || candidato?.nome || 'Não informado'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">CPF</p>
+                <p className="mt-1 font-semibold">{watch('cpf') || candidato?.cpf || 'Não informado'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Data de nascimento</p>
+                <p className="mt-1 font-semibold">
+                  {(watch('dataNascimento') || candidato?.dataNascimento)
+                    ? toDateInputValue(watch('dataNascimento') || candidato?.dataNascimento || '')
+                        .split('-')
+                        .reverse()
+                        .join('/')
+                    : 'Não informado'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* ================================================================
               Candidaturas vinculadas — acima do formulário
@@ -1200,8 +1620,17 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <BriefcaseBusiness className="mx-auto h-7 w-7 text-muted-foreground" />
                     <p className="mt-2 font-semibold">Nenhuma candidatura vinculada</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      O vínculo é feito na lista de requisições.
+                      Vincule o candidato a uma requisição com vaga disponível.
                     </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => setLinkModalOpen(true)}
+                    >
+                      <UserRoundPlus className="h-4 w-4" />
+                      Vincular requisição
+                    </Button>
                   </div>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1361,7 +1790,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           <Tabs defaultValue="cadastro" className="space-y-4">
             <TabsList>
               <TabsTrigger value="cadastro">Cadastro</TabsTrigger>
-              {mode !== 'create' && <TabsTrigger value="dependentes">Dependentes</TabsTrigger>}
+              <TabsTrigger value="dependentes">Dependentes</TabsTrigger>
+              <TabsTrigger value="valeTransporte">Vale Transporte</TabsTrigger>
             </TabsList>
 
             <TabsContent value="cadastro" className="space-y-4">
@@ -1383,8 +1813,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   <TextField
                     id="nome"
                     label="Nome completo"
+                    required
                     disabled={isViewMode}
                     placeholder=""
+                    error={errors.nome?.message}
                     {...register('nome')}
                   />
 
@@ -1413,10 +1845,12 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <SelectField
                       id="genero"
                       label="Gênero"
+                      required
                       disabled={isViewMode}
+                      error={errors.genero?.message}
                       {...register('genero')}
                     >
-                      <option value="">Não informado</option>
+                      <option value="">Selecione</option>
                       <option value="M">Masculino</option>
                       <option value="F">Feminino</option>
                     </SelectField>
@@ -1426,6 +1860,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       label="Estado civil"
                       required
                       disabled={isViewMode}
+                      error={errors.estadoCivil?.message}
                       {...register('estadoCivil')}
                     >
                       <option value="">Selecione</option>
@@ -1439,10 +1874,37 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <SelectField
+                      id="situacao"
+                      label="Situação"
+                      required
+                      disabled={isViewMode}
+                      error={errors.situacao?.message}
+                      {...register('situacao')}
+                    >
+                      <option value="ATIVO_PROCESSO">Ativo no processo</option>
+                      <option value="ELIMINADO">Eliminado</option>
+                      <option value="DESISTENTE">Desistente</option>
+                      <option value="ADMITIDO">Admitido</option>
+                    </SelectField>
+                    {exigeJustificativaReprovacao && (
+                      <TextField
+                        id="justificativaReprovacao"
+                        label="Justificativa"
+                        required
+                        disabled={isViewMode}
+                        error={errors.justificativaReprovacao?.message}
+                        {...register('justificativaReprovacao')}
+                      />
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <SelectField
                       id="grauInstrucao"
                       label="Grau de instrução"
                       required
                       disabled={isViewMode}
+                      error={errors.grauInstrucao?.message}
                       {...register('grauInstrucao')}
                     >
                       <option value="">Selecione</option>
@@ -1456,8 +1918,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="raccor"
                       label="Raça/Cor"
+                      required
                       control={control}
                       name="raccor"
+                      error={errors.raccor?.message}
                       isDisabled={isViewMode}
                       options={etnia.map((e) => ({ value: String(e.CODETN), label: e.DESETN }))}
                     />
@@ -1469,6 +1933,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       label="Tipo de admissão"
                       required
                       disabled={isViewMode}
+                      error={errors.tipoAdmissao?.message}
                       {...register('tipoAdmissao')}
                     >
                       <option value="">Selecione</option>
@@ -1485,10 +1950,6 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     />
                   </div>
 
-                  <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm w-fit">
-                    <input type="checkbox" disabled={isViewMode} {...register('possuiFilhos')} />
-                    Possui filhos
-                  </label>
                 </CardContent>
               </Card>
 
@@ -1506,6 +1967,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       required
                       control={control}
                       name="nacionalidade"
+                      error={errors.nacionalidade?.message}
                       isDisabled={isViewMode}
                       options={nacionalidades.map((n) => ({
                         value: String(n.CODNAC),
@@ -1519,6 +1981,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       required
                       control={control}
                       name="paisNascimento"
+                      error={errors.paisNascimento?.message}
                       isDisabled={isViewMode}
                       options={paisesToOptions(paises)}
                       onChange={handlePaisNascChange}
@@ -1532,6 +1995,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       required
                       control={control}
                       name="estadoNascimento"
+                      error={errors.estadoNascimento?.message}
                       isDisabled={isViewMode || estadosNasc.length === 0}
                       options={estadosToOptions(estadosNasc)}
                       placeholder={
@@ -1547,6 +2011,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                         required
                         control={control}
                         name="cidadeNascimentoCod"
+                        error={errors.cidadeNascimentoCod?.message}
                         isDisabled={isViewMode || cidadesNasc.length === 0}
                         options={cidadesToOptions(cidadesNasc)}
                         placeholder={
@@ -1748,6 +2213,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       required
                       control={control}
                       name="pais"
+                      error={errors.pais?.message}
                       isDisabled={isViewMode}
                       options={paisesToOptions(paises)}
                       onChange={handlePaisEndChange}
@@ -1759,6 +2225,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       required
                       disabled={isViewMode}
                       placeholder="00000-000"
+                      error={errors.cep?.message}
                       {...register('cep')}
                     />
                   </div>
@@ -1770,6 +2237,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       required
                       control={control}
                       name="estadoEndereco"
+                      error={errors.estadoEndereco?.message}
                       isDisabled={isViewMode || estadosEnd.length === 0}
                       options={estadosToOptions(estadosEnd)}
                       placeholder={
@@ -1785,6 +2253,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                         required
                         control={control}
                         name="cidadeCod"
+                        error={errors.cidadeCod?.message}
                         isDisabled={isViewMode || cidadesEnd.length === 0}
                         options={cidadesToOptions(cidadesEnd)}
                         placeholder={
@@ -1803,6 +2272,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       required
                       control={control}
                       name="bairroCod"
+                      error={errors.bairroNome?.message}
                       isDisabled={isViewMode || bairrosEnd.length === 0}
                       options={bairrosToOptions(bairrosEnd)}
                       placeholder={
@@ -1814,27 +2284,24 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-[auto_1fr_6rem]">
-                    <SelectField
+                    <ReactSelectField
                       id="tipoLogradouro"
-                      label="Tipo"
+                      label="Logradouro"
                       required
-                      disabled={isViewMode}
-                      {...register('tipoLogradouro')}
-                    >
-                      <option value="">Sel.</option>
-                      {tiposLogradouro.map((t) => (
-                        <option key={t.KEYNAM} value={t.KEYNAM}>
-                          {t.VALKEY}
-                        </option>
-                      ))}
-                    </SelectField>
+                      control={control}
+                      name="tipoLogradouro"
+                      isDisabled={isViewMode}
+                      error={errors.tipoLogradouro?.message}
+                      options={tiposLogradouro.map((t) => ({ value: t.KEYNAM, label: t.VALKEY }))}
+                    />
 
                     <TextField
                       id="endereco"
-                      label="Logradouro"
+                      label="Endereço"
                       required
                       disabled={isViewMode}
                       placeholder="Nome da rua/av."
+                      error={errors.endereco?.message}
                       {...register('endereco')}
                     />
                     <TextField
@@ -1843,6 +2310,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       required
                       disabled={isViewMode}
                       placeholder="123"
+                      error={errors.numero?.message}
                       {...register('numero')}
                     />
                   </div>
@@ -1936,140 +2404,53 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </div>
             </TabsContent>
 
-            {mode !== 'create' && (
-              <TabsContent value="dependentes" className="space-y-4">
+            <TabsContent value="dependentes" className="space-y-4">
                 <Card className="shadow-corporate">
-                  <CardHeader>
-                    <CardTitle>{dependenteEditando ? 'Editar dependente' : 'Novo dependente'}</CardTitle>
-                    <CardDescription>Cadastro dos dependentes vinculados ao candidato.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <TextField
-                        id="dependenteNome"
-                        label="Nome"
-                        required
-                        disabled={isViewMode}
-                        error={dependenteErrors.nome?.message}
-                        {...registerDependente('nome')}
-                      />
-                      <TextField
-                        id="dependenteCpf"
-                        label="CPF"
-                        required
-                        disabled={isViewMode}
-                        error={dependenteErrors.cpf?.message}
-                        {...registerDependente('cpf')}
-                      />
+                  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle>Dependentes cadastrados</CardTitle>
+                      <CardDescription>
+                        {dependentesList.length} dependente(s) vinculado(s).
+                      </CardDescription>
                     </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <ReactSelectField
-                        id="codigoGrauParentesco"
-                        label="Grau de parentesco"
-                        required
-                        control={dependenteControl}
-                        name="codigoGrauParentesco"
-                        isDisabled={isViewMode}
-                        options={tiposGrauParentesco.map((tipo) => ({
-                          value: tipo.KEYNAM,
-                          label: `${tipo.KEYNAM} - ${tipo.VALKEY}`,
-                        }))}
-                        error={dependenteErrors.codigoGrauParentesco?.message}
-                        onChange={handleGrauParentescoChange}
-                      />
-                      <ReactSelectField
-                        id="codigoTipoEsocial"
-                        label="Tipo eSocial"
-                        required
-                        control={dependenteControl}
-                        name="codigoTipoEsocial"
-                        isDisabled={isViewMode}
-                        options={tiposDependenteEsocial.map((tipo) => ({
-                          value: String(tipo.codigo),
-                          label: `${tipo.codigo} - ${tipo.descricao}`,
-                        }))}
-                        error={dependenteErrors.codigoTipoEsocial?.message}
-                        onChange={handleTipoEsocialChange}
-                      />
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <SelectField
-                        id="dependenteSexo"
-                        label="Sexo"
-                        required
-                        disabled={isViewMode}
-                        error={dependenteErrors.sexo?.message}
-                        {...registerDependente('sexo')}
-                      >
-                        <option value="">Selecione</option>
-                        <option value="MASCULINO">Masculino</option>
-                        <option value="FEMININO">Feminino</option>
-                      </SelectField>
-                      <TextField
-                        id="dependenteDataNascimento"
-                        label="Data de nascimento"
-                        required
-                        type="date"
-                        disabled={isViewMode}
-                        error={dependenteErrors.dataNascimento?.message}
-                        {...registerDependente('dataNascimento')}
-                      />
-                      <label className="mt-7 flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm">
-                        <input type="checkbox" disabled={isViewMode} {...registerDependente('dependenteIr')} />
-                        Dependente IR
-                      </label>
-                    </div>
-
-                    <input type="hidden" {...registerDependente('descricaoGrauParentesco')} />
-                    <input type="hidden" {...registerDependente('descricaoTipoEsocial')} />
-
-                    {dependenteError && <p className="text-sm text-destructive">{dependenteError}</p>}
                     {!isViewMode && (
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                          type="button"
-                          disabled={isSavingDependente}
-                          onClick={handleSubmitDependente(onSubmitDependente)}
-                        >
-                          {isSavingDependente ? 'Salvando...' : 'Salvar dependente'}
-                        </Button>
-                        {dependenteEditando && (
-                          <Button type="button" variant="outline" onClick={handleCancelarDependente}>
-                            Cancelar edição
-                          </Button>
-                        )}
-                      </div>
+                      <Button type="button" onClick={handleNovoDependente}>
+                        Novo dependente
+                      </Button>
                     )}
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-corporate">
-                  <CardHeader>
-                    <CardTitle>Dependentes cadastrados</CardTitle>
-                    <CardDescription>
-                      {candidato?.dependentes.length ?? 0} dependente(s) vinculado(s).
-                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {!candidato || candidato.dependentes.length === 0 ? (
+                    {dependentesList.length === 0 ? (
                       <div className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
                         Nenhum dependente cadastrado.
                       </div>
                     ) : (
-                      candidato.dependentes.map((dependente) => (
+                      dependentesList.map((dependente) => (
                         <div
-                          key={dependente.id}
+                          key={dependente.draftId ?? dependente.id}
                           className="flex flex-col gap-3 rounded-xl border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
                         >
                           <div>
                             <p className="font-semibold">{dependente.nome}</p>
                             <p className="text-sm text-muted-foreground">
-                              {dependente.cpf} • {dependente.descricaoGrauParentesco} • {dependente.descricaoTipoEsocial}
+                              {[
+                                dependente.dependenteIr && dependente.cpf ? dependente.cpf : null,
+                                dependente.descricaoGrauParentesco,
+                                dependente.descricaoTipoEsocial,
+                              ]
+                                .filter(Boolean)
+                                .join(' • ')}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {dependente.sexo === 'MASCULINO' ? 'Masculino' : 'Feminino'} • Nascimento {toDateInputValue(dependente.dataNascimento)} • IR {dependente.dependenteIr ? 'Sim' : 'Não'}
+                              {[
+                                dependente.sexo === 'MASCULINO' ? 'Masculino' : 'Feminino',
+                                dependente.dataNascimento
+                                  ? `Nascimento ${toDateInputValue(dependente.dataNascimento)}`
+                                  : null,
+                                `IR ${dependente.dependenteIr ? 'Sim' : 'Não'}`,
+                              ]
+                                .filter(Boolean)
+                                .join(' • ')}
                             </p>
                           </div>
                           {!isViewMode && (
@@ -2077,7 +2458,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                               <Button type="button" variant="outline" onClick={() => handleEditarDependente(dependente)}>
                                 Editar
                               </Button>
-                              <Button type="button" variant="outline" onClick={() => handleExcluirDependente(dependente.id)}>
+                              <Button type="button" variant="outline" onClick={() => handleExcluirDependente(dependente)}>
                                 Excluir
                               </Button>
                             </div>
@@ -2088,7 +2469,58 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   </CardContent>
                 </Card>
               </TabsContent>
-            )}
+
+            <TabsContent value="valeTransporte" className="space-y-4">
+              <Card className="shadow-corporate">
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle>Trajetos cadastrados</CardTitle>
+                    <CardDescription>
+                      {valeTransportesList.length} trajeto(s) vinculado(s).
+                    </CardDescription>
+                  </div>
+                  {!isViewMode && (
+                    <Button type="button" onClick={handleNovoValeTransporte}>
+                      Novo vale transporte
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {valeTransportesList.length === 0 ? (
+                    <div className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
+                      Nenhum trajeto cadastrado.
+                    </div>
+                  ) : (
+                    valeTransportesList.map((valeTransporte) => (
+                      <div
+                        key={valeTransporte.draftId ?? valeTransporte.id}
+                        className="flex flex-col gap-3 rounded-xl border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
+                      >
+                        <div>
+                          <p className="font-semibold">{valeTransporte.transporteUsado}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {valeTransporte.tipoTransporte} • {valeTransporte.tipoTrajeto}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Preço R$ {String(valeTransporte.preco).replace('.', ',')}
+                          </p>
+                        </div>
+                        {!isViewMode && (
+                          <div className="flex gap-2">
+                            <Button type="button" variant="outline" onClick={() => handleEditarValeTransporte(valeTransporte)}>
+                              Editar
+                            </Button>
+                            <Button type="button" variant="outline" onClick={() => handleExcluirValeTransporte(valeTransporte)}>
+                              Excluir
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
 
           {/* ---- Ações ---- */}
@@ -2098,6 +2530,17 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
                 <Save className="h-4 w-4" />
                 {isSaving ? 'Salvando...' : 'Salvar candidato'}
+              </Button>
+            )}
+            {mode !== 'create' && candidato && candidato.candidaturas.length === 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setLinkModalOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <UserRoundPlus className="h-4 w-4" />
+                Vincular requisição
               </Button>
             )}
             {isViewMode && candidato && (
@@ -2113,6 +2556,168 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           </div>
 
         </form>
+      )}
+
+      {dependenteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border bg-background shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  {dependenteEditando ? 'Editar dependente' : 'Novo dependente'}
+                </h2>
+                <p className="text-sm text-muted-foreground">Cadastro dos dependentes vinculados ao candidato.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={handleCancelarDependente}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField id="dependenteNome" label="Nome" required disabled={isViewMode} error={dependenteErrors.nome?.message} {...registerDependente('nome')} />
+                {dependenteIrSelecionado && (
+                  <TextField id="dependenteCpf" label="CPF" required disabled={isViewMode} error={dependenteErrors.cpf?.message} {...registerDependente('cpf')} />
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ReactSelectField id="codigoGrauParentesco" label="Grau de parentesco" required control={dependenteControl} name="codigoGrauParentesco" isDisabled={isViewMode} options={tiposGrauParentesco.map((tipo) => ({ value: tipo.KEYNAM, label: `${tipo.KEYNAM} - ${tipo.VALKEY}` }))} error={dependenteErrors.codigoGrauParentesco?.message} onChange={handleGrauParentescoChange} />
+                <ReactSelectField id="codigoTipoEsocial" label="Tipo eSocial" required control={dependenteControl} name="codigoTipoEsocial" isDisabled={isViewMode} options={tiposDependenteEsocial.map((tipo) => ({ value: String(tipo.codigo), label: `${tipo.codigo} - ${tipo.descricao}` }))} error={dependenteErrors.codigoTipoEsocial?.message} onChange={handleTipoEsocialChange} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <SelectField id="dependenteSexo" label="Sexo" required disabled={isViewMode} error={dependenteErrors.sexo?.message} {...registerDependente('sexo')}>
+                  <option value="">Selecione</option>
+                  <option value="MASCULINO">Masculino</option>
+                  <option value="FEMININO">Feminino</option>
+                </SelectField>
+                <TextField id="dependenteDataNascimento" label="Data de nascimento" type="date" disabled={isViewMode} error={dependenteErrors.dataNascimento?.message} {...registerDependente('dataNascimento')} />
+                <label className="mt-7 flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm">
+                  <input type="checkbox" disabled={isViewMode} {...registerDependente('dependenteIr')} />
+                  Dependente IR
+                </label>
+              </div>
+              <input type="hidden" {...registerDependente('descricaoGrauParentesco')} />
+              <input type="hidden" {...registerDependente('descricaoTipoEsocial')} />
+              {dependenteError && <p className="text-sm text-destructive">{dependenteError}</p>}
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={handleCancelarDependente} disabled={isSavingDependente}>Cancelar</Button>
+              <Button type="button" disabled={isSavingDependente} onClick={handleSubmitDependente(onSubmitDependente)}>
+                {isSavingDependente ? 'Salvando...' : 'Salvar dependente'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {valeTransporteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border bg-background shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  {valeTransporteEditando ? 'Editar vale transporte' : 'Novo vale transporte'}
+                </h2>
+                <p className="text-sm text-muted-foreground">Cadastro dos trajetos de vale transporte do candidato.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={handleCancelarValeTransporte}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SelectField id="tipoTransporte" label="Tipo de transporte" required disabled={isViewMode} error={valeTransporteErrors.tipoTransporte?.message} {...registerValeTransporte('tipoTransporte')}>
+                  <option value="">Selecione</option>
+                  <option value="ONIBUS">Ônibus</option>
+                  <option value="METRO">Metrô</option>
+                  <option value="TREM">Trem</option>
+                </SelectField>
+                <SelectField id="tipoTrajeto" label="Tipo de trajeto" required disabled={isViewMode} error={valeTransporteErrors.tipoTrajeto?.message} {...registerValeTransporte('tipoTrajeto')}>
+                  <option value="">Selecione</option>
+                  <option value="RESIDENCIA_TRABALHO">Residência para trabalho</option>
+                  <option value="TRABALHO_RESIDENCIA">Trabalho para residência</option>
+                </SelectField>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
+                <TextField id="transporteUsado" label="Transporte usado" required disabled={isViewMode} error={valeTransporteErrors.transporteUsado?.message} {...registerValeTransporte('transporteUsado')} />
+                <TextField id="preco" label="Preço" required disabled={isViewMode} placeholder="0,00" error={valeTransporteErrors.preco?.message} {...registerValeTransporte('preco')} />
+              </div>
+              {valeTransporteError && <p className="text-sm text-destructive">{valeTransporteError}</p>}
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={handleCancelarValeTransporte} disabled={isSavingValeTransporte}>Cancelar</Button>
+              <Button type="button" disabled={isSavingValeTransporte} onClick={handleSubmitValeTransporte(onSubmitValeTransporte)}>
+                {isSavingValeTransporte ? 'Salvando...' : 'Salvar vale transporte'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {linkModalOpen && candidato && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-xl rounded-2xl border bg-background shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                  Vincular a requisição
+                </p>
+                <h2 className="mt-1 font-display text-xl font-semibold">
+                  {candidato.nome || formatCpf(candidato.cpf)}
+                </h2>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => closeLinkModal()}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <label className="space-y-2">
+                <span className="text-sm font-medium">Buscar requisição com vaga disponível</span>
+                <AsyncSelect<RequisicaoOption, false>
+                  cacheOptions
+                  defaultOptions
+                  loadOptions={loadRequisicaoOptions}
+                  loadingMessage={() => 'Buscando requisições...'}
+                  noOptionsMessage={({ inputValue }) =>
+                    inputValue.trim()
+                      ? 'Nenhuma requisição disponível encontrada'
+                      : 'Nenhuma requisição aberta com vaga disponível'
+                  }
+                  placeholder="Digite cargo, empresa, filial, setor ou nº da requisição"
+                  styles={selectStyles as unknown as StylesConfig<RequisicaoOption, false>}
+                  value={selectedRequisicao}
+                  onChange={setSelectedRequisicao}
+                />
+              </label>
+              {selectedRequisicao && (
+                <div className="rounded-xl border bg-muted/35 p-3 text-sm">
+                  <p className="font-semibold">{selectedRequisicao.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {selectedRequisicao.requisicao.filialNome ?? 'Filial não informada'} ·{' '}
+                    {selectedRequisicao.requisicao.ccustoNome ?? 'Setor não informado'}
+                  </p>
+                </div>
+              )}
+              {linkModalError && <p className="text-sm text-destructive">{linkModalError}</p>}
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => closeLinkModal()}
+                disabled={isSavingLink}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={vincularRequisicao}
+                disabled={!selectedRequisicao || isSavingLink}
+              >
+                {isSavingLink ? 'Vinculando...' : 'Confirmar vínculo'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {admissaoCandidaturaId !== null && (
