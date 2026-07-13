@@ -1,0 +1,2 @@
+ALTER TABLE "candidato" ADD COLUMN IF NOT EXISTS "situacao" TEXT NOT NULL DEFAULT 'ATIVO_PROCESSO';
+ALTER TABLE "candidato" ADD COLUMN IF NOT EXISTS "justificativa_reprovacao" TEXT;
