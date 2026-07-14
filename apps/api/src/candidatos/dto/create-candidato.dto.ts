@@ -252,6 +252,22 @@ export class CreateCandidatoDto {
   @IsOptional()
   cidadeCertidaoCivilNome?: string;
 
+  // Uniforme
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  tamanhoCamisa?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  tamanhoCalca?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  tamanhoCalcado?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateCandidatoDependenteDto)

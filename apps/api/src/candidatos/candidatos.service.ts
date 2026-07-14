@@ -154,6 +154,11 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   estadoCertidaoCivil: cleanString(dto.estadoCertidaoCivil),
   cidadeCertidaoCivilCod: dto.cidadeCertidaoCivilCod,
   cidadeCertidaoCivilNome: cleanString(dto.cidadeCertidaoCivilNome),
+
+  // Uniforme
+  tamanhoCamisa: cleanString(dto.tamanhoCamisa),
+  tamanhoCalca: cleanString(dto.tamanhoCalca),
+  tamanhoCalcado: cleanString(dto.tamanhoCalcado),
 });
 
 @Injectable()

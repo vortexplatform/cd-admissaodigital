@@ -30,10 +30,9 @@ export class CreateCandidatoDependenteDto {
   @IsOptional()
   dataNascimento?: string;
 
-  @ValidateIf((dependente: CreateCandidatoDependenteDto) => dependente.dependenteIr || dependente.cpf != null)
+  @ValidateIf((dependente: CreateCandidatoDependenteDto) => dependente.dependenteIr === true || (dependente.cpf !== undefined && dependente.cpf !== null && dependente.cpf !== ''))
   @IsString()
   @IsNotEmpty()
   @Matches(/^\d{11}$/, { message: 'CPF deve conter 11 dígitos' })
-  @IsOptional()
   cpf?: string;
 }

@@ -117,6 +117,11 @@ model Candidato {
   cidadeCertidaoCivilCod        Int?                   @map("cidade_certidao_civil_cod")
   cidadeCertidaoCivilNome       String?                @map("cidade_certidao_civil_nome")
 
+  // Uniforme
+  tamanhoCamisa                 String?                @map("tamanho_camisa")
+  tamanhoCalca                  String?                @map("tamanho_calca")
+  tamanhoCalcado                String?                @map("tamanho_calcado")
+
   user                          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   candidaturas                  Candidatura[]
   biometriaSolicitacoes         BiometriaSolicitacao[]

@@ -3,24 +3,29 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { SeniorApiService } from '../general/senior-api.service';
 import { GerarAdmissaoDto } from './gerar-admissao.dto';
 
-const RH_API_BASE = 'https://linkrhapi.vortexsoftwares.com';
-
 @Injectable()
 export class IntegracaoSeniorService {
+  private readonly rhApiBase: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly seniorApi: SeniorApiService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.rhApiBase = this.config.getOrThrow<string>('SENIOR_API_URL');
+  }
 
   async gerarAdmissao(dto: GerarAdmissaoDto, admissaoGeradaPorUserId: number): Promise<unknown> {
     // 1. Busca candidato
     const candidato = await this.prisma.candidato.findUnique({
       where: { id: dto.candidatoId },
+      include: { dependentes: true },
     });
     if (!candidato) throw new NotFoundException('Candidato não encontrado');
 
@@ -69,6 +74,8 @@ export class IntegracaoSeniorService {
       return `${dd}/${mm}/${d.getFullYear()}`;
     };
 
+    const sexoMap: Record<string, string> = { MASCULINO: 'M', FEMININO: 'F' };
+
     const payload = {
       numemp: parseInt(requisicao.empresa.codigoEmpresaSenior, 10),
       tipcol: 1,
@@ -111,6 +118,15 @@ export class IntegracaoSeniorService {
         nmddd2: toInt(candidato.dddTelefone2),
         nmtel2: candidato.numeroTelefone2 ?? ' ',
       },
+      r036dep: candidato.dependentes.map((dep) => ({
+        nomdep: semAcento(dep.nome),
+        codpar: toInt(dep.codigoGrauParentesco),
+        tipdep: dep.codigoTipoEsocial,
+        tipsex: sexoMap[dep.sexo] ?? dep.sexo,
+        depir: dep.dependenteIr ? 1 : 0,
+        datnas: dep.dataNascimento ? formatDate(dep.dataNascimento) : null,
+        numcpf: dep.cpf ? toInt(dep.cpf) : 0,
+      })),
     };
 
     // 4. Envia para a API Senior
@@ -154,7 +170,7 @@ export class IntegracaoSeniorService {
     const cpf = candidatura.candidato.cpf.replace(/\D/g, '');
 
     const { data } = await axios.get<{ numcad: number | null }>(
-      `${RH_API_BASE}/admissao/${numemp}/1/matricula/${cpf}`,
+      `${this.rhApiBase}/admissao/${numemp}/1/matricula/${cpf}`,
     );
 
     return { numcad: data.numcad ?? null };
@@ -174,7 +190,7 @@ export class IntegracaoSeniorService {
     const numemp = parseInt(candidatura.requisicao.empresa?.codigoEmpresaSenior ?? '0', 10);
     const cpf = candidatura.candidato.cpf.replace(/\D/g, '');
     const { data } = await axios.get<{ numcad: number | null }>(
-      `${RH_API_BASE}/admissao/${numemp}/1/matricula/${cpf}`,
+      `${this.rhApiBase}/admissao/${numemp}/1/matricula/${cpf}`,
     );
     if (data.numcad) {
       throw new BadRequestException(

@@ -235,6 +235,9 @@ interface CandidatoData {
   cidadeCertidaoCivilCod: number | null;
   cidadeCertidaoCivilNome: string | null;
   raccor: number | null;
+  tamanhoCamisa: string | null;
+  tamanhoCalca: string | null;
+  tamanhoCalcado: string | null;
   candidaturas: CandidaturaResumo[];
   dependentes: CandidatoDependenteData[];
   valeTransportes: CandidatoValeTransporteData[];
@@ -332,6 +335,11 @@ const candidatoSchema = z
   estadoCertidaoCivil: z.string().trim().optional(),
   cidadeCertidaoCivilCod: z.string().trim().optional(),
   cidadeCertidaoCivilNome: z.string().trim().optional(),
+
+  // Uniforme
+  tamanhoCamisa: z.string().trim().optional(),
+  tamanhoCalca: z.string().trim().optional(),
+  tamanhoCalcado: z.string().trim().optional(),
 }).superRefine((values, ctx) => {
   if (
     (values.situacao === 'ELIMINADO' || values.situacao === 'DESISTENTE') &&
@@ -497,6 +505,9 @@ const defaultValues: CandidatoForm = {
   estadoCertidaoCivil: '',
   cidadeCertidaoCivilCod: '',
   cidadeCertidaoCivilNome: '',
+  tamanhoCamisa: '',
+  tamanhoCalca: '',
+  tamanhoCalcado: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -614,6 +625,9 @@ const buildPayload = (
   estadoCertidaoCivil: optionalString(values.estadoCertidaoCivil),
   cidadeCertidaoCivilCod: optionalInt(values.cidadeCertidaoCivilCod),
   cidadeCertidaoCivilNome: optionalString(values.cidadeCertidaoCivilNome),
+  tamanhoCamisa: optionalString(values.tamanhoCamisa),
+  tamanhoCalca: optionalString(values.tamanhoCalca),
+  tamanhoCalcado: optionalString(values.tamanhoCalcado),
   dependentes: buildPayloadDependentes(dependentes),
   valeTransportes: buildPayloadValeTransportes(valeTransportes),
 });
@@ -1211,6 +1225,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           cidadeCertidaoCivilCod:
             data.cidadeCertidaoCivilCod != null ? String(data.cidadeCertidaoCivilCod) : '',
           cidadeCertidaoCivilNome: toText(data.cidadeCertidaoCivilNome),
+          tamanhoCamisa: toText(data.tamanhoCamisa),
+          tamanhoCalca: toText(data.tamanhoCalca),
+          tamanhoCalcado: toText(data.tamanhoCalcado),
         });
       })
       .catch(() => setError('Não foi possível carregar o candidato.'))
@@ -2395,6 +2412,39 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       label="Número do certificado"
                       disabled={isViewMode}
                       {...register('numeroCertReservista')}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ---- Uniforme ---- */}
+              <Card className="shadow-corporate">
+                <CardHeader>
+                  <CardTitle>Uniforme</CardTitle>
+                  <CardDescription>Medidas para fornecimento de uniforme.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <TextField
+                      id="tamanhoCamisa"
+                      label="Tamanho da camisa"
+                      placeholder="Ex: P, M, G, GG"
+                      disabled={isViewMode}
+                      {...register('tamanhoCamisa')}
+                    />
+                    <TextField
+                      id="tamanhoCalca"
+                      label="Tamanho da calça"
+                      placeholder="Ex: P, M, 42, 44"
+                      disabled={isViewMode}
+                      {...register('tamanhoCalca')}
+                    />
+                    <TextField
+                      id="tamanhoCalcado"
+                      label="Número do calçado"
+                      placeholder="Ex: 38, 39, 40"
+                      disabled={isViewMode}
+                      {...register('tamanhoCalcado')}
                     />
                   </div>
                 </CardContent>
