@@ -117,6 +117,18 @@ export const labels: Record<string, string> = {
 
 export const toDateInputValue = (value: string | null) => (value ? value.slice(0, 10) : '');
 
+export const formatDateTimePtBr = (value: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 export const toText = (value: string | number | null | undefined) =>
   value == null ? '' : String(value);
 

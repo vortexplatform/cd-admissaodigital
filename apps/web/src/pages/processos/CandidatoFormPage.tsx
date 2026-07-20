@@ -169,6 +169,8 @@ interface RequisicaoDisponivel {
   cargo: string | null;
   cargoNome: string | null;
   ccustoNome: string | null;
+  escala: string | null;
+  descricaoEscala: string | null;
   dataPrevistaAdmissao: string | null;
 }
 
@@ -449,7 +451,12 @@ const selectStyles: StylesConfig<RequisicaoSelectOption, false> = {
 
 const formatRequisicaoOption = (requisicao: RequisicaoDisponivel): RequisicaoOption => ({
   value: String(requisicao.id),
-  label: `#${requisicao.id} - ${requisicao.postoTrabalho ?? 'Posto não informado'} - ${requisicao.postoTrabalhoNome ?? requisicao.cargoNome ?? requisicao.cargo ?? 'Descrição não informada'}`,
+  label: [
+    `#${requisicao.id} - ${requisicao.postoTrabalho ?? 'Posto não informado'} - ${requisicao.postoTrabalhoNome ?? requisicao.cargoNome ?? requisicao.cargo ?? 'Descrição não informada'}`,
+    requisicao.descricaoEscala,
+  ]
+    .filter(Boolean)
+    .join(' · '),
   requisicao,
 });
 
@@ -961,11 +968,11 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         .catch(() => {}),
       api
         .get<OpcaoChave[]>('/general/tipos-grau-parentesco')
-        .then((r) => setTiposGrauParentesco(r.data))
+        .then((r) => setTiposGrauParentesco(r.data.sort((a, b) => Number(a.KEYNAM) - Number(b.KEYNAM))))
         .catch(() => {}),
       api
         .get<TipoDependenteEsocial[]>('/general/tipos-dependente-esocial')
-        .then((r) => setTiposDependenteEsocial(r.data))
+        .then((r) => setTiposDependenteEsocial(r.data.sort((a, b) => a.codigo - b.codigo)))
         .catch(() => {}),
     ]);
   }, []);
@@ -2745,6 +2752,12 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     {selectedRequisicao.requisicao.filialNome ?? 'Filial não informada'} ·{' '}
                     {selectedRequisicao.requisicao.ccustoNome ?? 'Setor não informado'}
                   </p>
+                  {selectedRequisicao.requisicao.descricaoEscala && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      <span className="font-medium">Horário:</span>{' '}
+                      {selectedRequisicao.requisicao.descricaoEscala}
+                    </p>
+                  )}
                 </div>
               )}
               {linkModalError && <p className="text-sm text-destructive">{linkModalError}</p>}
