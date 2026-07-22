@@ -70,6 +70,7 @@ export class UpdateCandidatoDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\d{11}$/, { message: 'PIS deve conter 11 dígitos' })
   @IsOptional()
   pis?: string;
 
@@ -109,6 +110,7 @@ export class UpdateCandidatoDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\d{8}$/, { message: 'CEP deve conter 8 dígitos' })
   @IsOptional()
   cep?: string;
 

@@ -43,6 +43,11 @@ export class CandidatosController {
     return this.candidatos.searchByNome(nome, limit);
   }
 
+  @Get('counts')
+  countByTab(@Query('nome') nome?: string) {
+    return this.candidatos.countByTab(nome);
+  }
+
   @Post(':id/dependentes')
   createDependente(
     @Param('id', ParseIntPipe) id: number,

@@ -93,6 +93,9 @@ export class IntegracaoSeniorService {
       codnac: candidato.nacionalidade ?? 0,
       numpis: toInt(candidato.pis),
       raccor: candidato.raccor ?? 0,
+      USU_TAMCAM: candidato.tamanhoCamisa ?? '',
+      USU_TAMCAL: candidato.tamanhoCalca ?? '',
+      USU_TAMSAP: candidato.tamanhoCalcado ?? '',
       r034cpl: {
         codpai: toInt(candidato.pais),
         codest: candidato.estadoEndereco ?? '',

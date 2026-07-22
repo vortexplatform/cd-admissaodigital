@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, StatusCandidatura } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreateCandidatoDependenteDto } from './dto/create-candidato-dependente.dto';
@@ -35,6 +35,10 @@ const cleanString = (value?: string) => value?.trim() || undefined;
 
 const normalizeCpf = (value?: string) => value?.replace(/\D/g, '') || undefined;
 
+const normalizePis = (value?: string) => value?.replace(/\D/g, '') || undefined;
+
+const normalizeCep = (value?: string) => value?.replace(/\D/g, '') || undefined;
+
 const normalizeSearchTerm = (value?: string) => value?.trim().replace(/\s+/g, ' ') || '';
 
 const clampSearchLimit = (value?: string) => {
@@ -49,6 +53,23 @@ const normalizePage = (value?: string) => {
   if (!Number.isFinite(page)) return 1;
 
   return Math.max(Math.trunc(page), 1);
+};
+
+type CandidatoTabKey = 'aguardando' | 'em-analise' | 'aprovados' | 'efetivados' | 'recusados';
+
+// Espelha a classificação de aba usada em apps/web (CandidatosPage.tsx) para que os
+// badges reflitam a mesma regra aplicada à candidatura mais recente do candidato.
+const getTabForStatus = (status?: StatusCandidatura): CandidatoTabKey => {
+  if (!status || status === StatusCandidatura.INSCRITO) return 'aguardando';
+  if (status === StatusCandidatura.APROVADO) return 'aprovados';
+  if (status === StatusCandidatura.EFETIVADO) return 'efetivados';
+  if (
+    status === StatusCandidatura.REPROVADO ||
+    status === StatusCandidatura.CANCELADO ||
+    status === StatusCandidatura.DESISTIU
+  )
+    return 'recusados';
+  return 'em-analise';
 };
 
 const buildDependenteData = (dto: CreateCandidatoDependenteDto | UpdateCandidatoDependenteDto) => ({
@@ -98,7 +119,7 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   // Dados pessoais adicionais
   estadoCivil: cleanString(dto.estadoCivil),
   grauInstrucao: cleanString(dto.grauInstrucao),
-  pis: cleanString(dto.pis),
+  pis: normalizePis(dto.pis),
   raccor: dto.raccor,
 
   // Naturalidade
@@ -110,7 +131,7 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
 
   // Endereço
   pais: cleanString(dto.pais),
-  cep: cleanString(dto.cep),
+  cep: normalizeCep(dto.cep),
   estadoEndereco: cleanString(dto.estadoEndereco),
   cidadeCod: dto.cidadeCod,
   cidadeNome: cleanString(dto.cidadeNome),
@@ -224,6 +245,55 @@ export class CandidatosService {
     ]);
 
     return this.buildPaginatedResponse(data, total, currentPage, pageSize);
+  }
+
+  async countByTab(nome?: string) {
+    const counts: Record<'todos' | CandidatoTabKey, number> = {
+      todos: 0,
+      aguardando: 0,
+      'em-analise': 0,
+      aprovados: 0,
+      efetivados: 0,
+      recusados: 0,
+    };
+
+    const term = normalizeSearchTerm(nome);
+    if (term && term.length < 3) return counts;
+
+    const where = term ? await this.buildNomeWhere(term) : undefined;
+    const candidatos = await this.prisma.candidato.findMany({
+      where,
+      select: {
+        candidaturas: {
+          select: { status: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    counts.todos = candidatos.length;
+    for (const candidato of candidatos) {
+      counts[getTabForStatus(candidato.candidaturas[0]?.status)] += 1;
+    }
+
+    return counts;
+  }
+
+  private async buildNomeWhere(term: string): Promise<Prisma.CandidatoWhereInput> {
+    try {
+      const idRows = await this.prisma.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+        SELECT "id"
+        FROM "candidato"
+        WHERE "nome" IS NOT NULL
+          AND public.immutable_unaccent(lower("nome")) LIKE public.immutable_unaccent(lower(${`%${term}%`}))
+      `);
+      return { id: { in: idRows.map((row) => row.id) } };
+    } catch (error) {
+      if (!this.isMissingUnaccentPreparation(error)) throw error;
+
+      return { nome: { contains: term, mode: 'insensitive' } };
+    }
   }
 
   async searchByNome(nome?: string, limit?: string) {

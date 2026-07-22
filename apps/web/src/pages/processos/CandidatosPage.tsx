@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Edit3,
   Eye,
@@ -119,6 +119,24 @@ interface PaginatedCandidatosResponse {
   totalPages: number;
 }
 
+interface CandidatosCounts {
+  todos: number;
+  aguardando: number;
+  'em-analise': number;
+  aprovados: number;
+  efetivados: number;
+  recusados: number;
+}
+
+const emptyCounts: CandidatosCounts = {
+  todos: 0,
+  aguardando: 0,
+  'em-analise': 0,
+  aprovados: 0,
+  efetivados: 0,
+  recusados: 0,
+};
+
 const pageSize = 20;
 
 const selectStyles: StylesConfig<SelectOption, false> = {
@@ -159,6 +177,13 @@ const fetchPaginatedCandidatos = (currentPage: number, nome: string) =>
     params: {
       page: currentPage,
       limit: pageSize,
+      ...(nome ? { nome } : {}),
+    },
+  });
+
+const fetchCandidatosCounts = (nome: string) =>
+  api.get<CandidatosCounts>('/candidatos/counts', {
+    params: {
       ...(nome ? { nome } : {}),
     },
   });
@@ -261,6 +286,7 @@ export default function CandidatosPage() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1, limit: pageSize });
+  const [counts, setCounts] = useState<CandidatosCounts>(emptyCounts);
   const [linkModalCandidato, setLinkModalCandidato] = useState<Candidato | null>(null);
   const [selectedRequisicao, setSelectedRequisicao] = useState<RequisicaoOption | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -285,6 +311,7 @@ export default function CandidatosPage() {
     if (trimmedNome && trimmedNome.length < 3) {
       setCandidatos([]);
       setPagination({ total: 0, totalPages: 1, limit: pageSize });
+      setCounts(emptyCounts);
       setIsLoading(false);
       return () => {
         isCurrentRequest = false;
@@ -293,11 +320,12 @@ export default function CandidatosPage() {
 
     setIsLoading(true);
     setError('');
-    fetchPaginatedCandidatos(page, trimmedNome)
-      .then(({ data }) => {
+    Promise.all([fetchPaginatedCandidatos(page, trimmedNome), fetchCandidatosCounts(trimmedNome)])
+      .then(([{ data }, { data: countsData }]) => {
         if (!isCurrentRequest) return;
         setCandidatos(data.data);
         setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
+        setCounts(countsData);
       })
       .catch(() => {
         if (isCurrentRequest) setError('Não foi possível carregar os candidatos.');
@@ -318,28 +346,6 @@ export default function CandidatosPage() {
     [],
   );
 
-  const counts = useMemo(
-    () => ({
-      todos: candidatos.length,
-      aguardando: candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'aguardando',
-      ).length,
-      'em-analise': candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'em-analise',
-      ).length,
-      aprovados: candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'aprovados',
-      ).length,
-      efetivados: candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'efetivados',
-      ).length,
-      recusados: candidatos.filter(
-        (candidato) => getTabForStatus(getCurrentCandidatura(candidato)?.status) === 'recusados',
-      ).length,
-    }),
-    [candidatos],
-  );
-
   const filteredCandidatos = candidatos.filter((candidato) => {
     if (activeTab === 'todos') return true;
     return getTabForStatus(getCurrentCandidatura(candidato)?.status) === activeTab;
@@ -355,10 +361,7 @@ export default function CandidatosPage() {
     setError('');
     try {
       await api.delete(`/candidatos/${candidato.id}`);
-      const trimmedNome = debouncedSearchTerm.trim();
-      const { data } = await fetchPaginatedCandidatos(page, trimmedNome);
-      setCandidatos(data.data);
-      setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
+      await reloadCurrentPage();
     } catch {
       setError('Não foi possível excluir o candidato.');
     }
@@ -399,9 +402,13 @@ export default function CandidatosPage() {
 
   const reloadCurrentPage = async () => {
     const trimmedNome = debouncedSearchTerm.trim();
-    const { data } = await fetchPaginatedCandidatos(page, trimmedNome);
+    const [{ data }, { data: countsData }] = await Promise.all([
+      fetchPaginatedCandidatos(page, trimmedNome),
+      fetchCandidatosCounts(trimmedNome),
+    ]);
     setCandidatos(data.data);
     setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
+    setCounts(countsData);
   };
 
   const closeModals = (force = false) => {
@@ -469,7 +476,7 @@ export default function CandidatosPage() {
       <PageHeader
         eyebrow="Admissão digital"
         title="Candidatos"
-        description={`${pagination.total} candidato(s) encontrado(s) · ${counts['em-analise']} em análise nesta página · ${counts.aguardando} aguardando ação nesta página`}
+        description={`${pagination.total} candidato(s) encontrado(s) · ${counts['em-analise']} em análise · ${counts.aguardando} aguardando ação`}
         actions={
           <Button
             type="button"

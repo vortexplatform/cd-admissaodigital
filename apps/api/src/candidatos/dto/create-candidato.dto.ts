@@ -68,6 +68,7 @@ export class CreateCandidatoDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\d{11}$/, { message: 'PIS deve conter 11 dígitos' })
   @IsOptional()
   pis?: string;
 
@@ -101,6 +102,7 @@ export class CreateCandidatoDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\d{8}$/, { message: 'CEP deve conter 8 dígitos' })
   cep!: string;
 
   @IsString()

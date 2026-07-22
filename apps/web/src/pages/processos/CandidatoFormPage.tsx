@@ -283,7 +283,11 @@ const candidatoSchema = z
   // Dados pessoais adicionais
   estadoCivil: z.string().trim().min(1, 'Informe o estado civil'),
   grauInstrucao: z.string().trim().min(1, 'Informe o grau de instrução'),
-  pis: z.string().trim().optional(),
+  pis: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => !v || v.replace(/\D/g, '').length === 11, 'Informe um PIS com 11 dígitos'),
   raccor: z.string().trim().min(1, 'Informe a raça'),
 
   // Naturalidade
@@ -295,7 +299,10 @@ const candidatoSchema = z
 
   // Endereço
   pais: z.string().trim().min(1, 'Informe o país do endereço'),
-  cep: z.string().trim().min(1, 'Informe o CEP'),
+  cep: z
+    .string()
+    .trim()
+    .refine((v) => v.replace(/\D/g, '').length === 8, 'Informe um CEP com 8 dígitos'),
   estadoEndereco: z.string().trim().min(1, 'Informe o estado do endereço'),
   cidadeCod: z.string().trim().min(1, 'Informe a cidade do endereço'),
   cidadeNome: z.string().trim().optional(),
@@ -523,6 +530,7 @@ const defaultValues: CandidatoForm = {
 const toDateInputValue = (value: string | null | undefined) => (value ? value.slice(0, 10) : '');
 const toText = (value: string | null | undefined) => value ?? '';
 const optionalString = (value?: string) => value?.trim() || undefined;
+const optionalDigits = (value?: string) => value?.replace(/\D/g, '') || undefined;
 
 const isWithin7Days = (dateStr: string | null | undefined) => {
   if (!dateStr) return false;
@@ -592,7 +600,7 @@ const buildPayload = (
   tipoAdmissao: optionalString(values.tipoAdmissao),
   estadoCivil: optionalString(values.estadoCivil),
   grauInstrucao: optionalString(values.grauInstrucao),
-  pis: optionalString(values.pis),
+  pis: optionalDigits(values.pis),
   raccor: values.raccor ? parseInt(values.raccor) : undefined,
   nacionalidade: optionalInt(values.nacionalidade),
   paisNascimento: optionalString(values.paisNascimento),
@@ -600,7 +608,7 @@ const buildPayload = (
   cidadeNascimentoCod: optionalInt(values.cidadeNascimentoCod),
   cidadeNascimentoNome: optionalString(values.cidadeNascimentoNome),
   pais: optionalString(values.pais),
-  cep: optionalString(values.cep),
+  cep: optionalDigits(values.cep),
   estadoEndereco: optionalString(values.estadoEndereco),
   cidadeCod: optionalInt(values.cidadeCod),
   cidadeNome: optionalString(values.cidadeNome),
@@ -650,6 +658,18 @@ const formatCpf = (value: string) => {
   return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, (_, a, b, c, d) =>
     d ? `${a}.${b}.${c}-${d}` : `${a}.${b}.${c}`,
   );
+};
+
+const formatPis = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  return digits.replace(/(\d{3})(\d{5})(\d{2})(\d{0,1})/, (_, a, b, c, d) =>
+    d ? `${a}.${b}.${c}-${d}` : `${a}.${b}.${c}`,
+  );
+};
+
+const formatCep = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.replace(/(\d{5})(\d{0,3})/, (_, a, b) => (b ? `${a}-${b}` : a));
 };
 
 // ---------------------------------------------------------------------------
@@ -725,6 +745,53 @@ function TextField({
         {required && <span className="ml-1 text-destructive">*</span>}
       </Label>
       <Input id={id} disabled={disabled} {...rest} />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function MaskedTextField<TForm extends FieldValues>({
+  id,
+  label,
+  control,
+  name,
+  mask,
+  disabled,
+  error,
+  required,
+  placeholder,
+}: {
+  id: string;
+  label: string;
+  control: Control<TForm, unknown, TForm>;
+  name: Path<TForm>;
+  mask: (value: string) => string;
+  disabled?: boolean;
+  error?: string;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>
+        {label}
+        {required && <span className="ml-1 text-destructive">*</span>}
+      </Label>
+      <Controller
+        name={name}
+        control={control}
+        render={({ field }) => (
+          <Input
+            id={id}
+            disabled={disabled}
+            placeholder={placeholder}
+            value={(field.value as string) ?? ''}
+            onChange={(event) => field.onChange(mask(event.target.value))}
+            onBlur={field.onBlur}
+            ref={field.ref}
+          />
+        )}
+      />
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
@@ -1179,7 +1246,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         await Promise.all(preloads);
 
         reset({
-          cpf: data.cpf,
+          cpf: formatCpf(data.cpf),
           dataNascimento: toDateInputValue(data.dataNascimento),
           nome: toText(data.nome),
           email: toText(data.email),
@@ -1190,7 +1257,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           tipoAdmissao: (data.tipoAdmissao ?? '') as CandidatoForm['tipoAdmissao'],
           estadoCivil: toText(data.estadoCivil),
           grauInstrucao: toText(data.grauInstrucao),
-          pis: toText(data.pis),
+          pis: formatPis(toText(data.pis)),
           raccor: data.raccor != null ? String(data.raccor) : '',
           nacionalidade: data.nacionalidade != null ? String(data.nacionalidade) : '',
           paisNascimento: toText(data.paisNascimento),
@@ -1199,7 +1266,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             data.cidadeNascimentoCod != null ? String(data.cidadeNascimentoCod) : '',
           cidadeNascimentoNome: toText(data.cidadeNascimentoNome),
           pais: toText(data.pais),
-          cep: toText(data.cep),
+          cep: formatCep(toText(data.cep)),
           estadoEndereco: toText(data.estadoEndereco),
           cidadeCod: data.cidadeCod != null ? String(data.cidadeCod) : '',
           cidadeNome: toText(data.cidadeNome),
@@ -1845,14 +1912,16 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   />
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <TextField
+                    <MaskedTextField
                       id="cpf"
                       label="CPF"
                       required
+                      control={control}
+                      name="cpf"
+                      mask={formatCpf}
                       disabled={isViewMode}
-                      placeholder="00000000000"
+                      placeholder="000.000.000-00"
                       error={errors.cpf?.message}
-                      {...register('cpf')}
                     />
                     <TextField
                       id="dataNascimento"
@@ -1965,12 +2034,15 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       <option value="REEMPREGO">Reemprego</option>
                     </SelectField>
 
-                    <TextField
+                    <MaskedTextField
                       id="pis"
                       label="PIS"
+                      control={control}
+                      name="pis"
+                      mask={formatPis}
                       disabled={isViewMode}
                       placeholder="000.00000.00-0"
-                      {...register('pis')}
+                      error={errors.pis?.message}
                     />
                   </div>
 
@@ -2243,14 +2315,16 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       onChange={handlePaisEndChange}
                     />
 
-                    <TextField
+                    <MaskedTextField
                       id="cep"
                       label="CEP"
                       required
+                      control={control}
+                      name="cep"
+                      mask={formatCep}
                       disabled={isViewMode}
                       placeholder="00000-000"
                       error={errors.cep?.message}
-                      {...register('cep')}
                     />
                   </div>
 
