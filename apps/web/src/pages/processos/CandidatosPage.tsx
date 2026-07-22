@@ -221,25 +221,6 @@ const getTabForStatus = (status?: string): TabKey => {
   return 'em-analise';
 };
 
-const getSla = (candidatura: CandidaturaResumo | null) => {
-  if (!candidatura?.requisicao.dataPrevistaAdmissao)
-    return { label: '-', urgent: false, progress: 35 };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(candidatura.requisicao.dataPrevistaAdmissao);
-  dueDate.setHours(0, 0, 0, 0);
-  const days = Math.ceil((dueDate.getTime() - today.getTime()) / 86_400_000);
-
-  if (days < 0) return { label: `${Math.abs(days)}d vencido`, urgent: true, progress: 95 };
-  if (days === 0) return { label: 'hoje', urgent: true, progress: 90 };
-  return {
-    label: `${days}d`,
-    urgent: days <= 2,
-    progress: Math.max(20, Math.min(85, 90 - days * 8)),
-  };
-};
-
 const formatRequisicaoOption = (requisicao: RequisicaoDisponivel): RequisicaoOption => ({
   value: String(requisicao.id),
   label: `#${requisicao.id} - ${requisicao.postoTrabalho ?? 'Posto não informado'} - ${requisicao.postoTrabalhoNome ?? requisicao.cargoNome ?? requisicao.cargo ?? 'Descrição não informada'}`,
@@ -556,7 +537,6 @@ export default function CandidatosPage() {
                 <div className="divide-y">
                   {filteredCandidatos.map((candidato) => {
                     const candidatura = getCurrentCandidatura(candidato);
-                    const sla = getSla(candidatura);
                     const status = candidatura?.status;
                     const canDelete = candidato.candidaturas.length === 0;
                     const isEfetivado = candidato.candidaturas.some((c) => c.status === 'EFETIVADO');
@@ -566,9 +546,7 @@ export default function CandidatosPage() {
                     return (
                       <div
                         key={candidato.id}
-                        className={`grid grid-cols-[3fr_1.2fr_9rem_20rem] gap-4 px-5 py-4 ${
-                          sla.urgent ? 'bg-yellow-100/70 dark:bg-yellow-950/30' : 'bg-background'
-                        }`}
+                        className="grid grid-cols-[3fr_1.2fr_9rem_20rem] gap-4 bg-background px-5 py-4"
                       >
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 bg-background font-semibold">

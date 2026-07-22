@@ -26,20 +26,6 @@ import {
   getDocumentoUrl,
 } from './documentos.model';
 
-// ─── SLA helper ──────────────────────────────────────────────────────────────
-
-function calcSla(dataPrevista: string | null | undefined) {
-  if (!dataPrevista) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dataPrevista);
-  due.setHours(0, 0, 0, 0);
-  const days = Math.ceil((due.getTime() - today.getTime()) / 86_400_000);
-  if (days < 0) return { label: `${Math.abs(days)}d vencido`, urgent: true };
-  if (days === 0) return { label: 'hoje', urgent: true };
-  return { label: `${days}d`, urgent: days <= 2 };
-}
-
 function getFileKind(doc: DocumentoAdmissao): 'image' | 'pdf' | 'other' {
   const mimeType = doc.mimeType?.toLowerCase() ?? '';
   const fileName = doc.arquivoNome?.toLowerCase() ?? '';
@@ -328,7 +314,6 @@ function CandidatoRevisao({
 
   if (!doc) return null;
 
-  const sla = calcSla(candidatura.requisicao.dataPrevistaAdmissao);
   const nomeEmpresa = candidatura.requisicao.empresa?.nome ?? 'Empresa não informada';
   const nomeCandidato = candidatura.candidato.nome ?? candidatura.candidato.cpf;
   const hasFile = Boolean(doc.arquivoNome);
@@ -373,21 +358,6 @@ function CandidatoRevisao({
             </p>
           </div>
         </div>
-
-        {sla && (
-          <div
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold ${
-              sla.urgent
-                ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
-                : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-            }`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${sla.urgent ? 'bg-red-500' : 'bg-emerald-500'}`}
-            />
-            SLA {sla.label}
-          </div>
-        )}
       </div>
 
       {/* ── Error ── */}
