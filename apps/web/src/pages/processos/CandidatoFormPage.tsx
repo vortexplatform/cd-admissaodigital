@@ -72,6 +72,19 @@ interface CandidatoValeTransporteData {
   transporteUsado: string;
   preco: string | number;
 }
+interface EtapaSenior {
+  CODETA: number;
+  DESETA: string;
+}
+interface CandidatoEtapaData {
+  id: number;
+  draftId?: string;
+  codigoEtapa: number;
+  descricaoEtapa: string;
+  data: string | null;
+  sequencia: number;
+  observacao: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Dados estáticos
@@ -243,12 +256,17 @@ interface CandidatoData {
   candidaturas: CandidaturaResumo[];
   dependentes: CandidatoDependenteData[];
   valeTransportes: CandidatoValeTransporteData[];
+  etapas: CandidatoEtapaData[];
 }
 
-type CandidatoResponse = Omit<CandidatoData, 'candidaturas' | 'dependentes' | 'valeTransportes'> & {
+type CandidatoResponse = Omit<
+  CandidatoData,
+  'candidaturas' | 'dependentes' | 'valeTransportes' | 'etapas'
+> & {
   candidaturas?: CandidaturaResumo[] | null;
   dependentes?: CandidatoDependenteData[] | null;
   valeTransportes?: CandidatoValeTransporteData[] | null;
+  etapas?: CandidatoEtapaData[] | null;
 };
 
 const normalizeCandidato = (data: CandidatoResponse): CandidatoData => ({
@@ -256,6 +274,7 @@ const normalizeCandidato = (data: CandidatoResponse): CandidatoData => ({
   candidaturas: data.candidaturas ?? [],
   dependentes: data.dependentes ?? [],
   valeTransportes: data.valeTransportes ?? [],
+  etapas: data.etapas ?? [],
 });
 
 // ---------------------------------------------------------------------------
@@ -397,11 +416,19 @@ const valeTransporteSchema = z.object({
   preco: z.string().trim().min(1, 'Informe o preço'),
 });
 
+const etapaSchema = z.object({
+  codigoEtapa: z.string().trim().min(1, 'Selecione a etapa'),
+  data: z.string().trim().optional(),
+  observacao: z.string().trim().optional(),
+});
+
 type CandidatoForm = z.input<typeof candidatoSchema>;
 type DependenteForm = z.input<typeof dependenteSchema>;
 type DependentePayload = Omit<CandidatoDependenteData, 'id' | 'draftId'>;
 type ValeTransporteForm = z.input<typeof valeTransporteSchema>;
 type ValeTransportePayload = Omit<CandidatoValeTransporteData, 'id' | 'draftId'>;
+type EtapaForm = z.input<typeof etapaSchema>;
+type EtapaPayload = Omit<CandidatoEtapaData, 'id' | 'draftId'>;
 type CandidatoMode = 'create' | 'edit' | 'view';
 
 const dependenteDefaultValues: DependenteForm = {
@@ -421,6 +448,12 @@ const valeTransporteDefaultValues: ValeTransporteForm = {
   tipoTrajeto: '',
   transporteUsado: '',
   preco: '',
+};
+
+const etapaDefaultValues: EtapaForm = {
+  codigoEtapa: '',
+  data: '',
+  observacao: '',
 };
 
 const selectStyles: StylesConfig<RequisicaoSelectOption, false> = {
@@ -584,10 +617,37 @@ const buildPayloadValeTransportes = (valeTransportes?: CandidatoValeTransporteDa
     preco: parseMoney(valeTransporte.preco),
   }));
 
+const buildEtapaPayload = (
+  values: EtapaForm,
+  etapasSenior: EtapaSenior[],
+  sequencia: number,
+): EtapaPayload => {
+  const codigoEtapa = parseInt(values.codigoEtapa, 10);
+  const etapaSenior = etapasSenior.find((etapa) => etapa.CODETA === codigoEtapa);
+
+  return {
+    codigoEtapa,
+    descricaoEtapa: etapaSenior?.DESETA ?? '',
+    data: values.data || null,
+    sequencia,
+    observacao: values.observacao?.trim() || null,
+  };
+};
+
+const buildPayloadEtapas = (etapas?: CandidatoEtapaData[]) =>
+  etapas?.map((etapa) => ({
+    codigoEtapa: etapa.codigoEtapa,
+    descricaoEtapa: etapa.descricaoEtapa,
+    data: etapa.data,
+    sequencia: etapa.sequencia,
+    observacao: etapa.observacao,
+  }));
+
 const buildPayload = (
   values: CandidatoForm,
   dependentes?: CandidatoDependenteData[],
   valeTransportes?: CandidatoValeTransporteData[],
+  etapas?: CandidatoEtapaData[],
 ) => ({
   cpf: values.cpf.replace(/\D/g, ''),
   dataNascimento: values.dataNascimento,
@@ -645,6 +705,7 @@ const buildPayload = (
   tamanhoCalcado: optionalString(values.tamanhoCalcado),
   dependentes: buildPayloadDependentes(dependentes),
   valeTransportes: buildPayloadValeTransportes(valeTransportes),
+  etapas: buildPayloadEtapas(etapas),
 });
 
 const getPageTitle = (mode: CandidatoMode) => {
@@ -745,6 +806,37 @@ function TextField({
         {required && <span className="ml-1 text-destructive">*</span>}
       </Label>
       <Input id={id} disabled={disabled} {...rest} />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function TextareaField({
+  id,
+  label,
+  disabled,
+  error,
+  required,
+  ...rest
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  id: string;
+  label: string;
+  error?: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>
+        {label}
+        {required && <span className="ml-1 text-destructive">*</span>}
+      </Label>
+      <textarea
+        id={id}
+        disabled={disabled}
+        rows={3}
+        className="w-full rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-50"
+        {...rest}
+      />
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
@@ -939,6 +1031,12 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [valeTransporteEditando, setValeTransporteEditando] = useState<CandidatoValeTransporteData | null>(null);
   const [isSavingValeTransporte, setIsSavingValeTransporte] = useState(false);
   const [valeTransporteError, setValeTransporteError] = useState('');
+  const [etapasSenior, setEtapasSenior] = useState<EtapaSenior[]>([]);
+  const [etapasDraft, setEtapasDraft] = useState<CandidatoEtapaData[]>([]);
+  const [etapaModalOpen, setEtapaModalOpen] = useState(false);
+  const [etapaEditando, setEtapaEditando] = useState<CandidatoEtapaData | null>(null);
+  const [isSavingEtapa, setIsSavingEtapa] = useState(false);
+  const [etapaError, setEtapaError] = useState('');
 
   // Cascata: Naturalidade
   const [estadosNasc, setEstadosNasc] = useState<Estado[]>([]);
@@ -993,6 +1091,16 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     defaultValues: valeTransporteDefaultValues,
   });
 
+  const {
+    register: registerEtapa,
+    handleSubmit: handleSubmitEtapa,
+    reset: resetEtapa,
+    formState: { errors: etapaErrors },
+  } = useForm<EtapaForm>({
+    resolver: zodResolver(etapaSchema),
+    defaultValues: etapaDefaultValues,
+  });
+
   const situacaoSelecionada = watch('situacao');
   const exigeJustificativaReprovacao =
     situacaoSelecionada === 'ELIMINADO' || situacaoSelecionada === 'DESISTENTE';
@@ -1040,6 +1148,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       api
         .get<TipoDependenteEsocial[]>('/general/tipos-dependente-esocial')
         .then((r) => setTiposDependenteEsocial(r.data.sort((a, b) => a.codigo - b.codigo)))
+        .catch(() => {}),
+      api
+        .get<EtapaSenior[]>('/general/etapas')
+        .then((r) => setEtapasSenior(r.data))
         .catch(() => {}),
     ]);
   }, []);
@@ -1318,7 +1430,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       if (mode === 'edit') {
         await api.patch(`/candidatos/${id}`, buildPayload(values));
       } else {
-        await api.post('/candidatos', buildPayload(values, dependentesDraft, valeTransportesDraft));
+        await api.post(
+          '/candidatos',
+          buildPayload(values, dependentesDraft, valeTransportesDraft, etapasDraft),
+        );
       }
       navigate('/candidatos');
     } catch {
@@ -1567,6 +1682,84 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       reloadCandidato();
     } catch {
       setValeTransporteError('Não foi possível excluir o vale transporte.');
+    }
+  };
+
+  const etapasList = mode === 'create' ? etapasDraft : (candidato?.etapas ?? []);
+
+  const handleNovaEtapa = () => {
+    setEtapaEditando(null);
+    setEtapaError('');
+    resetEtapa(etapaDefaultValues);
+    setEtapaModalOpen(true);
+  };
+
+  const handleEditarEtapa = (etapa: CandidatoEtapaData) => {
+    setEtapaEditando(etapa);
+    setEtapaModalOpen(true);
+    resetEtapa({
+      codigoEtapa: String(etapa.codigoEtapa),
+      data: etapa.data ? toDateInputValue(etapa.data) : '',
+      observacao: etapa.observacao ?? '',
+    });
+  };
+
+  const handleCancelarEtapa = () => {
+    setEtapaModalOpen(false);
+    setEtapaEditando(null);
+    setEtapaError('');
+    resetEtapa(etapaDefaultValues);
+  };
+
+  const onSubmitEtapa = async (values: EtapaForm) => {
+    if (isViewMode) return;
+
+    setIsSavingEtapa(true);
+    setEtapaError('');
+
+    try {
+      const sequencia = etapaEditando?.sequencia ?? etapasList.length + 1;
+      const payload = buildEtapaPayload(values, etapasSenior, sequencia);
+      if (mode === 'create') {
+        const draft = {
+          ...payload,
+          id: etapaEditando?.id ?? -Date.now(),
+          draftId: etapaEditando?.draftId ?? crypto.randomUUID(),
+        };
+        setEtapasDraft((current) => {
+          if (!etapaEditando) return [...current, draft];
+          return current.map((etapa) => (etapa.draftId === etapaEditando.draftId ? draft : etapa));
+        });
+      } else if (id) {
+        if (etapaEditando) {
+          await api.patch(`/candidatos/${id}/etapas/${etapaEditando.id}`, payload);
+        } else {
+          await api.post(`/candidatos/${id}/etapas`, payload);
+        }
+        reloadCandidato();
+      }
+      handleCancelarEtapa();
+    } catch {
+      setEtapaError('Não foi possível salvar a etapa.');
+    } finally {
+      setIsSavingEtapa(false);
+    }
+  };
+
+  const handleExcluirEtapa = async (etapa: CandidatoEtapaData) => {
+    if (isViewMode) return;
+    try {
+      if (mode === 'create') {
+        setEtapasDraft((current) => current.filter((item) => item.draftId !== etapa.draftId));
+        if (etapaEditando?.draftId === etapa.draftId) handleCancelarEtapa();
+        return;
+      }
+      if (!id) return;
+      await api.delete(`/candidatos/${id}/etapas/${etapa.id}`);
+      if (etapaEditando?.id === etapa.id) handleCancelarEtapa();
+      reloadCandidato();
+    } catch {
+      setEtapaError('Não foi possível excluir a etapa.');
     }
   };
 
@@ -1883,6 +2076,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               <TabsTrigger value="cadastro">Cadastro</TabsTrigger>
               <TabsTrigger value="dependentes">Dependentes</TabsTrigger>
               <TabsTrigger value="valeTransporte">Vale Transporte</TabsTrigger>
+              <TabsTrigger value="etapas">Etapas</TabsTrigger>
             </TabsList>
 
             <TabsContent value="cadastro" className="space-y-4">
@@ -2652,6 +2846,81 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="etapas" className="space-y-4">
+              <Card className="shadow-corporate">
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle>Etapas do processo</CardTitle>
+                    <CardDescription>{etapasList.length} etapa(s) vinculada(s).</CardDescription>
+                  </div>
+                  {!isViewMode && (
+                    <Button type="button" onClick={handleNovaEtapa}>
+                      Nova etapa
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {etapasList.length === 0 ? (
+                    <div className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
+                      Nenhuma etapa cadastrada.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                          <tr>
+                            <th className="px-4 py-2">Sequência</th>
+                            <th className="px-4 py-2">Etapa</th>
+                            <th className="px-4 py-2">Data</th>
+                            <th className="px-4 py-2">Observação</th>
+                            {!isViewMode && <th className="px-4 py-2 text-right">Ações</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...etapasList]
+                            .sort((a, b) => a.sequencia - b.sequencia)
+                            .map((etapa) => (
+                              <tr key={etapa.draftId ?? etapa.id} className="border-t">
+                                <td className="px-4 py-3">{etapa.sequencia}</td>
+                                <td className="px-4 py-3 font-medium">{etapa.descricaoEtapa}</td>
+                                <td className="px-4 py-3">
+                                  {etapa.data ? toDateInputValue(etapa.data).split('-').reverse().join('/') : '—'}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {etapa.observacao || '—'}
+                                </td>
+                                {!isViewMode && (
+                                  <td className="px-4 py-3">
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleEditarEtapa(etapa)}
+                                      >
+                                        Editar
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleExcluirEtapa(etapa)}
+                                      >
+                                        Excluir
+                                      </Button>
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
 
           {/* ---- Ações ---- */}
@@ -2778,6 +3047,45 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               <Button type="button" variant="outline" onClick={handleCancelarValeTransporte} disabled={isSavingValeTransporte}>Cancelar</Button>
               <Button type="button" disabled={isSavingValeTransporte} onClick={handleSubmitValeTransporte(onSubmitValeTransporte)}>
                 {isSavingValeTransporte ? 'Salvando...' : 'Salvar vale transporte'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {etapaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border bg-background shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  {etapaEditando ? 'Editar etapa' : 'Nova etapa'}
+                </h2>
+                <p className="text-sm text-muted-foreground">Etapas do processo seletivo vinculadas ao candidato.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={handleCancelarEtapa}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SelectField id="codigoEtapa" label="Etapa" required disabled={isViewMode} error={etapaErrors.codigoEtapa?.message} {...registerEtapa('codigoEtapa')}>
+                  <option value="">Selecione</option>
+                  {etapasSenior.map((etapa) => (
+                    <option key={etapa.CODETA} value={etapa.CODETA}>
+                      {etapa.DESETA}
+                    </option>
+                  ))}
+                </SelectField>
+                <TextField id="etapaData" label="Data" type="date" disabled={isViewMode} error={etapaErrors.data?.message} {...registerEtapa('data')} />
+              </div>
+              <TextareaField id="etapaObservacao" label="Observação" disabled={isViewMode} error={etapaErrors.observacao?.message} {...registerEtapa('observacao')} />
+              {etapaError && <p className="text-sm text-destructive">{etapaError}</p>}
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={handleCancelarEtapa} disabled={isSavingEtapa}>Cancelar</Button>
+              <Button type="button" disabled={isSavingEtapa} onClick={handleSubmitEtapa(onSubmitEtapa)}>
+                {isSavingEtapa ? 'Salvando...' : 'Salvar etapa'}
               </Button>
             </div>
           </div>

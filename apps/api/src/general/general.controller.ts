@@ -4,6 +4,7 @@ import {
   GeneralService,
   type FilialSenior,
   type EscalaSenior,
+  type EtapaSenior,
   type PostoTrabalhoSenior,
   type PostoTrabalhoCaracteristicaSenior,
   type TipoDependenteEsocial,
@@ -96,5 +97,10 @@ export class GeneralController {
     @Param('filial', ParseIntPipe) filial: number,
   ): Promise<PostoTrabalhoSenior[]> {
     return this.general.getWorkstations(numemp, filial);
+  }
+
+  @Get('etapas')
+  getEtapas(): Promise<EtapaSenior[]> {
+    return this.general.getEtapas();
   }
 }

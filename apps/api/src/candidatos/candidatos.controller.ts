@@ -12,9 +12,11 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateCandidatoDependenteDto } from './dto/create-candidato-dependente.dto';
+import { CreateCandidatoEtapaDto } from './dto/create-candidato-etapa.dto';
 import { CreateCandidatoValeTransporteDto } from './dto/create-candidato-vale-transporte.dto';
 import { CreateCandidatoDto } from './dto/create-candidato.dto';
 import { UpdateCandidatoDependenteDto } from './dto/update-candidato-dependente.dto';
+import { UpdateCandidatoEtapaDto } from './dto/update-candidato-etapa.dto';
 import { UpdateCandidatoValeTransporteDto } from './dto/update-candidato-vale-transporte.dto';
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
 import { CandidatosService } from './candidatos.service';
@@ -96,6 +98,28 @@ export class CandidatosController {
     @Param('valeTransporteId', ParseIntPipe) valeTransporteId: number,
   ) {
     return this.candidatos.removeValeTransporte(id, valeTransporteId);
+  }
+
+  @Post(':id/etapas')
+  createEtapa(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateCandidatoEtapaDto) {
+    return this.candidatos.createEtapa(id, dto);
+  }
+
+  @Patch(':id/etapas/:etapaId')
+  updateEtapa(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('etapaId', ParseIntPipe) etapaId: number,
+    @Body() dto: UpdateCandidatoEtapaDto,
+  ) {
+    return this.candidatos.updateEtapa(id, etapaId, dto);
+  }
+
+  @Delete(':id/etapas/:etapaId')
+  removeEtapa(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('etapaId', ParseIntPipe) etapaId: number,
+  ) {
+    return this.candidatos.removeEtapa(id, etapaId);
   }
 
   @Get(':id')

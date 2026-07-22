@@ -8,9 +8,11 @@ import { Prisma, StatusCandidatura } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreateCandidatoDependenteDto } from './dto/create-candidato-dependente.dto';
+import { CreateCandidatoEtapaDto } from './dto/create-candidato-etapa.dto';
 import { CreateCandidatoValeTransporteDto } from './dto/create-candidato-vale-transporte.dto';
 import { CreateCandidatoDto } from './dto/create-candidato.dto';
 import { UpdateCandidatoDependenteDto } from './dto/update-candidato-dependente.dto';
+import { UpdateCandidatoEtapaDto } from './dto/update-candidato-etapa.dto';
 import { UpdateCandidatoValeTransporteDto } from './dto/update-candidato-vale-transporte.dto';
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
 
@@ -28,6 +30,9 @@ const candidatoInclude = {
   },
   valeTransportes: {
     orderBy: { id: 'asc' },
+  },
+  etapas: {
+    orderBy: { sequencia: 'asc' },
   },
 } satisfies Prisma.CandidatoInclude;
 
@@ -91,6 +96,14 @@ const buildValeTransporteData = (
   tipoTrajeto: cleanString(dto.tipoTrajeto),
   transporteUsado: cleanString(dto.transporteUsado),
   preco: dto.preco,
+});
+
+const buildEtapaData = (dto: CreateCandidatoEtapaDto | UpdateCandidatoEtapaDto) => ({
+  codigoEtapa: dto.codigoEtapa,
+  descricaoEtapa: cleanString(dto.descricaoEtapa),
+  data: dto.data ? new Date(dto.data) : undefined,
+  sequencia: dto.sequencia,
+  observacao: cleanString(dto.observacao),
 });
 
 const exigeJustificativaReprovacao = (situacao?: string) =>
@@ -193,7 +206,7 @@ export class CandidatosService {
     validateSituacaoCandidato(dto);
 
     try {
-      const { dependentes, valeTransportes } = dto;
+      const { dependentes, valeTransportes, etapas } = dto;
       const candidato = await this.prisma.candidato.create({
         data: {
           ...(buildCandidatoData(dto) as Prisma.CandidatoCreateInput),
@@ -210,6 +223,13 @@ export class CandidatosService {
                   buildValeTransporteData(
                     valeTransporte,
                   ) as Prisma.CandidatoValeTransporteCreateWithoutCandidatoInput,
+                ),
+              }
+            : undefined,
+          etapas: etapas?.length
+            ? {
+                create: etapas.map(
+                  (etapa) => buildEtapaData(etapa) as Prisma.CandidatoEtapaCreateWithoutCandidatoInput,
                 ),
               }
             : undefined,
@@ -484,6 +504,47 @@ export class CandidatosService {
     return { deleted: true };
   }
 
+  async createEtapa(candidatoId: number, dto: CreateCandidatoEtapaDto) {
+    await this.ensureCandidatoExists(candidatoId);
+
+    try {
+      return await this.prisma.candidatoEtapa.create({
+        data: {
+          ...(buildEtapaData(dto) as Prisma.CandidatoEtapaUncheckedCreateInput),
+          candidatoId,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Esta etapa já foi adicionada para este candidato.');
+      }
+      throw error;
+    }
+  }
+
+  async updateEtapa(candidatoId: number, etapaId: number, dto: UpdateCandidatoEtapaDto) {
+    await this.ensureEtapaBelongsToCandidato(candidatoId, etapaId);
+
+    try {
+      return await this.prisma.candidatoEtapa.update({
+        where: { id: etapaId },
+        data: buildEtapaData(dto),
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Esta etapa já foi adicionada para este candidato.');
+      }
+      throw error;
+    }
+  }
+
+  async removeEtapa(candidatoId: number, etapaId: number) {
+    await this.ensureEtapaBelongsToCandidato(candidatoId, etapaId);
+    await this.prisma.candidatoEtapa.delete({ where: { id: etapaId } });
+
+    return { deleted: true };
+  }
+
   async remove(id: number) {
     const candidato = await this.findOne(id);
     if (candidato.candidaturas.length > 0) {
@@ -519,6 +580,14 @@ export class CandidatosService {
       select: { id: true },
     });
     if (!valeTransporte) throw new NotFoundException('Vale transporte não encontrado');
+  }
+
+  private async ensureEtapaBelongsToCandidato(candidatoId: number, etapaId: number) {
+    const etapa = await this.prisma.candidatoEtapa.findFirst({
+      where: { id: etapaId, candidatoId },
+      select: { id: true },
+    });
+    if (!etapa) throw new NotFoundException('Etapa não encontrada');
   }
 
   private async linkUserByCpf(cpf: string) {

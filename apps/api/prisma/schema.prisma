@@ -129,6 +129,7 @@ model Candidato {
   aceitesRegulamento            AceiteRegulamento[]
   dependentes                   CandidatoDependente[]
   valeTransportes               CandidatoValeTransporte[]
+  etapas                        CandidatoEtapa[]
 
   @@map("candidato")
 }
@@ -168,6 +169,24 @@ model CandidatoValeTransporte {
 
   @@index([candidatoId])
   @@map("candidato_vale_transportes")
+}
+
+model CandidatoEtapa {
+  id             Int       @id @default(autoincrement())
+  candidatoId    Int       @map("candidato_id")
+  codigoEtapa    Int       @map("codigo_etapa")
+  descricaoEtapa String    @map("descricao_etapa")
+  data           DateTime? @db.Date
+  sequencia      Int       @default(0)
+  observacao     String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@unique([candidatoId, codigoEtapa])
+  @@index([candidatoId])
+  @@map("candidato_etapas")
 }
 
 model AceiteRegulamento {

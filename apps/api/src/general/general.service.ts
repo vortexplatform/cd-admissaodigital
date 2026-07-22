@@ -85,6 +85,11 @@ export interface PostoTrabalhoCaracteristicaSenior {
   NOMCCU: string;
 }
 
+export interface EtapaSenior {
+  CODETA: number;
+  DESETA: string;
+}
+
 @Injectable()
 export class GeneralService {
   constructor(private readonly seniorApi: SeniorApiService) {}
@@ -147,5 +152,9 @@ export class GeneralService {
 
   getWorkstationCharacteristics(code: string): Promise<PostoTrabalhoCaracteristicaSenior[]> {
     return this.seniorApi.get(`/general/workstation/${code}/characteristics`);
+  }
+
+  getEtapas(): Promise<EtapaSenior[]> {
+    return this.seniorApi.get('/admissao/etapas');
   }
 }

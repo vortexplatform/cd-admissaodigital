@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { CreateCandidatoDependenteDto } from './create-candidato-dependente.dto';
+import { CreateCandidatoEtapaDto } from './create-candidato-etapa.dto';
 import { CreateCandidatoValeTransporteDto } from './create-candidato-vale-transporte.dto';
 
 export class CreateCandidatoDto {
@@ -281,4 +282,10 @@ export class CreateCandidatoDto {
   @Type(() => CreateCandidatoValeTransporteDto)
   @IsOptional()
   valeTransportes?: CreateCandidatoValeTransporteDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCandidatoEtapaDto)
+  @IsOptional()
+  etapas?: CreateCandidatoEtapaDto[];
 }
