@@ -12,11 +12,12 @@ import {
   X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Select from 'react-select';
 import AsyncSelect from 'react-select/async';
 import type { StylesConfig } from 'react-select';
 import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import api from '@/lib/api';
 
@@ -128,6 +129,16 @@ interface CandidatosCounts {
   recusados: number;
 }
 
+interface Filial {
+  numero: number;
+  nome: string | null;
+}
+
+interface CidadeVaga {
+  id: number;
+  nome: string;
+}
+
 const emptyCounts: CandidatosCounts = {
   todos: 0,
   aguardando: 0,
@@ -172,19 +183,30 @@ const selectStyles: StylesConfig<SelectOption, false> = {
   input: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
 };
 
-const fetchPaginatedCandidatos = (currentPage: number, nome: string) =>
+const fetchPaginatedCandidatos = (
+  currentPage: number,
+  nome: string,
+  situacao: TabKey,
+  cidadeVagaId?: string,
+  filial?: string,
+) =>
   api.get<PaginatedCandidatosResponse>('/candidatos', {
     params: {
       page: currentPage,
       limit: pageSize,
       ...(nome ? { nome } : {}),
+      ...(situacao !== 'todos' ? { situacao } : {}),
+      ...(cidadeVagaId ? { cidadeVagaId } : {}),
+      ...(filial ? { filial } : {}),
     },
   });
 
-const fetchCandidatosCounts = (nome: string) =>
+const fetchCandidatosCounts = (nome: string, cidadeVagaId?: string, filial?: string) =>
   api.get<CandidatosCounts>('/candidatos/counts', {
     params: {
       ...(nome ? { nome } : {}),
+      ...(cidadeVagaId ? { cidadeVagaId } : {}),
+      ...(filial ? { filial } : {}),
     },
   });
 
@@ -212,14 +234,6 @@ const getInitials = (candidato: Candidato) => {
 };
 
 const getCurrentCandidatura = (candidato: Candidato) => candidato.candidaturas[0] ?? null;
-
-const getTabForStatus = (status?: string): TabKey => {
-  if (!status || status === 'INSCRITO') return 'aguardando';
-  if (status === 'APROVADO') return 'aprovados';
-  if (status === 'EFETIVADO') return 'efetivados';
-  if (status === 'REPROVADO' || status === 'CANCELADO' || status === 'DESISTIU') return 'recusados';
-  return 'em-analise';
-};
 
 const formatRequisicaoOption = (requisicao: RequisicaoDisponivel): RequisicaoOption => ({
   value: String(requisicao.id),
@@ -262,7 +276,11 @@ function AdmissaoPrevistaInput({
 export default function CandidatosPage() {
   const navigate = useNavigate();
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
-  const [activeTab, setActiveTab] = useState<TabKey>('todos');
+  const [activeTab, setActiveTab] = useState<TabKey>('aguardando');
+  const [cidadesVaga, setCidadesVaga] = useState<CidadeVaga[]>([]);
+  const [cidadeVagaFilter, setCidadeVagaFilter] = useState<SelectOption | null>(null);
+  const [filiais, setFiliais] = useState<Filial[]>([]);
+  const [filialFilter, setFilialFilter] = useState<SelectOption | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -286,8 +304,15 @@ export default function CandidatosPage() {
   }, [searchTerm]);
 
   useEffect(() => {
+    api.get<Filial[]>('/candidatos/filiais').then(({ data }) => setFiliais(data)).catch(() => setFiliais([]));
+    api.get<CidadeVaga[]>('/cidades-vaga').then(({ data }) => setCidadesVaga(data)).catch(() => setCidadesVaga([]));
+  }, []);
+
+  useEffect(() => {
     let isCurrentRequest = true;
     const trimmedNome = debouncedSearchTerm.trim();
+    const cidadeVagaId = cidadeVagaFilter?.value;
+    const filial = filialFilter?.value;
 
     if (trimmedNome && trimmedNome.length < 3) {
       setCandidatos([]);
@@ -301,7 +326,10 @@ export default function CandidatosPage() {
 
     setIsLoading(true);
     setError('');
-    Promise.all([fetchPaginatedCandidatos(page, trimmedNome), fetchCandidatosCounts(trimmedNome)])
+    Promise.all([
+      fetchPaginatedCandidatos(page, trimmedNome, activeTab, cidadeVagaId, filial),
+      fetchCandidatosCounts(trimmedNome, cidadeVagaId, filial),
+    ])
       .then(([{ data }, { data: countsData }]) => {
         if (!isCurrentRequest) return;
         setCandidatos(data.data);
@@ -318,7 +346,7 @@ export default function CandidatosPage() {
     return () => {
       isCurrentRequest = false;
     };
-  }, [page, debouncedSearchTerm]);
+  }, [page, debouncedSearchTerm, activeTab, cidadeVagaFilter?.value, filialFilter?.value]);
 
   useEffect(
     () => () => {
@@ -327,10 +355,11 @@ export default function CandidatosPage() {
     [],
   );
 
-  const filteredCandidatos = candidatos.filter((candidato) => {
-    if (activeTab === 'todos') return true;
-    return getTabForStatus(getCurrentCandidatura(candidato)?.status) === activeTab;
-  });
+  const filialOptions = filiais.map((filial) => ({
+    value: String(filial.numero),
+    label: filial.nome ? `${String(filial.numero).padStart(2, '0')} - ${filial.nome}` : String(filial.numero).padStart(2, '0'),
+  }));
+  const cidadesVagaOptions = cidadesVaga.map((cidade) => ({ value: String(cidade.id), label: cidade.nome }));
 
   const removeCandidato = async (candidato: Candidato) => {
     if (candidato.candidaturas.length > 0) return;
@@ -383,9 +412,11 @@ export default function CandidatosPage() {
 
   const reloadCurrentPage = async () => {
     const trimmedNome = debouncedSearchTerm.trim();
+    const cidadeVagaId = cidadeVagaFilter?.value;
+    const filial = filialFilter?.value;
     const [{ data }, { data: countsData }] = await Promise.all([
-      fetchPaginatedCandidatos(page, trimmedNome),
-      fetchCandidatosCounts(trimmedNome),
+      fetchPaginatedCandidatos(page, trimmedNome, activeTab, cidadeVagaId, filial),
+      fetchCandidatosCounts(trimmedNome, cidadeVagaId, filial),
     ]);
     setCandidatos(data.data);
     setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
@@ -470,16 +501,56 @@ export default function CandidatosPage() {
         }
       />
 
-      <Card className="overflow-hidden shadow-corporate">
+      <Card className="overflow-hidden">
         <CardHeader className="border-b">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <CardTitle>Fila de candidatos</CardTitle>
-              <CardDescription>
-                Posto de trabalho e etapa vêm da candidatura mais recente vinculada.
-              </CardDescription>
+          <div className="flex flex-wrap gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => {
+                  setPage(1);
+                  setActiveTab(tab.key);
+                }}
+                className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+                  activeTab === tab.key
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background hover:bg-muted'
+                }`}
+              >
+                {tab.label}
+                <span className="ml-1 text-xs opacity-75">· {counts[tab.key]}</span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="w-full sm:w-64">
+              <Select
+                isClearable
+                options={cidadesVagaOptions}
+                placeholder="Filtrar por cidade"
+                styles={selectStyles}
+                value={cidadeVagaFilter}
+                onChange={(option) => {
+                  setPage(1);
+                  setCidadeVagaFilter(option);
+                }}
+              />
             </div>
-            <div className="w-full lg:max-w-sm">
+            <div className="w-full sm:w-64">
+              <Select
+                isClearable
+                options={filialOptions}
+                placeholder="Filtrar por filial"
+                styles={selectStyles}
+                value={filialFilter}
+                onChange={(option) => {
+                  setPage(1);
+                  setFilialFilter(option);
+                }}
+              />
+            </div>
+            <div className="w-full sm:flex-1">
               <Input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
@@ -488,23 +559,6 @@ export default function CandidatosPage() {
               <p className="mt-1 text-xs text-muted-foreground">
                 Digite ao menos 3 letras para pesquisar por nome.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
-                    activeTab === tab.key
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background hover:bg-muted'
-                  }`}
-                >
-                  {tab.label}
-                  <span className="ml-1 text-xs opacity-75">· {counts[tab.key]}</span>
-                </button>
-              ))}
             </div>
           </div>
         </CardHeader>
@@ -517,7 +571,7 @@ export default function CandidatosPage() {
           )}
           {isLoading ? (
             <p className="p-6 text-sm text-muted-foreground">Carregando candidatos...</p>
-          ) : filteredCandidatos.length === 0 ? (
+          ) : candidatos.length === 0 ? (
             <div className="m-6 rounded-xl border border-dashed bg-background p-8 text-center">
               <UserRound className="mx-auto h-8 w-8 text-muted-foreground" />
               <p className="mt-3 font-semibold">Nenhum candidato encontrado</p>
@@ -535,7 +589,7 @@ export default function CandidatosPage() {
                   <span className="text-right">Ações</span>
                 </div>
                 <div className="divide-y">
-                  {filteredCandidatos.map((candidato) => {
+                  {candidatos.map((candidato) => {
                     const candidatura = getCurrentCandidatura(candidato);
                     const status = candidatura?.status;
                     const canDelete = candidato.candidaturas.length === 0;

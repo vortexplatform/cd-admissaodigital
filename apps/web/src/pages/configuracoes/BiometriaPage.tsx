@@ -80,7 +80,7 @@ export default function BiometriaPage() {
       />
 
       <section className="grid gap-4 xl:grid-cols-[1fr_26rem]">
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>Dispositivos cadastrados</CardTitle>
             <CardDescription>
@@ -141,7 +141,7 @@ export default function BiometriaPage() {
         </Card>
 
         <div className="space-y-4">
-          <Card className="shadow-corporate">
+          <Card className="">
             <CardHeader>
               <CardTitle>Novo dispositivo</CardTitle>
               <CardDescription>
@@ -168,7 +168,7 @@ export default function BiometriaPage() {
           </Card>
 
           {tokenGerado && (
-            <Card className="border-emerald-200 bg-emerald-50 shadow-corporate dark:border-emerald-900 dark:bg-emerald-950/30">
+            <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />

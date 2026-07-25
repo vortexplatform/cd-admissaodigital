@@ -2,8 +2,10 @@ import { NavLink, Outlet } from 'react-router-dom';
 import AppHeader from '@/components/layout/AppHeader';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
-    isActive ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'
+  `rounded-pill border px-4 py-2 text-button transition ${
+    isActive
+      ? 'border-primary bg-primary text-primary-foreground'
+      : 'bg-card hover:bg-secondary'
   }`;
 
 export default function CandidateLayout() {

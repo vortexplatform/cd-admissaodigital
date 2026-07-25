@@ -36,8 +36,11 @@ export class CandidatosController {
     @Query('nome') nome?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('situacao') situacao?: string,
+    @Query('filial') filial?: string,
+    @Query('cidadeVagaId') cidadeVagaId?: string,
   ) {
-    return this.candidatos.findPaginated({ nome, page, limit });
+    return this.candidatos.findPaginated({ nome, page, limit, situacao, filial, cidadeVagaId });
   }
 
   @Get('search')
@@ -46,8 +49,17 @@ export class CandidatosController {
   }
 
   @Get('counts')
-  countByTab(@Query('nome') nome?: string) {
-    return this.candidatos.countByTab(nome);
+  countByTab(
+    @Query('nome') nome?: string,
+    @Query('filial') filial?: string,
+    @Query('cidadeVagaId') cidadeVagaId?: string,
+  ) {
+    return this.candidatos.countByTab(nome, filial, cidadeVagaId);
+  }
+
+  @Get('filiais')
+  findFiliais() {
+    return this.candidatos.findFiliais();
   }
 
   @Post(':id/dependentes')

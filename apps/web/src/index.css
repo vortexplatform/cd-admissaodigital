@@ -4,50 +4,54 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Tokens semanticos alinhados ao DESIGN.md (Intercom).
+ * Light = canvas creme + ink carvao; dark = paleta inverse do DESIGN.md.
+ */
 @layer base {
   :root {
-    --background: 210 33% 98%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --background: 33 31% 94%; /* canvas #f5f1ec */
+    --foreground: 0 0% 7%; /* ink #111111 */
+    --card: 0 0% 100%; /* surface-1 #ffffff */
+    --card-foreground: 0 0% 7%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 213 76% 28%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 214 32% 91%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 214 32% 93%;
-    --muted-foreground: 215 16% 42%;
-    --accent: 199 89% 48%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 86%;
-    --input: 214 32% 86%;
-    --ring: 213 76% 28%;
-    --radius: 0.75rem;
+    --popover-foreground: 0 0% 7%;
+    --primary: 0 0% 7%; /* ink — primario do sistema e carvao */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 36 20% 90%; /* surface-2 #ebe7e1 */
+    --secondary-foreground: 0 0% 7%;
+    --muted: 36 20% 90%;
+    --muted-foreground: 60 1% 38%; /* ink-muted #626260 */
+    --accent: 36 20% 90%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 75% 44%; /* semantic-error #c41c1c */
+    --destructive-foreground: 0 0% 100%;
+    --border: 37 13% 80%; /* hairline #d3cec6 */
+    --input: 37 13% 80%;
+    --ring: 0 0% 7%;
+    --radius: 0.5rem; /* 8px — botoes e inputs (DESIGN.md rounded.md) */
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 96%;
-    --card: 222 40% 10%;
-    --card-foreground: 210 40% 96%;
-    --popover: 222 40% 10%;
-    --popover-foreground: 210 40% 96%;
-    --primary: 204 86% 58%;
-    --primary-foreground: 222 47% 7%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 72%;
-    --accent: 199 89% 58%;
-    --accent-foreground: 222 47% 7%;
-    --destructive: 0 63% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 204 86% 58%;
+    --background: 0 0% 4%; /* inverse-canvas (preto suavizado) */
+    --foreground: 0 0% 100%; /* inverse-ink */
+    --card: 0 0% 19%; /* inverse-surface-1 #313130 */
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 19%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 7%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 220 5% 63%; /* inverse-ink-muted #9c9fa5 */
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 75% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 24%;
+    --input: 0 0% 24%;
+    --ring: 0 0% 85%;
   }
 
   * {
@@ -56,18 +60,13 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings:
-      'cv02' 1,
-      'cv03' 1,
-      'cv04' 1;
   }
 }
 
 @layer components {
+  /* DESIGN.md: canvas creme plana — sem gradientes atmosfericos nem sombras. */
   .app-surface {
-    background:
-      radial-gradient(circle at top left, hsl(var(--primary) / 0.08), transparent 28rem),
-      linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.65));
+    @apply bg-background;
   }
 }
 

@@ -121,8 +121,10 @@ model Candidato {
   tamanhoCamisa                 String?                @map("tamanho_camisa")
   tamanhoCalca                  String?                @map("tamanho_calca")
   tamanhoCalcado                String?                @map("tamanho_calcado")
+  cidadeVagaId                  Int                    @map("cidade_vaga_id")
 
   user                          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  cidadeVaga                    CidadeVaga             @relation(fields: [cidadeVagaId], references: [id], onDelete: Restrict)
   candidaturas                  Candidatura[]
   biometriaSolicitacoes         BiometriaSolicitacao[]
   biometriaTemplates            BiometriaTemplate[]
@@ -132,6 +134,14 @@ model Candidato {
   etapas                        CandidatoEtapa[]
 
   @@map("candidato")
+}
+
+model CidadeVaga {
+  id         Int         @id @default(autoincrement())
+  nome       String      @unique
+  candidatos Candidato[]
+
+  @@map("cidade_vaga")
 }
 
 model CandidatoDependente {

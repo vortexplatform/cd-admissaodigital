@@ -32,22 +32,24 @@ export default function AppHeader({
   const envBadge = showEmpresaSelector ? (
     <EmpresaSelector />
   ) : (
-    <div className="rounded-lg border bg-background px-3 py-2 text-sm">
+    <div className="rounded-md border bg-card px-3 py-2 text-body-sm">
       <p className="font-medium leading-none">{badgeLabel ?? 'Acesso'}</p>
-      <p className="mt-1 max-w-[220px] truncate text-xs text-muted-foreground">{identifier}</p>
+      <p className="mt-1 max-w-[220px] truncate text-caption text-muted-foreground">
+        {identifier}
+      </p>
     </div>
   );
 
   return (
-    <header className="border-b bg-card/95 px-4 py-4 shadow-sm backdrop-blur lg:px-8">
+    <header className="border-b bg-background/95 px-4 py-4 backdrop-blur lg:px-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground">
+          <div className="grid h-11 w-11 place-items-center rounded-md bg-primary text-primary-foreground">
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-display text-lg font-semibold leading-none">{title}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            <p className="text-body-lg font-medium leading-none">{title}</p>
+            <p className="mt-1 text-body-sm text-muted-foreground">{description}</p>
           </div>
         </div>
 

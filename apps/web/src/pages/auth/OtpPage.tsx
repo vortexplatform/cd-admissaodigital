@@ -91,7 +91,7 @@ export default function OtpPage() {
   };
 
   return (
-    <Card className="w-full max-w-sm shadow-corporate">
+    <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
         <CardTitle className="font-display text-2xl">Verificação</CardTitle>
         <CardDescription>

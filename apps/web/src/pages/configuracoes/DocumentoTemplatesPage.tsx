@@ -201,7 +201,7 @@ export default function DocumentoTemplatesPage() {
       />
 
       <section className="grid gap-4 xl:grid-cols-[1fr_28rem]">
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>Documentos configurados</CardTitle>
           </CardHeader>
@@ -262,7 +262,7 @@ export default function DocumentoTemplatesPage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>{editing ? 'Editar documento' : 'Novo documento'}</CardTitle>
           </CardHeader>

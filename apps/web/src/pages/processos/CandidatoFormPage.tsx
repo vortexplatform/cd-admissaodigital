@@ -38,6 +38,10 @@ interface Cidade {
   CODPAI: number;
   CODEST: string;
 }
+interface CidadeVaga {
+  id: number;
+  nome: string;
+}
 interface Bairro {
   CODCID: number;
   CODBAI: number;
@@ -207,6 +211,7 @@ interface CandidatoData {
   situacao: string;
   justificativaReprovacao: string | null;
   possuiFilhos: boolean;
+  cidadeVagaId: number;
   tipoAdmissao: string | null;
   estadoCivil: string | null;
   grauInstrucao: string | null;
@@ -293,6 +298,7 @@ const candidatoSchema = z
   genero: z.enum(['', 'M', 'F']).refine((value) => value !== '', 'Informe o gênero'),
   situacao: z.enum(['ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO']),
   justificativaReprovacao: z.string().trim().optional(),
+  cidadeVagaId: z.string().trim().min(1, 'Informe a cidade da vaga'),
 
   // Admissão
   tipoAdmissao: z
@@ -509,6 +515,7 @@ const defaultValues: CandidatoForm = {
   genero: '',
   situacao: 'ATIVO_PROCESSO',
   justificativaReprovacao: '',
+  cidadeVagaId: '',
   tipoAdmissao: '',
   estadoCivil: '',
   grauInstrucao: '',
@@ -657,6 +664,7 @@ const buildPayload = (
   genero: optionalString(values.genero),
   situacao: values.situacao,
   justificativaReprovacao: optionalString(values.justificativaReprovacao),
+  cidadeVagaId: optionalInt(values.cidadeVagaId),
   tipoAdmissao: optionalString(values.tipoAdmissao),
   estadoCivil: optionalString(values.estadoCivil),
   grauInstrucao: optionalString(values.grauInstrucao),
@@ -1050,6 +1058,11 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   // Cascata: Certidão civil (estado via ESTADOS_BR, cidades carregadas da API)
   const [estadosCert, setEstadosCert] = useState<Estado[]>([]);
   const [cidadesCert, setCidadesCert] = useState<Cidade[]>([]);
+  const [cidadesVaga, setCidadesVaga] = useState<CidadeVaga[]>([]);
+
+  useEffect(() => {
+    api.get<CidadeVaga[]>('/cidades-vaga').then(({ data }) => setCidadesVaga(data)).catch(() => setCidadesVaga([]));
+  }, []);
 
   useEffect(
     () => () => {
@@ -1366,6 +1379,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           genero: (data.genero as 'M' | 'F' | null) ?? '',
           situacao: (data.situacao ?? 'ATIVO_PROCESSO') as CandidatoForm['situacao'],
           justificativaReprovacao: toText(data.justificativaReprovacao),
+          cidadeVagaId: String(data.cidadeVagaId),
           tipoAdmissao: (data.tipoAdmissao ?? '') as CandidatoForm['tipoAdmissao'],
           estadoCivil: toText(data.estadoCivil),
           grauInstrucao: toText(data.grauInstrucao),
@@ -1856,14 +1870,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       />
 
       {isLoading ? (
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardContent className="p-6 text-sm text-muted-foreground">
             Carregando candidato...
           </CardContent>
         </Card>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Card className="shadow-corporate">
+          <Card className="">
             <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
               <div>
                 <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Nome</p>
@@ -1891,7 +1905,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               Candidaturas vinculadas — acima do formulário
           ================================================================= */}
           {mode !== 'create' && (
-            <Card className="shadow-corporate">
+            <Card className="">
               <CardHeader>
                 <CardTitle>Candidaturas vinculadas</CardTitle>
                 <CardDescription>
@@ -2089,7 +2103,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             <div className="space-y-4">
 
               {/* ---- Dados pessoais ---- */}
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader>
                   <CardTitle>Dados pessoais</CardTitle>
                   <CardDescription>Identificação e características do candidato.</CardDescription>
@@ -2104,6 +2118,22 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     error={errors.nome?.message}
                     {...register('nome')}
                   />
+
+                  <SelectField
+                    id="cidadeVagaId"
+                    label="Cidade da vaga"
+                    required
+                    disabled={isViewMode}
+                    error={errors.cidadeVagaId?.message}
+                    {...register('cidadeVagaId')}
+                  >
+                    <option value="">Selecione</option>
+                    {cidadesVaga.map((cidade) => (
+                      <option key={cidade.id} value={cidade.id}>
+                        {cidade.nome}
+                      </option>
+                    ))}
+                  </SelectField>
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <MaskedTextField
@@ -2244,7 +2274,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </Card>
 
               {/* ---- Naturalidade ---- */}
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader>
                   <CardTitle>Naturalidade</CardTitle>
                   <CardDescription>País, estado e cidade de nascimento.</CardDescription>
@@ -2316,7 +2346,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </Card>
 
               {/* ---- Certidão civil ---- */}
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader>
                   <CardTitle>Certidão civil</CardTitle>
                   <CardDescription>Dados do registro civil do candidato.</CardDescription>
@@ -2412,7 +2442,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             <div className="space-y-4">
 
               {/* ---- Contatos ---- */}
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader>
                   <CardTitle>Contatos</CardTitle>
                   <CardDescription>E-mail e telefones para comunicação.</CardDescription>
@@ -2490,7 +2520,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </Card>
 
               {/* ---- Endereço ---- */}
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader>
                   <CardTitle>Endereço</CardTitle>
                   <CardDescription>Localização residencial atual.</CardDescription>
@@ -2618,7 +2648,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </Card>
 
               {/* ---- Documentos ---- */}
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader>
                   <CardTitle>Documentos</CardTitle>
                   <CardDescription>RG, título de eleitor e reservista.</CardDescription>
@@ -2693,7 +2723,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </Card>
 
               {/* ---- Uniforme ---- */}
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader>
                   <CardTitle>Uniforme</CardTitle>
                   <CardDescription>Medidas para fornecimento de uniforme.</CardDescription>
@@ -2730,7 +2760,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             </TabsContent>
 
             <TabsContent value="dependentes" className="space-y-4">
-                <Card className="shadow-corporate">
+                <Card className="">
                   <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <CardTitle>Dependentes cadastrados</CardTitle>
@@ -2796,7 +2826,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </TabsContent>
 
             <TabsContent value="valeTransporte" className="space-y-4">
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle>Trajetos cadastrados</CardTitle>
@@ -2848,7 +2878,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             </TabsContent>
 
             <TabsContent value="etapas" className="space-y-4">
-              <Card className="shadow-corporate">
+              <Card className="">
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle>Etapas do processo</CardTitle>

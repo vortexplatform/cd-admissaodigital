@@ -372,7 +372,7 @@ export default function AssinaturasPendentesPage() {
             {envelopes.map((envelope) => (
               <div
                 key={envelope.id}
-                className="overflow-hidden rounded-2xl border bg-card shadow-sm"
+                className="overflow-hidden rounded-xl border bg-card"
               >
                 <div className="flex items-center justify-between border-b px-5 py-4">
                   <div>

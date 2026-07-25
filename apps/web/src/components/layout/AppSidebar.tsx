@@ -14,10 +14,10 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition ${
+  `flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-body-sm transition ${
     isActive
       ? 'bg-primary text-primary-foreground'
-      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
   }`;
 
 export default function AppSidebar() {
@@ -25,10 +25,10 @@ export default function AppSidebar() {
   const isAdmin = user?.role === 'ADMIN';
 
   return (
-    <aside className="hidden border-r bg-card/70 p-5 lg:block">
-      <nav className="space-y-5 text-sm">
+    <aside className="hidden border-r bg-background p-5 lg:block">
+      <nav className="space-y-5 text-body-sm">
         <div>
-          <div className="mb-2 flex items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="mb-2 flex items-center gap-3 px-3 text-caption font-medium text-muted-foreground">
             <span>Processos</span>
             <span className="h-px flex-1 bg-border" />
           </div>
@@ -55,7 +55,7 @@ export default function AppSidebar() {
         </div>
 
         <div>
-          <div className="mb-2 flex items-center gap-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="mb-2 flex items-center gap-3 px-3 text-caption font-medium text-muted-foreground">
             <span>Configurações</span>
             <span className="h-px flex-1 bg-border" />
           </div>

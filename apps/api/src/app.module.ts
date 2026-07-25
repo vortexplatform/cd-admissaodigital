@@ -16,6 +16,7 @@ import { BiometriaModule } from './biometria/biometria.module';
 import { IntegracaoSeniorModule } from './integracao-senior/integracao-senior.module';
 import { GeneralModule } from './general/general.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { CidadesVagaModule } from './cidades-vaga/cidades-vaga.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     IntegracaoSeniorModule,
     GeneralModule,
     DashboardModule,
+    CidadesVagaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

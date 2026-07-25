@@ -16,8 +16,8 @@ export default function CompanyAccessRequiredPage() {
 
   return (
     <div className="app-surface relative flex min-h-screen items-center justify-center p-4 pt-16 text-foreground">
-      <ThemeToggle className="absolute right-4 top-4 shadow-corporate" />
-      <Card className="w-full max-w-lg shadow-corporate">
+      <ThemeToggle className="absolute right-4 top-4" />
+      <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-xl bg-primary text-primary-foreground">
             <Building2 className="h-6 w-6" />

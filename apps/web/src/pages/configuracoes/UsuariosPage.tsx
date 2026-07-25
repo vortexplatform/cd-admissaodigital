@@ -116,7 +116,7 @@ export default function UsuariosPage() {
       />
 
       <section className="grid gap-4 xl:grid-cols-[24rem_1fr]">
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>Novo usuário</CardTitle>
             <CardDescription>
@@ -193,7 +193,7 @@ export default function UsuariosPage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>Usuários vinculados</CardTitle>
             <CardDescription>{usuarios.length} usuário(s) na empresa selecionada.</CardDescription>

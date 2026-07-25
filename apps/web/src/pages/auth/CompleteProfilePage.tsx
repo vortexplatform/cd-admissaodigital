@@ -68,7 +68,7 @@ export default function CompleteProfilePage() {
   const optionalPlaceholder = optionalField === 'telefone' ? '+55 11 99999-9999' : 'seu@email.com';
 
   return (
-    <Card className="w-full max-w-md border-primary/10 shadow-corporate">
+    <Card className="w-full max-w-md border-primary/10">
       <CardHeader className="space-y-3">
         <div className="h-1.5 w-16 rounded-full bg-primary" />
         <div>

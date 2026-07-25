@@ -12,10 +12,7 @@ export default function ThemeToggle({ className }: { className?: string }) {
       type="button"
       variant="outline"
       size="sm"
-      className={cn(
-        'h-10 rounded-full border-border/80 bg-background/90 px-3 backdrop-blur',
-        className,
-      )}
+      className={cn('h-10 rounded-pill border-border bg-card px-3', className)}
       onClick={toggleTheme}
       aria-label={isDark ? 'Ativar tema claro' : 'Ativar tema escuro'}
     >

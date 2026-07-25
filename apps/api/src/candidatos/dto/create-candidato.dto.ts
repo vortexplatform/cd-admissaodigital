@@ -54,6 +54,9 @@ export class CreateCandidatoDto {
   @IsOptional()
   possuiFilhos?: boolean;
 
+  @IsInt()
+  cidadeVagaId!: number;
+
   // Admissão
   @IsIn(['PRIMEIRO_EMPREGO', 'REEMPREGO'])
   tipoAdmissao!: string;

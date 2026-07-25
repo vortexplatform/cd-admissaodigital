@@ -90,7 +90,7 @@ function RhHome() {
         {metrics.map((metric) => {
           const Icon = metric.icon;
           return (
-            <Card key={metric.label} className="shadow-corporate">
+            <Card key={metric.label} className="">
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
                 <CardDescription>{metric.label}</CardDescription>
                 <span className="rounded-lg bg-primary/10 p-2 text-primary">
@@ -186,7 +186,7 @@ function CandidateHome({ user, identifier }: { user: User; identifier: string })
   return (
     <>
       <section className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader className="pb-4">
             <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
               <LayoutDashboard className="h-4 w-4" />
@@ -213,7 +213,7 @@ function CandidateHome({ user, identifier }: { user: User; identifier: string })
           </CardContent>
         </Card>
 
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>Progresso</CardTitle>
             <CardDescription>
@@ -232,7 +232,7 @@ function CandidateHome({ user, identifier }: { user: User; identifier: string })
         </Card>
       </section>
 
-      <Card className="mt-4 shadow-corporate">
+      <Card className="mt-4">
         <CardHeader>
           <CardTitle>Jornada da admissão</CardTitle>
           <CardDescription>Seu processo fica organizado por etapas.</CardDescription>

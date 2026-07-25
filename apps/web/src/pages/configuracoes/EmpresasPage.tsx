@@ -104,7 +104,7 @@ export default function EmpresasPage() {
       />
 
       <section className="grid gap-4 xl:grid-cols-[24rem_1fr]">
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>{editingEmpresa ? 'Editar empresa' : 'Nova empresa'}</CardTitle>
             <CardDescription>Informe o nome e o código correspondente no Senior.</CardDescription>
@@ -147,7 +147,7 @@ export default function EmpresasPage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>Empresas cadastradas</CardTitle>
             <CardDescription>{empresas.length} empresa(s) disponível(is).</CardDescription>

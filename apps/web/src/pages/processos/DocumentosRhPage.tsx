@@ -172,7 +172,7 @@ export default function DocumentosRhPage() {
         description="Confira arquivos enviados pelo candidato, aprove, recuse, solicite reenvio ou insira arquivos pelo RH."
       />
 
-      <section className="relative overflow-hidden rounded-[1.75rem] border bg-card p-4 shadow-corporate sm:p-6">
+      <section className="relative overflow-hidden rounded-[1.75rem] border bg-card p-4 sm:p-6">
         <input
           ref={fileInputRef}
           className="hidden"

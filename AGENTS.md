@@ -48,7 +48,7 @@
 - O cliente de API é `apps/web/src/lib/api.ts` (axios). A base URL é `VITE_API_URL` ou `/api`; em dev o servidor Vite faz proxy de `/api` para `API_PROXY_TARGET` (padrão `http://localhost:5011`), removendo o prefixo. Um interceptor de resposta retenta 401s uma vez após `POST /auth/refresh`.
 - Os componentes de UI em `apps/web/src/components/ui` seguem composição estilo shadcn/Radix; formulários usam `react-hook-form` + `zod` onde presentes.
 - A fonte de verdade do design é o `DESIGN.md` na raiz do repo (design system Intercom, instalado via `npx getdesign@latest add intercom`). Leia-o antes de qualquer trabalho de UI/estilo em `apps/web` — cores, tipografia, espaçamento e padrões de componentes devem seguir seus tokens.
-- Os tokens do DESIGN.md estão mapeados em `apps/web/tailwind.config.ts`: cores (`ink`, `canvas`, `surface-1/2`, `hairline`, `fin`, `report-*`, `inverse-*`), escala tipográfica (`text-display-*`, `text-headline`, `text-body*`, `text-button`, `text-eyebrow`), `rounded-xs/xl/xxl/pill`, `max-w-content`. Prefira esses tokens a valores hex/px crus; os tokens legados de CSS vars (`--primary`, `--card`, ...) ainda existem para componentes estilo shadcn não migrados.
+- Os tokens do DESIGN.md estão mapeados em `apps/web/tailwind.config.ts`: cores (`ink`, `canvas`, `surface-1/2`, `hairline`, `fin`, `report-*`, `inverse-*`), escala tipográfica (`text-display-*`, `text-headline`, `text-body*`, `text-button`, `text-eyebrow`), raios (`rounded-xs/sm/md/lg/xl/xxl/pill` seguem a escala Intercom), `max-w-content`. As CSS vars semânticas (`--background`, `--primary`, `--card`, ...) em `index.css` também já resolvem para a paleta Intercom — prefira sempre tokens a valores hex/px crus.
 
 ## Estilo e Ferramentas
 

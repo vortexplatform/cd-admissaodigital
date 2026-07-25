@@ -81,12 +81,11 @@ const config = {
         success: '#0bdf50',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-        // Intercom radius tokens (DESIGN.md -> rounded); sm/md/lg above stay var-driven
-        // for existing shadcn-style components until they are migrated (see AGENTS.md).
+        // Escala Intercom (DESIGN.md -> rounded) — substitui a escala var-driven do shadcn.
         xs: '4px',
+        sm: '6px',
+        md: '8px',
+        lg: '12px',
         xl: '16px',
         xxl: '24px',
         pill: '9999px',
@@ -132,9 +131,6 @@ const config = {
       },
       maxWidth: {
         content: '1280px',
-      },
-      boxShadow: {
-        corporate: '0 18px 55px -35px rgb(15 23 42 / 0.45)',
       },
     },
   },

@@ -113,7 +113,7 @@ export default function CertificadosA1Page() {
       />
 
       <section className="grid gap-4 xl:grid-cols-[1fr_26rem]">
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>Certificado ativo</CardTitle>
             <CardDescription>Somente o certificado ativo é usado nas assinaturas digitais.</CardDescription>
@@ -209,7 +209,7 @@ export default function CertificadosA1Page() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardHeader>
             <CardTitle>{ativo ? 'Substituir certificado' : 'Enviar certificado'}</CardTitle>
             <CardDescription>

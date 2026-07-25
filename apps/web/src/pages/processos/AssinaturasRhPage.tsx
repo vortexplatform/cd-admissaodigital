@@ -322,7 +322,7 @@ function AssinaturaCandidaturaCard({
   const biometriaCadastrada = candidatura.candidato.biometriaStatus === 'CADASTRADA';
 
   return (
-    <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+    <article className="overflow-hidden rounded-xl border bg-card">
       <div className="flex flex-col gap-4 border-b p-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">

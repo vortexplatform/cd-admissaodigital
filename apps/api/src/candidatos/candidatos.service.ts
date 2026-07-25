@@ -17,6 +17,7 @@ import { UpdateCandidatoValeTransporteDto } from './dto/update-candidato-vale-tr
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
 
 const candidatoInclude = {
+  cidadeVaga: true,
   candidaturas: {
     include: {
       requisicao: {
@@ -62,6 +63,14 @@ const normalizePage = (value?: string) => {
 
 type CandidatoTabKey = 'aguardando' | 'em-analise' | 'aprovados' | 'efetivados' | 'recusados';
 
+const candidatoTabKeys = new Set<CandidatoTabKey>([
+  'aguardando',
+  'em-analise',
+  'aprovados',
+  'efetivados',
+  'recusados',
+]);
+
 // Espelha a classificação de aba usada em apps/web (CandidatosPage.tsx) para que os
 // badges reflitam a mesma regra aplicada à candidatura mais recente do candidato.
 const getTabForStatus = (status?: StatusCandidatura): CandidatoTabKey => {
@@ -75,6 +84,19 @@ const getTabForStatus = (status?: StatusCandidatura): CandidatoTabKey => {
   )
     return 'recusados';
   return 'em-analise';
+};
+
+const normalizeTab = (value?: string): CandidatoTabKey | undefined =>
+  candidatoTabKeys.has(value as CandidatoTabKey) ? (value as CandidatoTabKey) : undefined;
+
+const normalizeFilial = (value?: string) => {
+  const filial = Number(value);
+  return Number.isInteger(filial) && filial >= 0 ? filial : undefined;
+};
+
+const normalizePositiveId = (value?: string) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
 };
 
 const buildDependenteData = (dto: CreateCandidatoDependenteDto | UpdateCandidatoDependenteDto) => ({
@@ -125,6 +147,7 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   situacao: cleanString(dto.situacao),
   justificativaReprovacao: cleanString(dto.justificativaReprovacao),
   possuiFilhos: dto.possuiFilhos,
+  cidadeVagaId: dto.cidadeVagaId,
 
   // Admissão
   tipoAdmissao: cleanString(dto.tipoAdmissao),
@@ -204,12 +227,13 @@ export class CandidatosService {
 
   async create(dto: CreateCandidatoDto) {
     validateSituacaoCandidato(dto);
+    await this.ensureCidadeVagaExists(dto.cidadeVagaId);
 
     try {
       const { dependentes, valeTransportes, etapas } = dto;
       const candidato = await this.prisma.candidato.create({
         data: {
-          ...(buildCandidatoData(dto) as Prisma.CandidatoCreateInput),
+          ...(buildCandidatoData(dto) as Prisma.CandidatoUncheckedCreateInput),
           dependentes: dependentes?.length
             ? {
                 create: dependentes.map((dependente) =>
@@ -243,31 +267,36 @@ export class CandidatosService {
     }
   }
 
-  async findPaginated({ nome, page, limit }: { nome?: string; page?: string; limit?: string }) {
+  async findPaginated({
+    nome,
+    page,
+    limit,
+    situacao,
+    filial,
+    cidadeVagaId,
+  }: {
+    nome?: string;
+    page?: string;
+    limit?: string;
+    situacao?: string;
+    filial?: string;
+    cidadeVagaId?: string;
+  }) {
     const term = normalizeSearchTerm(nome);
     const currentPage = normalizePage(page);
     const pageSize = clampSearchLimit(limit);
+    const tab = normalizeTab(situacao);
+    const filialNumero = normalizeFilial(filial);
+    const cidadeVagaNumero = normalizePositiveId(cidadeVagaId);
 
     if (term && term.length < 3) {
       return this.buildPaginatedResponse([], 0, currentPage, pageSize);
     }
 
-    if (term) return this.findPaginatedByNome(term, currentPage, pageSize);
-
-    const [data, total] = await Promise.all([
-      this.prisma.candidato.findMany({
-        include: candidatoInclude,
-        orderBy: [{ nome: 'asc' }, { cpf: 'asc' }],
-        skip: (currentPage - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.candidato.count(),
-    ]);
-
-    return this.buildPaginatedResponse(data, total, currentPage, pageSize);
+    return this.findPaginatedFiltered(term, currentPage, pageSize, tab, filialNumero, cidadeVagaNumero);
   }
 
-  async countByTab(nome?: string) {
+  async countByTab(nome?: string, filial?: string, cidadeVagaId?: string) {
     const counts: Record<'todos' | CandidatoTabKey, number> = {
       todos: 0,
       aguardando: 0,
@@ -280,40 +309,28 @@ export class CandidatosService {
     const term = normalizeSearchTerm(nome);
     if (term && term.length < 3) return counts;
 
-    const where = term ? await this.buildNomeWhere(term) : undefined;
-    const candidatos = await this.prisma.candidato.findMany({
-      where,
-      select: {
-        candidaturas: {
-          select: { status: true },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
-    });
-
-    counts.todos = candidatos.length;
-    for (const candidato of candidatos) {
-      counts[getTabForStatus(candidato.candidaturas[0]?.status)] += 1;
+    const candidates = await this.findFilteredCandidateStatuses(
+      term,
+      normalizeFilial(filial),
+      normalizePositiveId(cidadeVagaId),
+    );
+    counts.todos = candidates.length;
+    for (const candidate of candidates) {
+      counts[getTabForStatus(candidate.status ?? undefined)] += 1;
     }
 
     return counts;
   }
 
-  private async buildNomeWhere(term: string): Promise<Prisma.CandidatoWhereInput> {
-    try {
-      const idRows = await this.prisma.$queryRaw<Array<{ id: number }>>(Prisma.sql`
-        SELECT "id"
-        FROM "candidato"
-        WHERE "nome" IS NOT NULL
-          AND public.immutable_unaccent(lower("nome")) LIKE public.immutable_unaccent(lower(${`%${term}%`}))
-      `);
-      return { id: { in: idRows.map((row) => row.id) } };
-    } catch (error) {
-      if (!this.isMissingUnaccentPreparation(error)) throw error;
+  async findFiliais() {
+    const filiais = await this.prisma.requisicaoVaga.findMany({
+      where: { filial: { not: null }, candidaturas: { some: {} } },
+      select: { filial: true, filialNome: true },
+      distinct: ['filial', 'filialNome'],
+      orderBy: [{ filial: 'asc' }, { filialNome: 'asc' }],
+    });
 
-      return { nome: { contains: term, mode: 'insensitive' } };
-    }
+    return filiais.map((filial) => ({ numero: filial.filial!, nome: filial.filialNome }));
   }
 
   async searchByNome(nome?: string, limit?: string) {
@@ -349,46 +366,114 @@ export class CandidatosService {
     }
   }
 
-  private async findPaginatedByNome(term: string, page: number, limit: number) {
-    const offset = (page - 1) * limit;
+  private buildCandidateListFilters(
+    term: string,
+    filial?: number,
+    situacao?: CandidatoTabKey,
+    cidadeVagaId?: number,
+    useUnaccent = true,
+  ) {
+    const filters = [Prisma.sql`TRUE`];
 
-    try {
+    if (term) {
+      filters.push(
+        useUnaccent
+          ? Prisma.sql`c."nome" IS NOT NULL AND public.immutable_unaccent(lower(c."nome")) LIKE public.immutable_unaccent(lower(${`%${term}%`}))`
+          : Prisma.sql`c."nome" IS NOT NULL AND lower(c."nome") LIKE lower(${`%${term}%`})`,
+      );
+    }
+    if (filial !== undefined) filters.push(Prisma.sql`r."filial" = ${filial}`);
+    if (cidadeVagaId !== undefined) filters.push(Prisma.sql`c."cidade_vaga_id" = ${cidadeVagaId}`);
+
+    if (situacao) {
+      const tab = Prisma.sql`
+        CASE
+          WHEN latest."status" IS NULL OR latest."status" = 'INSCRITO' THEN 'aguardando'
+          WHEN latest."status" = 'APROVADO' THEN 'aprovados'
+          WHEN latest."status" = 'EFETIVADO' THEN 'efetivados'
+          WHEN latest."status" IN ('REPROVADO', 'CANCELADO', 'DESISTIU') THEN 'recusados'
+          ELSE 'em-analise'
+        END
+      `;
+      filters.push(Prisma.sql`${tab} = ${situacao}`);
+    }
+
+    return Prisma.join(filters, ' AND ');
+  }
+
+  private async findPaginatedFiltered(
+    term: string,
+    page: number,
+    limit: number,
+    situacao?: CandidatoTabKey,
+    filial?: number,
+    cidadeVagaId?: number,
+  ) {
+    const query = async (useUnaccent: boolean) => {
+      const where = this.buildCandidateListFilters(term, filial, situacao, cidadeVagaId, useUnaccent);
+      const offset = (page - 1) * limit;
       const [idRows, totalRows] = await Promise.all([
         this.prisma.$queryRaw<Array<{ id: number }>>(Prisma.sql`
-          SELECT "id"
-          FROM "candidato"
-          WHERE "nome" IS NOT NULL
-            AND public.immutable_unaccent(lower("nome")) LIKE public.immutable_unaccent(lower(${`%${term}%`}))
-          ORDER BY "nome" ASC, "cpf" ASC
-          LIMIT ${limit}
-          OFFSET ${offset}
+          WITH latest AS (
+            SELECT DISTINCT ON ("candidato_id") "candidato_id", "requisicao_id", "status"
+            FROM "candidatura"
+            ORDER BY "candidato_id", "created_at" DESC, "id" DESC
+          )
+          SELECT c."id"
+          FROM "candidato" c
+          LEFT JOIN latest ON latest."candidato_id" = c."id"
+          LEFT JOIN "requisicao_vaga" r ON r."id" = latest."requisicao_id"
+          WHERE ${where}
+          ORDER BY c."nome" ASC NULLS LAST, c."cpf" ASC
+          LIMIT ${limit} OFFSET ${offset}
         `),
         this.prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+          WITH latest AS (
+            SELECT DISTINCT ON ("candidato_id") "candidato_id", "requisicao_id", "status"
+            FROM "candidatura"
+            ORDER BY "candidato_id", "created_at" DESC, "id" DESC
+          )
           SELECT COUNT(*)::int AS "total"
-          FROM "candidato"
-          WHERE "nome" IS NOT NULL
-            AND public.immutable_unaccent(lower("nome")) LIKE public.immutable_unaccent(lower(${`%${term}%`}))
+          FROM "candidato" c
+          LEFT JOIN latest ON latest."candidato_id" = c."id"
+          LEFT JOIN "requisicao_vaga" r ON r."id" = latest."requisicao_id"
+          WHERE ${where}
         `),
       ]);
-
       const data = await this.findCandidatesByOrderedIds(idRows.map((row) => row.id));
       return this.buildPaginatedResponse(data, totalRows[0]?.total ?? 0, page, limit);
+    };
+
+    try {
+      return await query(true);
     } catch (error) {
-      if (!this.isMissingUnaccentPreparation(error)) throw error;
+      if (!term || !this.isMissingUnaccentPreparation(error)) throw error;
+      return query(false);
+    }
+  }
 
-      const where = { nome: { contains: term, mode: 'insensitive' as const } };
-      const [data, total] = await Promise.all([
-        this.prisma.candidato.findMany({
-          where,
-          include: candidatoInclude,
-          orderBy: [{ nome: 'asc' }, { cpf: 'asc' }],
-          skip: offset,
-          take: limit,
-        }),
-        this.prisma.candidato.count({ where }),
-      ]);
+  private async findFilteredCandidateStatuses(term: string, filial?: number, cidadeVagaId?: number) {
+    const query = (useUnaccent: boolean) => {
+      const where = this.buildCandidateListFilters(term, filial, undefined, cidadeVagaId, useUnaccent);
+      return this.prisma.$queryRaw<Array<{ status: StatusCandidatura | null }>>(Prisma.sql`
+        WITH latest AS (
+          SELECT DISTINCT ON ("candidato_id") "candidato_id", "requisicao_id", "status"
+          FROM "candidatura"
+          ORDER BY "candidato_id", "created_at" DESC, "id" DESC
+        )
+        SELECT latest."status"
+        FROM "candidato" c
+        LEFT JOIN latest ON latest."candidato_id" = c."id"
+        LEFT JOIN "requisicao_vaga" r ON r."id" = latest."requisicao_id"
+        WHERE ${where}
+      `);
+    };
 
-      return this.buildPaginatedResponse(data, total, page, limit);
+    try {
+      return await query(true);
+    } catch (error) {
+      if (!term || !this.isMissingUnaccentPreparation(error)) throw error;
+      return query(false);
     }
   }
 
@@ -430,6 +515,7 @@ export class CandidatosService {
   async update(id: number, dto: UpdateCandidatoDto) {
     const candidato = await this.findOne(id);
     validateSituacaoCandidato(dto);
+    if (dto.cidadeVagaId !== undefined) await this.ensureCidadeVagaExists(dto.cidadeVagaId);
 
     const cpf = normalizeCpf(dto.cpf);
     if (cpf && cpf !== candidato.cpf) throw new BadRequestException('CPF não pode ser alterado.');
@@ -561,6 +647,11 @@ export class CandidatosService {
   private async ensureCandidatoExists(id: number) {
     const candidato = await this.prisma.candidato.findUnique({ where: { id }, select: { id: true } });
     if (!candidato) throw new NotFoundException('Candidato não encontrado');
+  }
+
+  private async ensureCidadeVagaExists(id: number) {
+    const cidade = await this.prisma.cidadeVaga.findUnique({ where: { id }, select: { id: true } });
+    if (!cidade) throw new BadRequestException('Cidade da vaga inválida.');
   }
 
   private async ensureDependenteBelongsToCandidato(candidatoId: number, dependenteId: number) {

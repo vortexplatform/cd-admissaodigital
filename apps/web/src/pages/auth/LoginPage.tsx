@@ -86,7 +86,7 @@ function IdentifierForm({ type }: { type: 'email' | 'phone' }) {
 
 export default function LoginPage() {
   return (
-    <Card className="w-full max-w-sm shadow-corporate">
+    <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
         <CardTitle className="font-display text-2xl">Admissão Digital</CardTitle>
         <CardDescription>

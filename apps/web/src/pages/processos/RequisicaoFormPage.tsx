@@ -360,14 +360,14 @@ export default function RequisicaoFormPage({ mode }: { mode: RequisicaoMode }) {
       />
 
       {isLoading ? (
-        <Card className="shadow-corporate">
+        <Card className="">
           <CardContent className="p-6 text-sm text-muted-foreground">
             Carregando requisição...
           </CardContent>
         </Card>
       ) : (
         <section className="grid gap-4 xl:grid-cols-[1fr_22rem]">
-          <Card className="shadow-corporate">
+          <Card className="">
             <CardHeader>
               <CardTitle>Dados da requisição</CardTitle>
               <CardDescription>
@@ -630,7 +630,7 @@ export default function RequisicaoFormPage({ mode }: { mode: RequisicaoMode }) {
           </Card>
 
           <div className="space-y-4">
-            <Card className="shadow-corporate">
+            <Card className="">
               <CardHeader>
                 <CardTitle>Resumo</CardTitle>
                 <CardDescription>Referência rápida da requisição.</CardDescription>
@@ -704,7 +704,7 @@ function Summary({ label, value }: { label: string; value: string }) {
 
 function CandidatosVinculadosCard({ requisicao }: { requisicao: Requisicao }) {
   return (
-    <Card className="shadow-corporate">
+    <Card className="">
       <CardHeader>
         <CardTitle>Candidatos vinculados</CardTitle>
         <CardDescription>

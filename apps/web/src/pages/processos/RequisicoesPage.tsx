@@ -329,7 +329,7 @@ export default function RequisicoesPage() {
         }
       />
 
-      <section className="relative overflow-hidden rounded-[1.75rem] border bg-card p-4 shadow-corporate sm:p-6">
+      <section className="relative overflow-hidden rounded-[1.75rem] border bg-card p-4 sm:p-6">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,hsl(var(--accent)/0.16),transparent_24rem),linear-gradient(135deg,hsl(var(--primary)/0.06),transparent_36rem)]" />
         <div className="relative">
           <div className="mb-5 grid gap-3 sm:grid-cols-3">

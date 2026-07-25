@@ -52,6 +52,10 @@ export class UpdateCandidatoDto {
   @IsOptional()
   possuiFilhos?: boolean;
 
+  @IsInt()
+  @IsOptional()
+  cidadeVagaId?: number;
+
   // Admissão
   @IsIn(['PRIMEIRO_EMPREGO', 'REEMPREGO'])
   @IsOptional()
