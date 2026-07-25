@@ -3,11 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/Logo';
 import api from '@/lib/api';
 
 const cpfSchema = z
@@ -88,7 +89,7 @@ export default function LoginPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-        <CardTitle className="font-display text-2xl">Admissão Digital</CardTitle>
+        <Logo className="mx-auto mb-2 justify-center" />
         <CardDescription>
           Informe seu CPF e e-mail ou telefone para receber um código de acesso.
         </CardDescription>

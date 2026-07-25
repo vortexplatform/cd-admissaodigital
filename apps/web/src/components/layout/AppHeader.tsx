@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { LogOut, Menu, ShieldCheck, X } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import EmpresaSelector from '@/components/EmpresaSelector';
+import { Logo } from '@/components/Logo';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
@@ -44,9 +45,7 @@ export default function AppHeader({
     <header className="border-b bg-background/95 px-4 py-4 backdrop-blur lg:px-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-md bg-primary text-primary-foreground">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
+          <Logo showWordmark={false} />
           <div>
             <p className="text-body-lg font-medium leading-none">{title}</p>
             <p className="mt-1 text-body-sm text-muted-foreground">{description}</p>

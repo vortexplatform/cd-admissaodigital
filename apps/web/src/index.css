@@ -5,53 +5,53 @@
 @tailwind utilities;
 
 /*
- * Tokens semanticos alinhados ao DESIGN.md (Intercom).
- * Light = canvas creme + ink carvao; dark = paleta inverse do DESIGN.md.
+ * Tokens semanticos — paleta azul escuro profissional.
+ * Light = canvas azulado claro + ink azul escuro; dark = azul profundo.
  */
 @layer base {
   :root {
-    --background: 33 31% 94%; /* canvas #f5f1ec */
-    --foreground: 0 0% 7%; /* ink #111111 */
+    --background: 210 20% 96%; /* canvas azulado claro #f0f4f8 */
+    --foreground: 215 30% 15%; /* ink azul escuro #1b2a3d */
     --card: 0 0% 100%; /* surface-1 #ffffff */
-    --card-foreground: 0 0% 7%;
+    --card-foreground: 215 30% 15%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 7%;
-    --primary: 0 0% 7%; /* ink — primario do sistema e carvao */
+    --popover-foreground: 215 30% 15%;
+    --primary: 215 70% 38%; /* azul escuro profissional #1d4a8a */
     --primary-foreground: 0 0% 100%;
-    --secondary: 36 20% 90%; /* surface-2 #ebe7e1 */
-    --secondary-foreground: 0 0% 7%;
-    --muted: 36 20% 90%;
-    --muted-foreground: 60 1% 38%; /* ink-muted #626260 */
-    --accent: 36 20% 90%;
-    --accent-foreground: 0 0% 7%;
+    --secondary: 210 25% 92%; /* surface-2 azulado #e4eaf1 */
+    --secondary-foreground: 215 30% 15%;
+    --muted: 210 18% 90%;
+    --muted-foreground: 215 12% 45%; /* ink-muted #5e6b7a */
+    --accent: 210 25% 92%;
+    --accent-foreground: 215 30% 15%;
     --destructive: 0 75% 44%; /* semantic-error #c41c1c */
     --destructive-foreground: 0 0% 100%;
-    --border: 37 13% 80%; /* hairline #d3cec6 */
-    --input: 37 13% 80%;
-    --ring: 0 0% 7%;
-    --radius: 0.5rem; /* 8px — botoes e inputs (DESIGN.md rounded.md) */
+    --border: 210 15% 82%; /* hairline azulado #c8d1dc */
+    --input: 210 15% 82%;
+    --ring: 215 70% 38%;
+    --radius: 0.5rem; /* 8px — botoes e inputs */
   }
 
   .dark {
-    --background: 0 0% 4%; /* inverse-canvas (preto suavizado) */
-    --foreground: 0 0% 100%; /* inverse-ink */
-    --card: 0 0% 19%; /* inverse-surface-1 #313130 */
-    --card-foreground: 0 0% 100%;
-    --popover: 0 0% 19%;
-    --popover-foreground: 0 0% 100%;
-    --primary: 0 0% 100%;
-    --primary-foreground: 0 0% 7%;
-    --secondary: 0 0% 16%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 16%;
-    --muted-foreground: 220 5% 63%; /* inverse-ink-muted #9c9fa5 */
-    --accent: 0 0% 16%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 75% 44%;
+    --background: 220 25% 8%; /* canvas azul escuro profundo #0f1520 */
+    --foreground: 210 20% 94%; /* ink claro #ebeff4 */
+    --card: 218 25% 14%; /* surface-1 #17223a */
+    --card-foreground: 210 20% 94%;
+    --popover: 218 25% 14%;
+    --popover-foreground: 210 20% 94%;
+    --primary: 215 60% 55%; /* azul medio vibrante #3b7dd8 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 218 20% 18%;
+    --secondary-foreground: 210 20% 94%;
+    --muted: 218 20% 18%;
+    --muted-foreground: 215 15% 60%; /* ink-muted #8494a7 */
+    --accent: 218 20% 18%;
+    --accent-foreground: 210 20% 94%;
+    --destructive: 0 75% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 24%;
-    --input: 0 0% 24%;
-    --ring: 0 0% 85%;
+    --border: 218 20% 22%;
+    --input: 218 20% 22%;
+    --ring: 215 60% 55%;
   }
 
   * {

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/Logo';
 import api from '@/lib/api';
 
 const signupSchema = z.object({
@@ -59,6 +60,7 @@ export default function SignupPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
+        <Logo className="mx-auto mb-2 justify-center" />
         <CardTitle className="font-display text-2xl">Criar acesso</CardTitle>
         <CardDescription>
           Informe seu CPF e e-mail ou telefone para receber o código de primeiro acesso.

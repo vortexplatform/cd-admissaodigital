@@ -1,8 +1,7 @@
 import type { Config } from 'tailwindcss';
 
-// Intercom design system tokens (source of truth: DESIGN.md at the repo root).
-// Saans is proprietary; Inter (weight 500 for display) is the recommended free substitute,
-// and JetBrains Mono substitutes SaansMono.
+// Design system tokens — paleta azul escuro profissional.
+// Inter (weight 500 for display) para tipografia, JetBrains Mono para código.
 const config = {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -42,32 +41,30 @@ const config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        // Intercom tokens (DESIGN.md -> colors)
+        // Tokens semanticos — paleta azul escuro
         ink: {
-          DEFAULT: '#111111',
-          muted: '#626260',
-          subtle: '#7b7b78',
-          tertiary: '#9c9fa5',
+          DEFAULT: '#1b2a3d',
+          muted: '#5e6b7a',
+          subtle: '#7889a0',
+          tertiary: '#8494a7',
         },
-        canvas: '#f5f1ec',
+        canvas: '#f0f4f8',
         surface: {
           1: '#ffffff',
-          2: '#ebe7e1',
+          2: '#e4eaf1',
         },
         inverse: {
-          canvas: '#000000',
-          surface: '#313130',
-          ink: '#ffffff',
-          'ink-muted': '#9c9fa5',
+          canvas: '#0f1520',
+          surface: '#17223a',
+          ink: '#ebeff4',
+          'ink-muted': '#8494a7',
         },
         hairline: {
-          DEFAULT: '#d3cec6',
-          soft: '#ebe7e1',
+          DEFAULT: '#c8d1dc',
+          soft: '#e4eaf1',
         },
-        // Fin Orange is the Fin AI product accent only — never a generic primary (DESIGN.md don'ts)
-        fin: '#ff5600',
         brand: {
-          blue: '#0007cb',
+          blue: '#1d4a8a',
         },
         report: {
           orange: '#fe4c02',
@@ -81,7 +78,7 @@ const config = {
         success: '#0bdf50',
       },
       borderRadius: {
-        // Escala Intercom (DESIGN.md -> rounded) — substitui a escala var-driven do shadcn.
+        // Escala de border-radius
         xs: '4px',
         sm: '6px',
         md: '8px',
@@ -91,7 +88,7 @@ const config = {
         pill: '9999px',
       },
       fontSize: {
-        // Intercom typography scale (DESIGN.md -> typography)
+        // Escala tipográfica
         'display-xl': ['72px', { lineHeight: '1.05', letterSpacing: '-2px', fontWeight: '500' }],
         'display-lg': ['56px', { lineHeight: '1.10', letterSpacing: '-1.4px', fontWeight: '500' }],
         'display-md': ['40px', { lineHeight: '1.15', letterSpacing: '-0.8px', fontWeight: '500' }],
@@ -114,7 +111,7 @@ const config = {
           'system-ui',
           'sans-serif',
         ],
-        // DESIGN.md: a single family carries the hierarchy — display reuses the sans stack.
+        // Display reutiliza a mesma stack de fontes sans-serif.
         display: [
           'Saans',
           'Inter',
@@ -126,7 +123,7 @@ const config = {
         mono: ['SaansMono', '"JetBrains Mono"', 'SaansMono Fallback', 'ui-monospace', 'monospace'],
       },
       spacing: {
-        // Intercom spacing tokens (DESIGN.md -> spacing), base unit 8px
+        // Spacing tokens, base unit 8px
         section: '96px',
       },
       maxWidth: {

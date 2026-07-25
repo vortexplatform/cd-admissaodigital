@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OTPInput, REGEXP_ONLY_DIGITS } from 'input-otp';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/Logo';
 import { useAuth, type AuthSession } from '@/context/AuthContext';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -93,6 +94,7 @@ export default function OtpPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
+        <Logo className="mx-auto mb-2 justify-center" />
         <CardTitle className="font-display text-2xl">Verificação</CardTitle>
         <CardDescription>
           Código enviado para{' '}

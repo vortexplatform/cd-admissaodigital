@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/Logo';
 import { useAuth } from '@/context/AuthContext';
 import type { AuthSession } from '@/context/AuthContext';
 import api from '@/lib/api';
@@ -52,6 +53,7 @@ export default function RhLoginPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
+        <Logo className="mx-auto mb-2 justify-center" />
         <CardTitle className="font-display text-2xl">Acesso RH</CardTitle>
         <CardDescription>Entre com seu e-mail e senha.</CardDescription>
       </CardHeader>
