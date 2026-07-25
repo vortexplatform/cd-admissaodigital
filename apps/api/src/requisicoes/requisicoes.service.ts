@@ -54,6 +54,13 @@ const clampLimit = (value?: string) => {
   return Math.min(Math.max(Math.trunc(limit), 1), 50);
 };
 
+const normalizePage = (value?: string) => {
+  const page = Number(value);
+  if (!Number.isFinite(page)) return 1;
+
+  return Math.max(Math.trunc(page), 1);
+};
+
 const activeCandidaturaStatuses = new Set<StatusCandidatura>([
   StatusCandidatura.INSCRITO,
   StatusCandidatura.EM_ANALISE,
@@ -76,11 +83,48 @@ export class RequisicoesService {
     });
   }
 
-  findAll() {
-    return this.prisma.requisicaoVaga.findMany({
-      include: requisicaoInclude,
-      orderBy: { createdAt: 'desc' },
-    });
+  async findPaginated({
+    page,
+    limit,
+    filial,
+    cargo,
+    setor,
+    status,
+  }: {
+    page?: string;
+    limit?: string;
+    filial?: string;
+    cargo?: string;
+    setor?: string;
+    status?: string;
+  }) {
+    const currentPage = normalizePage(page);
+    const pageSize = clampLimit(limit);
+    const where: Prisma.RequisicaoVagaWhereInput = {
+      ...(filial ? { filialNome: { equals: filial } } : {}),
+      ...(cargo ? { cargoNome: { equals: cargo } } : {}),
+      ...(setor ? { ccustoNome: { equals: setor } } : {}),
+      ...(status ? { status: status as StatusRequisicaoVaga } : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.requisicaoVaga.findMany({
+        where,
+        include: requisicaoInclude,
+        orderBy: { createdAt: 'desc' },
+        skip: (currentPage - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.requisicaoVaga.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page: currentPage,
+      limit: pageSize,
+      totalPages: Math.max(Math.ceil(total / pageSize), 1),
+    };
   }
 
   async findDisponiveis({

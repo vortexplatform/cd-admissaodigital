@@ -85,6 +85,14 @@ export interface Requisicao {
   createdAt: string;
 }
 
+export interface PaginatedRequisicoesResponse {
+  data: Requisicao[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export const labels: Record<string, string> = {
   NOVA_VAGA: 'Nova vaga',
   SUBSTITUICAO: 'Substituição',

@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import api from '@/lib/api';
 import {
   type Candidatura,
+  type PaginatedRequisicoesResponse,
   type Requisicao,
   type StatusCandidatura,
   formatCpf,
@@ -92,6 +93,28 @@ const uniqueOptions = (values: Array<string | null | undefined>) =>
     .sort((first, second) => first.localeCompare(second, 'pt-BR'))
     .map((value) => ({ value, label: value }));
 
+const pageSize = 20;
+
+const fetchPaginatedRequisicoes = (
+  currentPage: number,
+  filters: {
+    filial: string | null;
+    cargo: string | null;
+    setor: string | null;
+    status: string | null;
+  },
+) =>
+  api.get<PaginatedRequisicoesResponse>('/requisicoes', {
+    params: {
+      page: currentPage,
+      limit: pageSize,
+      ...(filters.filial ? { filial: filters.filial } : {}),
+      ...(filters.cargo ? { cargo: filters.cargo } : {}),
+      ...(filters.setor ? { setor: filters.setor } : {}),
+      ...(filters.status ? { status: filters.status } : {}),
+    },
+  });
+
 export default function RequisicoesPage() {
   const navigate = useNavigate();
   const [requisicoes, setRequisicoes] = useState<Requisicao[]>([]);
@@ -107,33 +130,66 @@ export default function RequisicoesPage() {
   const [removingCandidaturaId, setRemovingCandidaturaId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1, limit: pageSize });
   const candidateSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const activeFilters = {
+    filial: filialFilter?.value ?? null,
+    cargo: cargoFilter?.value ?? null,
+    setor: setorFilter?.value ?? null,
+    status: statusFilter?.value ?? null,
+  };
+  const hasActiveFilters = Boolean(filialFilter || cargoFilter || setorFilter || statusFilter);
 
   const filialOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.filialNome));
   const cargoOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.cargoNome));
   const setorOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.ccustoNome));
   const statusOptions = statusList.map((status) => ({ value: status, label: labels[status] }));
-  const filteredRequisicoes = requisicoes.filter((requisicao) => {
-    if (filialFilter && requisicao.filialNome !== filialFilter.value) return false;
-    if (cargoFilter && requisicao.cargoNome !== cargoFilter.value) return false;
-    if (setorFilter && requisicao.ccustoNome !== setorFilter.value) return false;
-    if (statusFilter && requisicao.status !== statusFilter.value) return false;
 
-    return true;
-  });
-  const hasActiveFilters = Boolean(filialFilter || cargoFilter || setorFilter || statusFilter);
-
-  const loadData = async () => {
-    const requisicoesResponse = await api.get<Requisicao[]>('/requisicoes');
-    setRequisicoes(requisicoesResponse.data);
-    return requisicoesResponse.data;
+  const loadData = async (currentPage: number, filters = activeFilters) => {
+    const { data } = await fetchPaginatedRequisicoes(currentPage, filters);
+    setRequisicoes(data.data);
+    setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
+    return data.data;
   };
 
   useEffect(() => {
-    loadData()
-      .catch(() => setError('Não foi possível carregar as requisições.'))
-      .finally(() => setIsLoading(false));
-  }, []);
+    setPage(1);
+  }, [filialFilter?.value, cargoFilter?.value, setorFilter?.value, statusFilter?.value]);
+
+  useEffect(() => {
+    if (page > pagination.totalPages && pagination.totalPages > 0) {
+      setPage(pagination.totalPages);
+    }
+  }, [page, pagination.totalPages]);
+
+  useEffect(() => {
+    let isCurrentRequest = true;
+    setIsLoading(true);
+    setError('');
+    fetchPaginatedRequisicoes(page, {
+      filial: filialFilter?.value ?? null,
+      cargo: cargoFilter?.value ?? null,
+      setor: setorFilter?.value ?? null,
+      status: statusFilter?.value ?? null,
+    })
+      .then(({ data }) => {
+        if (!isCurrentRequest) return;
+        setRequisicoes(data.data);
+        setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
+      })
+      .catch(() => {
+        if (isCurrentRequest) setError('Não foi possível carregar as requisições.');
+      })
+      .finally(() => {
+        if (isCurrentRequest) setIsLoading(false);
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [page, filialFilter?.value, cargoFilter?.value, setorFilter?.value, statusFilter?.value]);
 
   useEffect(
     () => () => {
@@ -150,7 +206,7 @@ export default function RequisicoesPage() {
     setError('');
     try {
       await api.delete(`/requisicoes/${requisicao.id}`);
-      await loadData();
+      await loadData(page);
     } catch {
       setError('Não foi possível excluir a requisição.');
     }
@@ -209,7 +265,7 @@ export default function RequisicoesPage() {
     setIsLinking(true);
     try {
       await api.post(`/requisicoes/${linkModalRequisicao.id}/candidaturas`, { candidatoId });
-      await loadData();
+      await loadData(page);
       setLinkModalRequisicao(null);
       setSelectedCandidato(null);
     } catch {
@@ -226,7 +282,7 @@ export default function RequisicoesPage() {
     setError('');
     try {
       await api.patch(`/candidaturas/${candidatura.id}/status`, { status });
-      const updatedRequisicoes = await loadData();
+      const updatedRequisicoes = await loadData(page);
       if (candidatosModalRequisicao) {
         setCandidatosModalRequisicao(
           updatedRequisicoes.find((item) => item.id === candidatosModalRequisicao.id) ?? null,
@@ -246,7 +302,7 @@ export default function RequisicoesPage() {
     setRemovingCandidaturaId(candidatura.id);
     try {
       await api.delete(`/candidaturas/${candidatura.id}`);
-      const updatedRequisicoes = await loadData();
+      const updatedRequisicoes = await loadData(page);
       if (candidatosModalRequisicao) {
         setCandidatosModalRequisicao(
           updatedRequisicoes.find((item) => item.id === candidatosModalRequisicao.id) ?? null,
@@ -277,7 +333,7 @@ export default function RequisicoesPage() {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,hsl(var(--accent)/0.16),transparent_24rem),linear-gradient(135deg,hsl(var(--primary)/0.06),transparent_36rem)]" />
         <div className="relative">
           <div className="mb-5 grid gap-3 sm:grid-cols-3">
-            <MetricCard label="Requisições" value={requisicoes.length} />
+            <MetricCard label="Total de requisições" value={pagination.total} />
             <MetricCard
               label="Vagas abertas"
               value={requisicoes.reduce((total, item) => total + item.quantidadeVagas, 0)}
@@ -288,7 +344,7 @@ export default function RequisicoesPage() {
             />
           </div>
 
-          {requisicoes.length > 0 && (
+          {pagination.total > 0 && (
             <div className="mb-5 rounded-2xl border bg-background/80 p-4">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -343,7 +399,7 @@ export default function RequisicoesPage() {
                 />
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                Exibindo {filteredRequisicoes.length} de {requisicoes.length} requisição(ões).
+                Exibindo {requisicoes.length} de {pagination.total} requisição(ões).
               </p>
             </div>
           )}
@@ -358,18 +414,9 @@ export default function RequisicoesPage() {
             </Card>
           ) : requisicoes.length === 0 ? (
             <EmptyState onCreate={() => navigate('/requisicoes/novo')} />
-          ) : filteredRequisicoes.length === 0 ? (
-            <Card className="border-dashed bg-background/85 text-center">
-              <CardContent className="p-8">
-                <p className="font-semibold">Nenhuma requisição encontrada</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Ajuste os filtros para voltar a visualizar a fila.
-                </p>
-              </CardContent>
-            </Card>
           ) : (
             <div className="space-y-3">
-              {filteredRequisicoes.map((requisicao, index) => (
+              {requisicoes.map((requisicao, index) => (
                 <article
                   key={requisicao.id}
                   className="group grid gap-4 rounded-2xl border bg-background/92 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
@@ -446,6 +493,38 @@ export default function RequisicoesPage() {
                   </div>
                 </article>
               ))}
+            </div>
+          )}
+          {!isLoading && pagination.total > 0 && (
+            <div className="flex flex-col gap-3 pt-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Exibindo {(page - 1) * pagination.limit + 1}-
+                {Math.min(page * pagination.limit, pagination.total)} de {pagination.total}{' '}
+                requisição(ões)
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="min-w-24 text-center text-xs font-semibold uppercase tracking-wide">
+                  Página {page} de {pagination.totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= pagination.totalPages}
+                  onClick={() => setPage((current) => Math.min(current + 1, pagination.totalPages))}
+                >
+                  Próxima
+                </Button>
+              </div>
             </div>
           )}
         </div>

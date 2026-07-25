@@ -27,8 +27,15 @@ export class RequisicoesController {
   }
 
   @Get()
-  findAll() {
-    return this.requisicoes.findAll();
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('filial') filial?: string,
+    @Query('cargo') cargo?: string,
+    @Query('setor') setor?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.requisicoes.findPaginated({ page, limit, filial, cargo, setor, status });
   }
 
   @Get('disponiveis')
