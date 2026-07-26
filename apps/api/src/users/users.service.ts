@@ -4,6 +4,7 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 const normalizeCpf = (value?: string | null) => {
   const digits = value?.replace(/\D/g, '') ?? '';
@@ -122,6 +123,32 @@ export class UsersService {
           include: { empresa: true },
         },
       },
+    });
+  }
+
+  async updateUser(userId: number, dto: UpdateUserDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Usuário não encontrado.');
+
+    if (dto.role && dto.role !== Role.RH && dto.role !== Role.ADMIN) {
+      throw new BadRequestException('Apenas perfis RH ou ADMIN são permitidos.');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { role: dto.role },
+    });
+  }
+
+  findAll() {
+    return this.prisma.user.findMany({
+      where: { role: { in: [Role.RH, Role.ADMIN] } },
+      include: {
+        empresas: {
+          include: { empresa: true },
+        },
+      },
+      orderBy: { nome: 'asc' },
     });
   }
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, ShieldCheck } from 'lucide-react';
+import { Building2, Link, Pencil, Plus, ShieldCheck, Unlink, X } from 'lucide-react';
 import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,10 @@ import api from '@/lib/api';
 interface EmpresaUsuario {
   id: number;
   user: User;
+}
+
+interface UserWithEmpresas extends User {
+  empresas: { empresa: Empresa }[];
 }
 
 const usuarioSchema = z
@@ -38,6 +42,17 @@ export default function UsuariosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Estado de edição
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editRole, setEditRole] = useState<'RH' | 'ADMIN'>('RH');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Estado de vínculo com empresa
+  const [linkingUserId, setLinkingUserId] = useState<number | null>(null);
+  const [linkEmpresaId, setLinkEmpresaId] = useState('');
+  const [userEmpresas, setUserEmpresas] = useState<Empresa[]>([]);
+  const [isLoadingEmpresas, setIsLoadingEmpresas] = useState(false);
 
   const {
     register,
@@ -106,6 +121,71 @@ export default function UsuariosPage() {
       setIsSaving(false);
     }
   };
+
+  const handleEditRole = (user: User) => {
+    setEditingUserId(user.id);
+    setEditRole(user.role as 'RH' | 'ADMIN');
+    setLinkingUserId(null);
+  };
+
+  const handleSaveRole = async (userId: number) => {
+    setIsSavingEdit(true);
+    try {
+      await api.patch(`/users/${userId}`, { role: editRole });
+      await loadUsuarios(empresaId);
+      setEditingUserId(null);
+    } catch {
+      setError('Não foi possível atualizar o perfil do usuário.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const loadUserEmpresas = async (userId: number) => {
+    setIsLoadingEmpresas(true);
+    try {
+      const { data } = await api.get<UserWithEmpresas[]>('/users');
+      const user = data.find((u) => u.id === userId);
+      setUserEmpresas(user?.empresas.map((e) => e.empresa) ?? []);
+    } catch {
+      setUserEmpresas([]);
+    } finally {
+      setIsLoadingEmpresas(false);
+    }
+  };
+
+  const handleOpenLinkEmpresas = async (userId: number) => {
+    setLinkingUserId(userId);
+    setEditingUserId(null);
+    setLinkEmpresaId('');
+    await loadUserEmpresas(userId);
+  };
+
+  const handleVincularEmpresa = async (userId: number) => {
+    if (!linkEmpresaId) return;
+    try {
+      await api.post(`/empresas/${linkEmpresaId}/usuarios`, { userId });
+      await loadUserEmpresas(userId);
+      await loadUsuarios(empresaId);
+      setLinkEmpresaId('');
+    } catch {
+      setError('Não foi possível vincular o usuário à empresa.');
+    }
+  };
+
+  const handleDesvincularEmpresa = async (userId: number, empresaIdToRemove: number) => {
+    try {
+      await api.delete(`/empresas/${empresaIdToRemove}/usuarios/${userId}`);
+      await loadUserEmpresas(userId);
+      await loadUsuarios(empresaId);
+    } catch {
+      setError('Não foi possível desvincular o usuário da empresa.');
+    }
+  };
+
+  const empresasNaoVinculadas = empresas.filter(
+    (e) => !userEmpresas.some((ue) => ue.id === e.id),
+  );
 
   return (
     <>
@@ -209,27 +289,162 @@ export default function UsuariosPage() {
               </div>
             ) : (
               <div className="overflow-hidden rounded-xl border">
-                <div className="hidden grid-cols-[1fr_8rem_12rem] gap-4 border-b bg-muted/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
+                <div className="hidden grid-cols-[1fr_8rem_12rem_auto] gap-4 border-b bg-muted/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
                   <span>Usuário</span>
                   <span>Perfil</span>
                   <span>Contato</span>
+                  <span>Ações</span>
                 </div>
                 <div className="divide-y">
                   {usuarios.map((vinculo) => (
-                    <div
-                      key={vinculo.id}
-                      className="grid gap-3 bg-background px-4 py-4 md:grid-cols-[1fr_8rem_12rem] md:items-center"
-                    >
-                      <div>
-                        <p className="font-semibold">{vinculo.user.nome ?? 'Sem nome'}</p>
-                        <p className="text-xs text-muted-foreground">CPF {vinculo.user.cpf}</p>
+                    <div key={vinculo.id}>
+                      <div className="grid gap-3 bg-background px-4 py-4 md:grid-cols-[1fr_8rem_12rem_auto] md:items-center">
+                        <div>
+                          <p className="font-semibold">{vinculo.user.nome ?? 'Sem nome'}</p>
+                          <p className="text-xs text-muted-foreground">CPF {vinculo.user.cpf}</p>
+                        </div>
+
+                        {editingUserId === vinculo.user.id ? (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={editRole}
+                              onChange={(e) => setEditRole(e.target.value as 'RH' | 'ADMIN')}
+                              className="flex h-8 rounded-md border border-input bg-background px-2 py-1 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <option value="RH">RH</option>
+                              <option value="ADMIN">Admin</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <span className="w-fit rounded-full bg-secondary px-3 py-1 text-sm font-semibold text-secondary-foreground">
+                            {vinculo.user.role}
+                          </span>
+                        )}
+
+                        <p className="truncate text-sm text-muted-foreground">
+                          {vinculo.user.email ?? vinculo.user.telefone ?? 'Sem contato'}
+                        </p>
+
+                        <div className="flex items-center gap-1">
+                          {editingUserId === vinculo.user.id ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => handleSaveRole(vinculo.user.id)}
+                                disabled={isSavingEdit}
+                              >
+                                {isSavingEdit ? 'Salvando...' : 'Salvar'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingUserId(null)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Editar perfil"
+                                onClick={() => handleEditRole(vinculo.user)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Gerenciar empresas"
+                                onClick={() => handleOpenLinkEmpresas(vinculo.user.id)}
+                              >
+                                <Building2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <span className="w-fit rounded-full bg-secondary px-3 py-1 text-sm font-semibold text-secondary-foreground">
-                        {vinculo.user.role}
-                      </span>
-                      <p className="truncate text-sm text-muted-foreground">
-                        {vinculo.user.email ?? vinculo.user.telefone ?? 'Sem contato'}
-                      </p>
+
+                      {linkingUserId === vinculo.user.id && (
+                        <div className="border-t bg-muted/30 px-4 py-4">
+                          <p className="mb-3 text-sm font-semibold">
+                            Empresas vinculadas a {vinculo.user.nome}
+                          </p>
+
+                          {isLoadingEmpresas ? (
+                            <p className="text-sm text-muted-foreground">Carregando...</p>
+                          ) : (
+                            <>
+                              {userEmpresas.length > 0 && (
+                                <div className="mb-3 flex flex-wrap gap-2">
+                                  {userEmpresas.map((emp) => (
+                                    <span
+                                      key={emp.id}
+                                      className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-sm"
+                                    >
+                                      {emp.nome}
+                                      <button
+                                        type="button"
+                                        title="Desvincular"
+                                        className="rounded-full p-0.5 hover:bg-destructive/20 hover:text-destructive"
+                                        onClick={() =>
+                                          handleDesvincularEmpresa(vinculo.user.id, emp.id)
+                                        }
+                                      >
+                                        <Unlink className="h-3 w-3" />
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {userEmpresas.length === 0 && (
+                                <p className="mb-3 text-sm text-muted-foreground">
+                                  Nenhuma empresa vinculada.
+                                </p>
+                              )}
+
+                              {empresasNaoVinculadas.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    value={linkEmpresaId}
+                                    onChange={(e) => setLinkEmpresaId(e.target.value)}
+                                    className="flex h-9 flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                                  >
+                                    <option value="">Selecione uma empresa</option>
+                                    {empresasNaoVinculadas.map((emp) => (
+                                      <option key={emp.id} value={emp.id}>
+                                        {emp.nome}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!linkEmpresaId}
+                                    onClick={() => handleVincularEmpresa(vinculo.user.id)}
+                                  >
+                                    <Link className="h-4 w-4" />
+                                    Vincular
+                                  </Button>
+                                </div>
+                              )}
+
+                              <div className="mt-2 flex justify-end">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setLinkingUserId(null)}
+                                >
+                                  Fechar
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
