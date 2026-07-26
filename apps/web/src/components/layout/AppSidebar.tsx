@@ -54,36 +54,34 @@ export default function AppSidebar() {
           </NavLink>
         </div>
 
-        <div>
-          <div className="mb-2 flex items-center gap-3 px-3 text-caption font-medium text-muted-foreground">
-            <span>Configurações</span>
-            <span className="h-px flex-1 bg-border" />
+        {isAdmin && (
+          <div>
+            <div className="mb-2 flex items-center gap-3 px-3 text-caption font-medium text-muted-foreground">
+              <span>Configurações</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <NavLink to="/documentos/configuracoes" className={linkClass}>
+              <FileText className="h-4 w-4" />
+              Regras de documentos
+            </NavLink>
+            <NavLink to="/certificados-a1" className={linkClass}>
+              <KeyRound className="h-4 w-4" />
+              Certificado A1
+            </NavLink>
+            <NavLink to="/biometria" className={linkClass}>
+              <Fingerprint className="h-4 w-4" />
+              Biometria
+            </NavLink>
+            <NavLink to="/empresas" className={linkClass}>
+              <Building2 className="h-4 w-4" />
+              Empresas
+            </NavLink>
+            <NavLink to="/usuarios" className={linkClass}>
+              <UsersRound className="h-4 w-4" />
+              Usuários
+            </NavLink>
           </div>
-          <NavLink to="/documentos/configuracoes" className={linkClass}>
-            <FileText className="h-4 w-4" />
-            Regras de documentos
-          </NavLink>
-          <NavLink to="/certificados-a1" className={linkClass}>
-            <KeyRound className="h-4 w-4" />
-            Certificado A1
-          </NavLink>
-          {isAdmin && (
-            <>
-              <NavLink to="/biometria" className={linkClass}>
-                <Fingerprint className="h-4 w-4" />
-                Biometria
-              </NavLink>
-              <NavLink to="/empresas" className={linkClass}>
-                <Building2 className="h-4 w-4" />
-                Empresas
-              </NavLink>
-              <NavLink to="/usuarios" className={linkClass}>
-                <UsersRound className="h-4 w-4" />
-                Usuários
-              </NavLink>
-            </>
-          )}
-        </div>
+        )}
       </nav>
     </aside>
   );

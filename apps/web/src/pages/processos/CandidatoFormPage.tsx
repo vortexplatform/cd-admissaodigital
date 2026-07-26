@@ -1512,8 +1512,12 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       });
       reloadCandidato();
       closeLinkModal(true);
-    } catch {
-      setLinkModalError('Não foi possível vincular o candidato à requisição.');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setLinkModalError(msg || 'Não foi possível vincular o candidato à requisição.');
     } finally {
       setIsSavingLink(false);
     }

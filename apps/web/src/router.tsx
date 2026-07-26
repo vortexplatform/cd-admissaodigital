@@ -171,9 +171,9 @@ export default function Router() {
         <Route path="/documentos" element={<DocumentosRhPage />} />
         <Route path="/assinaturas" element={<AssinaturasPendentesPage />} />
         <Route path="/assinaturas/:candidatoId" element={<AssinaturasRhPage />} />
-        <Route path="/certificados-a1" element={<CertificadosA1Page />} />
-        <Route path="/documentos/configuracoes" element={<DocumentoTemplatesPage />} />
         <Route element={<AdminRoute />}>
+          <Route path="/certificados-a1" element={<CertificadosA1Page />} />
+          <Route path="/documentos/configuracoes" element={<DocumentoTemplatesPage />} />
           <Route path="/empresas" element={<EmpresasPage />} />
           <Route path="/usuarios" element={<UsuariosPage />} />
           <Route path="/biometria" element={<BiometriaPage />} />

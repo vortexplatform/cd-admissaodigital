@@ -24,6 +24,7 @@ export class CandidaturasService {
   async create(requisicaoId: number, dto: CreateCandidaturaDto, criadoPorUserId: number) {
     const requisicao = await this.ensureRequisicaoExists(requisicaoId);
     await this.ensureCandidatoExists(dto.candidatoId);
+    await this.ensureVagaDisponivelParaVinculo(requisicaoId);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -76,11 +77,17 @@ export class CandidaturasService {
       await this.ensureVagaDisponivel(candidatura.requisicaoId, id);
     }
 
-    return this.prisma.candidatura.update({
+    const updated = await this.prisma.candidatura.update({
       where: { id },
       data: { status: dto.status },
       include: candidaturaInclude,
     });
+
+    if (dto.status === StatusCandidatura.APROVADO) {
+      await this.concluirRequisicaoSeVagasPreenchidas(candidatura.requisicaoId);
+    }
+
+    return updated;
   }
 
   async updateDataAdmissaoPrevista(
@@ -143,6 +150,29 @@ export class CandidaturasService {
     return candidato;
   }
 
+  private async ensureVagaDisponivelParaVinculo(requisicaoId: number) {
+    const requisicao = await this.ensureRequisicaoExists(requisicaoId);
+    const ativas = await this.prisma.candidatura.count({
+      where: {
+        requisicaoId,
+        status: {
+          in: [
+            StatusCandidatura.INSCRITO,
+            StatusCandidatura.EM_ANALISE,
+            StatusCandidatura.ENTREVISTA,
+            StatusCandidatura.APROVADO,
+          ],
+        },
+      },
+    });
+
+    if (ativas >= requisicao.quantidadeVagas) {
+      throw new BadRequestException(
+        'Todas as vagas desta requisição já estão preenchidas por candidatos ativos.',
+      );
+    }
+  }
+
   private async ensureVagaDisponivel(requisicaoId: number, candidaturaId: number) {
     const requisicao = await this.ensureRequisicaoExists(requisicaoId);
     const aprovadas = await this.prisma.candidatura.count({
@@ -155,6 +185,23 @@ export class CandidaturasService {
 
     if (aprovadas >= requisicao.quantidadeVagas) {
       throw new BadRequestException('A quantidade de vagas aprovadas já foi atingida.');
+    }
+  }
+
+  private async concluirRequisicaoSeVagasPreenchidas(requisicaoId: number) {
+    const requisicao = await this.ensureRequisicaoExists(requisicaoId);
+    const aprovadas = await this.prisma.candidatura.count({
+      where: {
+        requisicaoId,
+        status: StatusCandidatura.APROVADO,
+      },
+    });
+
+    if (aprovadas >= requisicao.quantidadeVagas) {
+      await this.prisma.requisicaoVaga.update({
+        where: { id: requisicaoId },
+        data: { status: StatusRequisicaoVaga.EM_ADMISSAO },
+      });
     }
   }
 
