@@ -122,6 +122,11 @@ export default function LoginPage() {
             Acesso RH →
           </Link>
         </p>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          <Link to="/" className="hover:underline">
+            Voltar
+          </Link>
+        </p>
       </CardContent>
     </Card>
   );

@@ -23,10 +23,9 @@ import BiometriaPage from '@/pages/configuracoes/BiometriaPage';
 import CertificadosA1Page from '@/pages/configuracoes/CertificadosA1Page';
 import DocumentoTemplatesPage from '@/pages/configuracoes/DocumentoTemplatesPage';
 // Candidato
-import CandidateDocumentosPage from '@/pages/candidato/CandidateDocumentosPage';
 import CandidateAssinaturasPage from '@/pages/candidato/CandidateAssinaturasPage';
-import RegulamentoPage from '@/pages/candidato/RegulamentoPage';
 // Público
+import VagasPage from '@/pages/public/VagasPage';
 import VerificacaoPage from '@/pages/verificacao/VerificacaoPage';
 import AdminLayout from '@/layouts/AdminLayout';
 import CandidateLayout from '@/layouts/CandidateLayout';
@@ -57,14 +56,14 @@ function AdminRoute({ children }: { children?: React.ReactNode }) {
   if (!hasCompleteProfile(user)) return <Navigate to="/complete-profile" replace />;
   if (needsCompanyLink(user, empresas.length))
     return <Navigate to="/empresa-obrigatoria" replace />;
-  if (user.role !== 'ADMIN') return <Navigate to="/" replace />;
+  if (user.role !== 'ADMIN') return <Navigate to="/painel" replace />;
   return children ? <>{children}</> : <Outlet />;
 }
 
 function AdminLayoutRoute() {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
-  if (user?.role === 'CANDIDATO') return <Navigate to="/candidato" replace />;
+  if (user?.role === 'CANDIDATO') return <Navigate to="/candidato-assinaturas" replace />;
 
   return (
     <ProtectedRoute>
@@ -77,7 +76,7 @@ function CandidateLayoutRoute() {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
   if (!user) return <Navigate to="/rh/login" replace />;
-  if (user?.role !== 'CANDIDATO') return <Navigate to="/" replace />;
+  if (user?.role !== 'CANDIDATO') return <Navigate to="/painel" replace />;
   return (
     <ProtectedRoute>
       <CandidateLayout />
@@ -90,7 +89,7 @@ function CompanyRequiredRoute() {
   if (isLoading) return null;
   if (!user) return <Navigate to="/rh/login" replace />;
   if (!hasCompleteProfile(user)) return <Navigate to="/complete-profile" replace />;
-  if (!needsCompanyLink(user, empresas.length)) return <Navigate to="/" replace />;
+  if (!needsCompanyLink(user, empresas.length)) return <Navigate to="/painel" replace />;
   return <CompanyAccessRequiredPage />;
 }
 
@@ -98,7 +97,7 @@ function CompleteProfileRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
   if (!user) return <Navigate to="/rh/login" replace />;
-  if (hasCompleteProfile(user)) return <Navigate to="/" replace />;
+  if (hasCompleteProfile(user)) return <Navigate to="/painel" replace />;
   return <>{children}</>;
 }
 
@@ -106,7 +105,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
   if (user && !hasCompleteProfile(user)) return <Navigate to="/complete-profile" replace />;
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to="/painel" replace />;
   return <>{children}</>;
 }
 
@@ -157,8 +156,9 @@ export default function Router() {
         />
       </Route>
       <Route path="/empresa-obrigatoria" element={<CompanyRequiredRoute />} />
+      <Route path="/" element={<VagasPage />} />
       <Route element={<AdminLayoutRoute />}>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/painel" element={<HomePage />} />
         <Route path="/requisicoes" element={<RequisicoesPage />} />
         <Route path="/requisicoes/novo" element={<RequisicaoFormPage mode="create" />} />
         <Route path="/requisicoes/:id" element={<RequisicaoFormPage mode="view" />} />
@@ -180,11 +180,21 @@ export default function Router() {
         </Route>
       </Route>
       <Route element={<CandidateLayoutRoute />}>
-        <Route path="/candidato" element={<HomePage />} />
-        <Route path="/candidato/documentos" element={<CandidateDocumentosPage />} />
+        <Route path="/candidato" element={<Navigate to="/candidato-assinaturas" replace />} />
+        <Route
+          path="/candidato/documentos"
+          element={<Navigate to="/candidato-assinaturas" replace />}
+        />
         <Route path="/candidato/assinaturas" element={<CandidateAssinaturasPage />} />
-        <Route path="/candidato/regulamento" element={<RegulamentoPage />} />
-        <Route path="/candidato/status" element={<HomePage />} />
+        <Route path="/candidato-assinaturas" element={<CandidateAssinaturasPage />} />
+        <Route
+          path="/candidato/regulamento"
+          element={<Navigate to="/candidato-assinaturas" replace />}
+        />
+        <Route
+          path="/candidato/status"
+          element={<Navigate to="/candidato-assinaturas" replace />}
+        />
       </Route>
       <Route path="/verificar/:codigo?" element={<VerificacaoPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

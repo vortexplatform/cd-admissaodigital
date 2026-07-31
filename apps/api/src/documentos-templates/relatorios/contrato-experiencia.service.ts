@@ -1,17 +1,26 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PDFDocument, PDFFont, PDFPage, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts } from 'pdf-lib';
 import { SeniorApiService } from '../../general/senior-api.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   PAGE_HEIGHT,
   PAGE_WIDTH,
-  TEXTO_ASSINATURA_ELETRONICA,
   drawAssinaturasEletronicas,
   drawFooter,
   drawHeader,
   drawParagraphs,
+  embedLogo,
 } from '../pdf-render.utils';
+
+const CLAUSULAS_ASSINATURA_CONTRATO = [
+  '11. As partes convencionam, para todos os fins do art. 10, § 2º, da Medida Provisória nº 2.200-2/2001, que o presente instrumento é celebrado e assinado por meio eletrônico, reconhecendo-o desde já como válido, autêntico, íntegro e eficaz, com força de instrumento particular, ainda que a assinatura do EMPREGADO seja produzida por processo de certificação não vinculado à ICP-Brasil.',
+  '12. A assinatura do EMPREGADO será colhida mediante assinatura eletrônica avançada, na acepção do art. 4º, II, da Lei nº 14.063/2020, adotada como parâmetro técnico de referência, por um ou mais dos seguintes métodos disponibilizados pela plataforma Admissão Digital: (i) código de uso único (OTP) enviado ao endereço de e-mail e/ou ao número de telefone celular previamente cadastrados pelo EMPREGADO; (ii) verificação biométrica; e/ou (iii) reconhecimento facial com prova de vivacidade.',
+  '13. A EMPREGADORA firmará o instrumento por seu representante legal ou procurador com poderes bastantes, mediante certificado digital padrão ICP-Brasil, na forma do art. 10, § 1º, da MP nº 2.200-2/2001.',
+  '14. O EMPREGADO declara que teve acesso prévio e integral ao teor deste instrumento antes de assiná-lo, que dispôs de tempo suficiente para sua leitura, que lhe foi facultado esclarecer dúvidas junto à EMPREGADORA e que o endereço de e-mail e o número de telefone utilizados para o recebimento do código de uso único são de sua exclusiva titularidade e uso pessoal.',
+  '15. Integram este instrumento, para todos os efeitos probatórios, o comprovante de assinatura eletrônica e a respectiva trilha de auditoria, dos quais constarão a identificação do signatário, o método de autenticação empregado, data e hora, endereço IP, dispositivo utilizado, código de verificação e os resumos criptográficos (hash) do documento antes e após a assinatura.',
+  '16. A EMPREGADORA disponibilizará ao EMPREGADO, sem qualquer custo, acesso permanente ao documento assinado e ao respectivo comprovante, com possibilidade de download, e encaminhará cópia ao e-mail por ele indicado, obrigando-se a arquivar o instrumento e sua trilha de auditoria por prazo não inferior a 5 (cinco) anos contados da extinção do contrato de trabalho.',
+];
 
 export type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
   include: { candidato: true; requisicao: { include: { empresa: true } } };
@@ -122,9 +131,10 @@ export class ContratoExperienciaService {
 
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const logo = await embedLogo(pdf);
 
     const page1 = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    this.desenharContrato(pdf, page1, regular, bold, {
+    this.desenharContrato(pdf, page1, regular, bold, logo, {
       empresaNome,
       empresaCnpj,
       empresaCidade,
@@ -222,6 +232,7 @@ export class ContratoExperienciaService {
     page: PDFPage,
     regular: PDFFont,
     bold: PDFFont,
+    logo: PDFImage,
     data: {
       empresaNome: string;
       empresaCnpj: string;
@@ -241,18 +252,9 @@ export class ContratoExperienciaService {
       candidatoPis: string;
     },
   ): void {
-    let y = drawHeader(page, bold);
+    let y = drawHeader(page, logo, 'Contrato de Trabalho a Título de Experiência', bold);
 
-    const title = 'Contrato de Trabalho a T\u00edtulo de Experi\u00eancia';
-    page.drawText(title, {
-      x: (PAGE_WIDTH - bold.widthOfTextAtSize(title, 11)) / 2,
-      y,
-      size: 11,
-      font: bold,
-    });
-    y -= 18;
-
-    const conteudo = this.montarClausulasContrato(data, TEXTO_ASSINATURA_ELETRONICA).join('\n');
+    const conteudo = this.montarClausulasContrato(data).join('\n');
 
     const { page: lastPage, y: lastY } = drawParagraphs(pdf, page, conteudo, regular, y, 8.5, {
       lineHeight: 11,
@@ -261,12 +263,20 @@ export class ContratoExperienciaService {
       x: 42,
       maxWidth: 511,
     });
+
+    const dataFormatada = new Intl.DateTimeFormat('pt-BR', {
+      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    }).format(data.dataAdmissao);
+    lastPage.drawText(`${data.empresaCidade}, ${dataFormatada}.`, {
+      x: 42, y: lastY - 10, size: 8.5, font: regular,
+    });
+
     drawAssinaturasEletronicas(
       pdf,
       lastPage,
       regular,
       bold,
-      lastY - 14,
+      lastY - 30,
       data.empresaNome,
       data.candidatoNome,
     );
@@ -292,11 +302,10 @@ export class ContratoExperienciaService {
       candidatoCep: string;
       candidatoPis: string;
     },
-    assinaturaEletronica: string,
   ): string[] {
-    if (data.menorDe18) return this.montarClausulasMenorIdade(data, assinaturaEletronica);
-    if (data.codigoCargo === '00024') return this.montarClausulasCargoExterno(data, assinaturaEletronica);
-    return this.montarClausulasPadrao(data, assinaturaEletronica);
+    if (data.menorDe18) return this.montarClausulasMenorIdade(data);
+    if (data.codigoCargo === '00024') return this.montarClausulasCargoExterno(data);
+    return this.montarClausulasPadrao(data);
   }
 
   private montarClausulasPadrao(
@@ -312,7 +321,6 @@ export class ContratoExperienciaService {
       dataAdmissao: Date;
       prazoContratoDias: number;
     },
-    assinaturaEletronica: string,
   ): string[] {
     return [
       `Entre a firma ${data.empresaNome}, CNPJ ${data.empresaCnpj} com sede em ${data.empresaCidade} na ${data.empresaEndereco}, doravante designada simplesmente EMPREGADORA e ${data.candidatoNome} portador(a) do CPF nº ${data.candidatoCpf}, a seguir chamado apenas EMPREGADO, e celebrado o presente CONTRATO DE EXPERIÊNCIA, que terá vigência a partir da data de início de serviços, de acordo com as condições a seguir especificadas:`,
@@ -326,16 +334,14 @@ export class ContratoExperienciaService {
       `8 - O presente Contrato vigerá durante ${data.prazoContratoDias} dias, sendo celebrado para as partes verificarem reciprocamente a conveniência ou não de se vincularem em caráter definitivo a um Contrato de Trabalho. A Empresa passando a conhecer as aptidões do EMPREGADO e suas qualidades pessoais e morais; o EMPREGADO verificando se o ambiente e os métodos de trabalho atendem a sua conveniência.`,
       `9 - Opera-se a rescisão do presente Contrato pela decorrência do prazo supra ou por vontade de uma das partes; rescindindo-se por vontade do EMPREGADO ou pela EMPREGADORA com justa causa, nenhuma indenização é devida; rescindindo-se, antes do prazo, por qualquer uma das partes, fica esta obrigada a pagar 50% dos salários até o final.`,
       `10 - Na hipótese deste ajuste transformar-se em Contrato de Prazo Indeterminado pelo decurso do tempo, continuarão em plena vigência as cláusulas de 1 (um) a 7 (sete), enquanto durarem as relações do EMPREGADO com a EMPREGADORA.`,
-      assinaturaEletronica,
-      `${data.empresaCidade}, ${this.formatarData(data.dataAdmissao)}.`,
+      ...CLAUSULAS_ASSINATURA_CONTRATO,
     ];
   }
 
   private montarClausulasMenorIdade(
     data: Parameters<ContratoExperienciaService['montarClausulasContrato']>[0],
-    assinaturaEletronica: string,
   ): string[] {
-    const clausulas = this.montarClausulasPadrao(data, assinaturaEletronica);
+    const clausulas = this.montarClausulasPadrao(data);
     clausulas[1] = `1 - Fica o EMPREGADO admitido no quadro de funcionários da EMPREGADORA para exercer as funções de ${data.cargo} mediante a remuneração de ${data.salarioFormatado} por mês. A circunstância, porém, de ser a função especificada não importa na intransferibilidade do EMPREGADO para outro serviço, o qual demonstre melhor capacidade de adaptação desde que compatível com a sua condição pessoal, e respeitado o disposto no inciso XXXIII do artigo 7º, da Constituição Federal e nos artigos 403 a 405, da Consolidação da Leis do Trabalho, que vedam a realização de trabalho perigoso, insalubre ou prejudicial ao desenvolvimento físico, psicológico e moral do menor de 18 anos.`;
     clausulas[3] = `3 - Obriga-se também o EMPREGADO a prestar serviços em horas extraordinárias, sempre que lhe for determinado pela EMPREGADORA, observando-se as limitações impostas pela legislação vigente para menores de 18 anos, em especial o artigo 413 da Consolidação das Leis do Trabalho. Na hipótese desta faculdade pela EMPREGADORA, o EMPREGADO receberá as horas extraordinárias em acréscimo legal, salvo a ocorrência de compensação, com a consequente redução da jornada de trabalho em outro dia.`;
     clausulas[4] = `4 - Aceita o EMPREGADO, expressamente, a condição de prestar serviços em qualquer dos turnos de trabalho, isto é, tanto durante o dia como a noite, desde que sem simultaneidade, observadas as prescrições legais, reguladoras do assunto e o disposto no artigo 7º, inciso XXXIII, da Constituição Federal e no artigo 404 da Consolidação das Leis do Trabalho, que vedam a realização de trabalho noturno (entre 22h e 5h) ao menor de 18 anos.`;
@@ -349,7 +355,6 @@ export class ContratoExperienciaService {
 
   private montarClausulasCargoExterno(
     data: Parameters<ContratoExperienciaService['montarClausulasContrato']>[0],
-    assinaturaEletronica: string,
   ): string[] {
     return [
       `Por este instrumento de contrato de trabalho que entre si fazem a empresa ${data.empresaNome}, inscrita no CNPJ/MF sob o nº ${data.empresaCnpj}, com sede em ${data.empresaCidade}, na ${data.empresaEndereco}, neste ato denominada EMPREGADORA e o Sr. ${data.candidatoNome}, residente e domiciliado nesta cidade na ${data.candidatoEndereco}, bairro ${data.candidatoBairro}, CEP: ${data.candidatoCep}, inscrito no CPF sob o nº ${data.candidatoCpf}, PIS/PASEP sob nº ${data.candidatoPis}, doravante EMPREGADO, firmam o presente, contando com as seguintes cláusulas e condições:`,
@@ -365,17 +370,7 @@ export class ContratoExperienciaService {
       `CLÁUSULA SÉTIMA: No caso de mudança de residência, alterações de estado civil, nascimento de filhos ou modificações de nome, fica o EMPREGADO na obrigação de comunicar o fato à EMPREGADORA até o terceiro dia após a ocorrência do fato.`,
       `CLÁUSULA OITAVA: O EMPREGADO se obriga a colocar todo o seu empenho nas atividades consubstanciadas no contrato de trabalho já assinado, bem como nas demais que sejam determinadas, executando-as com absoluta diligência, rapidez e dedicação, por toda a duração da relação de emprego.`,
       `CLÁUSULA NONA: O EMPREGADO se obriga a não executar nem dirigir qualquer atividade estranha à EMPREGADORA, nem dela participar de qualquer forma, por si ou por terceiros, por toda duração da relação empregatícia, salvo expresso consentimento por escrito da EMPREGADORA.`,
-      assinaturaEletronica,
-      `${data.empresaCidade}, ${this.formatarData(data.dataAdmissao)}.`,
+      ...CLAUSULAS_ASSINATURA_CONTRATO,
     ];
-  }
-
-  private formatarData(date: Date): string {
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'UTC',
-    }).format(date);
   }
 }

@@ -77,7 +77,7 @@ export default function OtpPage() {
         code,
       });
       login(data);
-      navigate('/');
+      navigate('/painel');
     } catch (err) {
       const status = (err as { response?: { status?: number } }).response?.status;
       setError(
@@ -152,7 +152,7 @@ export default function OtpPage() {
           {isLoading ? 'Verificando...' : 'Confirmar'}
         </Button>
 
-        <Button variant="ghost" className="w-full" onClick={() => navigate('/login')}>
+        <Button variant="ghost" className="w-full" onClick={() => navigate('/')}>
           Voltar
         </Button>
       </CardContent>

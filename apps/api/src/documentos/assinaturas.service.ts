@@ -16,7 +16,7 @@ import { EmailService } from '../auth/email.service';
 import { OtpService } from '../auth/otp.service';
 import { SmsService } from '../auth/sms.service';
 import { DocumentosTemplatesService } from '../documentos-templates/documentos-templates.service';
-import { drawHeader, wrapText } from '../documentos-templates/pdf-render.utils';
+import { drawHeader, embedLogo, wrapText } from '../documentos-templates/pdf-render.utils';
 import { EmpresaCertificadosService } from '../empresas/empresa-certificados.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DocumentosService } from './documentos.service';
@@ -582,7 +582,7 @@ export class AssinaturasService {
       const pdfDoc = await PDFDocument.load(basePdf);
       const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-      this.drawAuditPage(pdfDoc, regular, bold, documento);
+      await this.drawAuditPage(pdfDoc, regular, bold, documento);
       return Buffer.from(await pdfDoc.save());
     }
 
@@ -594,7 +594,7 @@ export class AssinaturasService {
       const pdfDoc = await PDFDocument.load(basePdf);
       const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-      this.drawAuditPage(pdfDoc, regular, bold, documento);
+      await this.drawAuditPage(pdfDoc, regular, bold, documento);
       return Buffer.from(await pdfDoc.save());
     }
 
@@ -606,8 +606,9 @@ export class AssinaturasService {
     pdf.setProducer('Admissão Digital');
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const logo = await embedLogo(pdf);
     const page = pdf.addPage([595.28, 841.89]);
-    let cursorY = drawHeader(page, bold);
+    let cursorY = drawHeader(page, logo);
 
     const [title, ...body] = (documento.conteudo ?? '').split('\n');
     page.drawText(title, { x: 70, y: cursorY, size: 13, font: bold, color: rgb(0, 0, 0) });
@@ -624,7 +625,7 @@ export class AssinaturasService {
     }
 
     if (documento.status === StatusDocumentoAssinatura.ASSINADO) {
-      this.drawAuditPage(pdf, regular, bold, documento);
+      await this.drawAuditPage(pdf, regular, bold, documento);
     }
 
     return Buffer.from(await pdf.save());
@@ -640,7 +641,7 @@ export class AssinaturasService {
     }
   }
 
-  private drawAuditPage(
+  private async drawAuditPage(
     pdf: PDFDocument,
     regular: PDFFont,
     bold: PDFFont,
@@ -667,8 +668,9 @@ export class AssinaturasService {
       empresaUserAgent?: string | null;
     },
   ) {
+    const auditLogo = await embedLogo(pdf);
     const page = pdf.addPage([595.28, 841.89]);
-    let cursorY = drawHeader(page, bold);
+    let cursorY = drawHeader(page, auditLogo, 'Comprovante de Assinatura Eletrônica', bold);
 
     const drawSection = (titulo: string) => {
       cursorY -= 8;

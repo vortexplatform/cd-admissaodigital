@@ -37,7 +37,7 @@ export default function RhLoginPage() {
     try {
       const { data } = await api.post<AuthSession>('/auth/login', { email, password });
       login(data);
-      navigate('/');
+      navigate('/painel');
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401 || status === 403) {
@@ -88,8 +88,8 @@ export default function RhLoginPage() {
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          <Link to="/login" className="font-semibold text-primary hover:underline">
-            ← Voltar ao login
+          <Link to="/" className="font-semibold text-primary hover:underline">
+            Voltar
           </Link>
         </p>
       </CardContent>

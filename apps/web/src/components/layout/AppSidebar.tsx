@@ -32,7 +32,7 @@ export default function AppSidebar() {
             <span>Processos</span>
             <span className="h-px flex-1 bg-border" />
           </div>
-          <NavLink to="/" end className={linkClass}>
+          <NavLink to="/painel" end className={linkClass}>
             <LayoutDashboard className="h-4 w-4" />
             Visão geral
           </NavLink>

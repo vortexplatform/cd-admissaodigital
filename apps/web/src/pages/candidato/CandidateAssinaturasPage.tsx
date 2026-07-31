@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Download, ExternalLink, Eye, FileSignature, KeyRound, Loader2, PenLine, ShieldCheck, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, Download, ExternalLink, Eye, FileSignature, KeyRound, Loader2, PenLine, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import {
@@ -12,7 +11,6 @@ import {
 } from '../processos/documentos.model';
 
 export default function CandidateAssinaturasPage() {
-  const navigate = useNavigate();
   const [candidaturas, setCandidaturas] = useState<AssinaturasCandidatura[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -182,10 +180,6 @@ export default function CandidateAssinaturasPage() {
   if (!candidatura || envelopes.length === 0) {
     return (
       <div className="space-y-4">
-        <Button type="button" variant="outline" size="sm" onClick={() => navigate('/candidato/documentos')}>
-          <ArrowLeft className="h-4 w-4" />
-          Voltar para documentos
-        </Button>
         <div className="rounded-3xl border border-dashed bg-card p-8 text-center shadow-sm">
           <FileSignature className="mx-auto h-10 w-10 text-muted-foreground" />
           <h1 className="mt-4 font-display text-2xl font-semibold">Assinaturas ainda indisponíveis</h1>
@@ -203,10 +197,6 @@ export default function CandidateAssinaturasPage() {
         <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
           <div className="relative p-6 sm:p-8">
             <div className="absolute right-0 top-0 h-40 w-40 rounded-bl-full bg-primary/10" />
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate('/candidato')}>
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </Button>
             <div className="mt-6 max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Assinatura eletrônica avançada</p>
               <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">

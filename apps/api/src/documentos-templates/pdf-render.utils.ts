@@ -1,16 +1,54 @@
-import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { PDFDocument, PDFFont, PDFImage, PDFPage, rgb } from 'pdf-lib';
 
 export const PAGE_WIDTH = 595.28;
 export const PAGE_HEIGHT = 841.89;
-export const TEXTO_ASSINATURA_ELETRONICA = 'As partes reconhecem e aceitam que este documento poderá ser firmado por assinatura eletrônica, nos termos do Art. 10, §2º, da MP 2.200-2/2001 e da Lei 14.063/2020, mediante método de autenticação adotado pela plataforma Admissão Digital, incluindo assinatura eletrônica avançada por código OTP, validação biométrica e/ou reconhecimento facial, conforme aplicável. O método utilizado será registrado no comprovante de assinatura e auditoria do documento, com evidências de autoria, integridade, data/hora, identificação do signatário e rastreabilidade, produzindo validade jurídica e força de instrumento particular entre as partes. A assinatura da empregadora poderá ser realizada por representante autorizado com certificado digital ICP-Brasil ou outro meio eletrônico admitido pela legislação aplicável.';
 
-export function drawHeader(page: PDFPage, bold: PDFFont): number {
+function resolveLogoPath(): string {
+  // __dirname pode ser dist/ ou src/, tenta ambos
+  const candidate = join(__dirname, 'assets', 'logo_coelhodiniz.png');
+  if (existsSync(candidate)) return candidate;
+  // fallback: resolve a partir de src/ quando rodando de dist/
+  return join(__dirname, '..', 'src', 'documentos-templates', 'assets', 'logo_coelhodiniz.png');
+}
+
+const LOGO_PATH = resolveLogoPath();
+
+export async function embedLogo(pdf: PDFDocument): Promise<PDFImage> {
+  const logoBytes = await readFile(LOGO_PATH);
+  return pdf.embedPng(logoBytes);
+}
+
+export function drawHeader(
+  page: PDFPage,
+  logo: PDFImage,
+  title?: string,
+  bold?: PDFFont,
+): number {
   const { height } = page.getSize();
-  page.drawRectangle({ x: 36, y: height - 58, width: 108, height: 34, color: rgb(1, 0.92, 0.05) });
-  page.drawText('CD Coelho Diniz', { x: 44, y: height - 46, size: 12, font: bold, color: rgb(0.08, 0.08, 0.08) });
-  page.drawLine({ start: { x: 36, y: height - 66 }, end: { x: 559, y: height - 66 }, thickness: 2, color: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: 36, y: height - 70 }, end: { x: 559, y: height - 70 }, thickness: 0.7, color: rgb(0, 0, 0) });
-  return height - 96;
+  const logoWidth = 150;
+  const logoHeight = (73 / 403) * logoWidth;
+  const logoY = height - 24 - logoHeight;
+  page.drawImage(logo, {
+    x: 36,
+    y: logoY,
+    width: logoWidth,
+    height: logoHeight,
+  });
+  if (title && bold) {
+    const titleX = 36 + logoWidth + 14;
+    const titleY = logoY + logoHeight / 2 - 5;
+    page.drawText(title, {
+      x: titleX,
+      y: titleY,
+      size: 11,
+      font: bold,
+      color: rgb(0.12, 0.12, 0.12),
+    });
+  }
+  return height - 40 - logoHeight;
 }
 
 export interface DrawParagraphsOptions {
@@ -122,60 +160,61 @@ export function drawAssinaturasEletronicas(
   let currentPage = page;
   let y = startY;
 
-  if (y < 100) {
+  const blockHeight = 38;
+
+  if (y < blockHeight + 50) {
     currentPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    y = 700;
+    y = 740;
   }
 
-  const blockHeight = 46;
-  const blockGap = 12;
-  const blockWidth = 221.5;
-  const blockY = y - blockHeight + 14;
-  const empregadoraX = 70;
+  const blockGap = 16;
+  const blockWidth = 232;
+  const empregadoraX = 56;
   const empregadoX = empregadoraX + blockWidth + blockGap;
 
+  // — Bloco EMPREGADORA —
+  const empBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: empregadoraX,
-    y: blockY,
-    width: blockWidth,
-    height: blockHeight,
-    color: rgb(0.96, 0.96, 0.96),
-    borderColor: rgb(0.75, 0.75, 0.75),
-    borderWidth: 0.5,
+    x: empregadoraX, y: empBlockY, width: blockWidth, height: blockHeight,
+    color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
   });
-  currentPage.drawText('EMPREGADORA — Assinado eletronicamente', {
-    x: empregadoraX + 8, y: y + 6, size: 7, font: bold, color: rgb(0.25, 0.25, 0.25),
+  currentPage.drawRectangle({
+    x: empregadoraX, y: empBlockY, width: 3, height: blockHeight,
+    color: rgb(0.13, 0.37, 0.69),
+  });
+  currentPage.drawText('EMPREGADORA  •  Assinado eletronicamente', {
+    x: empregadoraX + 12, y: y - 11, size: 6, font: regular, color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(empregadora.toUpperCase(), {
-    x: empregadoraX + 8, y: y - 6, size: 8, font: bold, color: rgb(0.1, 0.1, 0.1),
+    x: empregadoraX + 12, y: y - 23, size: 7, font: bold, color: rgb(0.12, 0.12, 0.12),
   });
-  currentPage.drawText('Certificado A1 | Admissão Digital', {
-    x: empregadoraX + 8, y: y - 18, size: 7, font: regular, color: rgb(0.45, 0.45, 0.45),
+  currentPage.drawText('Certificado ICP-Brasil  •  Admissão Digital', {
+    x: empregadoraX + 12, y: y - 34, size: 5.5, font: regular, color: rgb(0.6, 0.6, 0.6),
   });
 
+  // — Bloco EMPREGADO —
+  const candBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: empregadoX,
-    y: blockY,
-    width: blockWidth,
-    height: blockHeight,
-    color: rgb(0.96, 0.96, 0.96),
-    borderColor: rgb(0.75, 0.75, 0.75),
-    borderWidth: 0.5,
+    x: empregadoX, y: candBlockY, width: blockWidth, height: blockHeight,
+    color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
   });
-  currentPage.drawText('EMPREGADO — Assinado eletronicamente', {
-    x: empregadoX + 8, y: y + 6, size: 7, font: bold, color: rgb(0.25, 0.25, 0.25),
+  currentPage.drawRectangle({
+    x: empregadoX, y: candBlockY, width: 3, height: blockHeight,
+    color: rgb(0.18, 0.55, 0.34),
+  });
+  currentPage.drawText('EMPREGADO  •  Assinado eletronicamente', {
+    x: empregadoX + 12, y: y - 11, size: 6, font: regular, color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(empregado.toUpperCase(), {
-    x: empregadoX + 8, y: y - 6, size: 8, font: bold, color: rgb(0.1, 0.1, 0.1),
+    x: empregadoX + 12, y: y - 23, size: 7, font: bold, color: rgb(0.12, 0.12, 0.12),
   });
-  currentPage.drawText('OTP, biometria ou facial | Admissão Digital', {
-    x: empregadoX + 8, y: y - 18, size: 7, font: regular, color: rgb(0.45, 0.45, 0.45),
+  currentPage.drawText('OTP / Biometria / Reconhecimento facial', {
+    x: empregadoX + 12, y: y - 34, size: 5.5, font: regular, color: rgb(0.6, 0.6, 0.6),
   });
 }
 
-export function drawFooter(page: PDFPage): void {
-  page.drawLine({ start: { x: 36, y: 34 }, end: { x: 559, y: 34 }, thickness: 2, color: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: 36, y: 30 }, end: { x: 559, y: 30 }, thickness: 0.7, color: rgb(0, 0, 0) });
+export function drawFooter(_page: PDFPage): void {
+  // Rodapé sem bordas — mantido como noop para compatibilidade
 }
 
 export function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {

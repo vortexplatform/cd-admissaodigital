@@ -55,7 +55,7 @@ export default function CompleteProfilePage() {
       };
       const { data } = await api.patch<User>('/users/me', payload);
       updateUser(data);
-      navigate('/');
+      navigate('/painel');
     } catch {
       setError('Não foi possível salvar seus dados. Verifique as informações e tente novamente.');
     } finally {
