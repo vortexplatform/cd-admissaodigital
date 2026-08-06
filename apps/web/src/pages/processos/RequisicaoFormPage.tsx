@@ -35,6 +35,7 @@ const requisicaoSchema = z.object({
   postoTrabalhoNome: z.string().trim().optional(),
   cargo: z.string().trim().optional(),
   cargoNome: z.string().trim().min(1, 'Informe o nome do cargo'),
+  salario: z.string().trim().optional(),
   centroCusto: z.string().trim().optional(),
   ccustoNome: z.string().trim().optional(),
   escala: z.string().trim().optional(),
@@ -58,6 +59,7 @@ const defaultValues: RequisicaoForm = {
   postoTrabalhoNome: '',
   cargo: '',
   cargoNome: '',
+  salario: '',
   centroCusto: '',
   ccustoNome: '',
   escala: '',
@@ -78,6 +80,7 @@ const buildPayload = (values: RequisicaoForm) => ({
   postoTrabalhoNome: optionalString(values.postoTrabalhoNome),
   cargo: optionalString(values.cargo),
   cargoNome: optionalString(values.cargoNome),
+  salario: values.salario?.trim() ? Number(values.salario.replace(',', '.')) : undefined,
   centroCusto: optionalString(values.centroCusto),
   ccustoNome: optionalString(values.ccustoNome),
   escala: optionalString(values.escala),
@@ -104,6 +107,7 @@ const mapRequisicaoToForm = (requisicao: Requisicao): RequisicaoForm => ({
   postoTrabalhoNome: toText(requisicao.postoTrabalhoNome),
   cargo: toText(requisicao.cargo),
   cargoNome: toText(requisicao.cargoNome),
+  salario: toText(requisicao.salario),
   centroCusto: toText(requisicao.centroCusto),
   ccustoNome: toText(requisicao.ccustoNome),
   escala: toText(requisicao.escala),
@@ -575,6 +579,18 @@ export default function RequisicaoFormPage({ mode }: { mode: RequisicaoMode }) {
                     />
                   </Field>
                 </div>
+
+                <Field label="Salário mensal (opcional)" id="salario">
+                  <Input
+                    id="salario"
+                    disabled={isViewMode}
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="Ex.: 1850,00"
+                    {...register('salario')}
+                  />
+                </Field>
 
                 <Field label="Admissão prevista" id="dataPrevistaAdmissao">
                   <Input

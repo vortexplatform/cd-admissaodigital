@@ -5,10 +5,11 @@ import { AcordoDomingosFeriadosService } from './relatorios/acordo-domingos-feri
 import { AutorizacaoPlanoSaudeService } from './relatorios/autorizacao-plano-saude.service';
 import { ContratoExperienciaService } from './relatorios/contrato-experiencia.service';
 import { DeclaracaoTreinamentoService } from './relatorios/declaracao-treinamento.service';
+import { TermoValeTransporteService } from './relatorios/termo-vale-transporte.service';
 import { TermoProrrogacaoExperienciaService } from './relatorios/termo-prorrogacao-experiencia.service';
 
 export type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
-  include: { candidato: true; requisicao: { include: { empresa: true } } };
+  include: { candidato: { include: { valeTransportes: true } }; requisicao: { include: { empresa: true } } };
 }>;
 
 @Injectable()
@@ -20,12 +21,13 @@ export class DocumentosTemplatesService {
     private readonly acordoDomingosFeriados: AcordoDomingosFeriadosService,
     private readonly termoProrrogacao: TermoProrrogacaoExperienciaService,
     private readonly autorizacaoPlanoSaude: AutorizacaoPlanoSaudeService,
+    private readonly termoValeTransporte: TermoValeTransporteService,
   ) {}
 
   async gerarPdf(codigo: string, candidaturaId: number): Promise<Buffer> {
     const candidatura = await this.prisma.candidatura.findUnique({
       where: { id: candidaturaId },
-      include: { candidato: true, requisicao: { include: { empresa: true } } },
+      include: { candidato: { include: { valeTransportes: true } }, requisicao: { include: { empresa: true } } },
     });
     if (!candidatura) throw new NotFoundException('Candidatura não encontrada.');
 
@@ -44,6 +46,8 @@ export class DocumentosTemplatesService {
         return this.termoProrrogacao.gerarPdf(candidatura);
       case AutorizacaoPlanoSaudeService.CODIGO:
         return this.autorizacaoPlanoSaude.gerarPdf(candidatura);
+      case TermoValeTransporteService.CODIGO:
+        return this.termoValeTransporte.gerarPdf(candidatura);
       default:
         throw new NotFoundException(`Template de documento "${codigo}" não encontrado.`);
     }

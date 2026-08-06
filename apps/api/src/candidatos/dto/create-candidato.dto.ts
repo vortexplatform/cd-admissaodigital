@@ -274,6 +274,26 @@ export class CreateCandidatoDto {
   @IsOptional()
   tamanhoCalcado?: string;
 
+  // Responsável legal (obrigatório para menores 16-17 anos)
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  responsavelNome?: string;
+
+  @IsString()
+  @Matches(/^\d{11}$/, { message: 'CPF do responsável deve conter 11 dígitos' })
+  @IsOptional()
+  responsavelCpf?: string;
+
+  @IsEmail()
+  @IsOptional()
+  responsavelEmail?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  responsavelTelefone?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateCandidatoDependenteDto)

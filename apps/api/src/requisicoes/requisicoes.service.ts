@@ -32,6 +32,7 @@ const buildRequisicaoData = (dto: CreateRequisicaoDto | UpdateRequisicaoDto) => 
   escala: cleanString(dto.escala),
   descricaoEscala: cleanString(dto.descricaoEscala),
   sindicato: cleanString(dto.sindicato),
+  salario: dto.salario,
   dataPrevistaAdmissao: dto.dataPrevistaAdmissao ? new Date(dto.dataPrevistaAdmissao) : undefined,
   motivoAbertura: cleanString(dto.motivoAbertura),
   observacao: cleanString(dto.observacao),

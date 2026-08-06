@@ -14,6 +14,8 @@ export default function CandidateAssinaturasPage() {
   const [candidaturas, setCandidaturas] = useState<AssinaturasCandidatura[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [selectedCandidaturaId, setSelectedCandidaturaId] = useState<number | null>(null);
+  const [generatingId, setGeneratingId] = useState<number | null>(null);
   const [sessionTokens, setSessionTokens] = useState<Record<number, string>>({});
   const [signingId, setSigningId] = useState<number | null>(null);
   const [previewState, setPreviewState] = useState<{
@@ -25,6 +27,7 @@ export default function CandidateAssinaturasPage() {
   const loadData = async () => {
     const { data } = await api.get<AssinaturasCandidatura[]>('/documentos/assinaturas/candidato');
     setCandidaturas(data);
+    setSelectedCandidaturaId((current) => current ?? data[0]?.id ?? null);
   };
 
   useEffect(() => {
@@ -33,14 +36,36 @@ export default function CandidateAssinaturasPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const candidatura = candidaturas[0] ?? null;
-  const envelopes = candidatura?.envelopesAssinatura ?? [];
+  const candidatura = candidaturas.find((item) => item.id === selectedCandidaturaId) ?? candidaturas[0] ?? null;
+  const allEnvelopes = candidatura?.envelopesAssinatura ?? [];
+  const envelopes = allEnvelopes.filter((e) => e.tipoSignatario === 'CANDIDATO');
+  const responsavelEnvelopes = allEnvelopes.filter((e) => e.tipoSignatario === 'RESPONSAVEL');
+  const aguardandoResponsavel =
+    envelopes.length > 0 &&
+    envelopes.every((e) => e.status === 'CONCLUIDO') &&
+    responsavelEnvelopes.some((e) => e.status !== 'CONCLUIDO');
   const totalDocs = envelopes.reduce((sum, envelope) => sum + envelope.documentos.length, 0);
   const signedDocs = envelopes.reduce(
     (sum, envelope) => sum + envelope.documentos.filter((doc) => doc.status === 'ASSINADO').length,
     0,
   );
   const progress = totalDocs === 0 ? 0 : Math.round((signedDocs / totalDocs) * 100);
+
+  const generateDocuments = async () => {
+    if (!candidatura) return;
+    setGeneratingId(candidatura.id);
+    setMessage('');
+    try {
+      await api.post(`/documentos/assinaturas/candidato/candidaturas/${candidatura.id}/gerar`);
+      await loadData();
+      setMessage('Documentos gerados com sucesso.');
+    } catch (err: unknown) {
+      const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setMessage(errorMessage ?? 'Não foi possível gerar os documentos para assinatura.');
+    } finally {
+      setGeneratingId(null);
+    }
+  };
 
   const sendOtp = async (envelope: EnvelopeAssinatura) => {
     setMessage('');
@@ -177,7 +202,7 @@ export default function CandidateAssinaturasPage() {
     );
   }
 
-  if (!candidatura || envelopes.length === 0) {
+  if (!candidatura) {
     return (
       <div className="space-y-4">
         <div className="rounded-3xl border border-dashed bg-card p-8 text-center shadow-sm">
@@ -194,6 +219,29 @@ export default function CandidateAssinaturasPage() {
   return (
     <>
       <div className="space-y-5">
+        {candidaturas.length > 1 && (
+          <section className="rounded-2xl border bg-card p-4 shadow-sm">
+            <p className="text-sm font-semibold">Selecione a requisição</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {candidaturas.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedCandidaturaId(item.id)}
+                  className={`rounded-xl border p-3 text-left transition-colors ${
+                    item.id === candidatura.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  <p className="text-sm font-medium">{formatCandidaturaTitle(item)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {item.envelopesAssinatura.length > 0 ? 'Documentos gerados' : statusCandidaturaLabel(item.status)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="overflow-hidden rounded-3xl border bg-card shadow-sm">
           <div className="relative p-6 sm:p-8">
             <div className="absolute right-0 top-0 h-40 w-40 rounded-bl-full bg-primary/10" />
@@ -217,7 +265,28 @@ export default function CandidateAssinaturasPage() {
 
         {message && <p className="rounded-xl border bg-card px-4 py-3 text-sm text-primary">{message}</p>}
 
-        <div className="grid gap-4 xl:grid-cols-[18rem_1fr]">
+        {envelopes.length === 0 && (
+          <section className="rounded-2xl border border-dashed bg-card p-6 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-display text-xl font-semibold">Documentos de assinatura</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Gere os documentos desta requisição para iniciar o processo de assinatura.
+                </p>
+              </div>
+              {candidatura.status === 'APROVADO' || candidatura.status === 'EFETIVADO' ? (
+                <Button type="button" onClick={generateDocuments} disabled={generatingId === candidatura.id}>
+                  {generatingId === candidatura.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Gerar documentos
+                </Button>
+              ) : (
+                <span className="text-sm font-medium text-muted-foreground">Aguardando aprovação da candidatura</span>
+              )}
+            </div>
+          </section>
+        )}
+
+        {envelopes.length > 0 && <div className="grid gap-4 xl:grid-cols-[18rem_1fr]">
           <aside className="h-fit rounded-2xl border bg-card p-4 shadow-sm">
             <p className="text-sm font-semibold">Ordem da assinatura</p>
             <div className="mt-4 space-y-3">
@@ -246,8 +315,19 @@ export default function CandidateAssinaturasPage() {
                 onOpenForSignature={(doc) => setPreviewState({ envelope, doc })}
               />
             ))}
+
+            {aguardandoResponsavel && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+                <p className="font-semibold text-amber-800 dark:text-amber-300">
+                  Aguardando assinatura do responsável legal
+                </p>
+                <p className="mt-1 text-amber-700 dark:text-amber-400">
+                  Você já assinou todos os seus documentos. O responsável legal receberá um link para assinar os mesmos documentos. Após a assinatura dele(a), a empresa concluirá a certificação.
+                </p>
+              </div>
+            )}
           </div>
-        </div>
+        </div>}
       </div>
 
       {previewState && (
@@ -276,6 +356,20 @@ export default function CandidateAssinaturasPage() {
 
 const envelopeTitle = (envelope: EnvelopeAssinatura) =>
   envelope.setor === 'ADM_PESSOAL' ? 'Adm Pessoal' : 'SESMT';
+
+const statusCandidaturaLabel = (status: AssinaturasCandidatura['status']) => {
+  const labels: Record<AssinaturasCandidatura['status'], string> = {
+    INSCRITO: 'Inscrita',
+    EM_ANALISE: 'Em análise',
+    ENTREVISTA: 'Em entrevista',
+    APROVADO: 'Aprovada',
+    EFETIVADO: 'Efetivada',
+    REPROVADO: 'Reprovada',
+    DESISTIU: 'Desistiu',
+    CANCELADO: 'Cancelada',
+  };
+  return labels[status];
+};
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (

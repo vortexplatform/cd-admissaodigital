@@ -76,6 +76,7 @@ export interface Requisicao {
   escala: string | null;
   descricaoEscala: string | null;
   sindicato: string | null;
+  salario: string | number | null;
   dataPrevistaAdmissao: string | null;
   motivoAbertura: string | null;
   observacao: string | null;

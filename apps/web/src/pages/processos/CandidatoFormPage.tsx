@@ -74,7 +74,8 @@ interface CandidatoValeTransporteData {
   tipoTransporte: 'ONIBUS' | 'METRO' | 'TREM';
   tipoTrajeto: 'RESIDENCIA_TRABALHO' | 'TRABALHO_RESIDENCIA';
   transporteUsado: string;
-  preco: string | number;
+  tarifaUnitaria: string | number;
+  valesPorDia: number;
 }
 interface EtapaSenior {
   CODETA: number;
@@ -258,6 +259,10 @@ interface CandidatoData {
   tamanhoCamisa: string | null;
   tamanhoCalca: string | null;
   tamanhoCalcado: string | null;
+  responsavelNome: string | null;
+  responsavelCpf: string | null;
+  responsavelEmail: string | null;
+  responsavelTelefone: string | null;
   candidaturas: CandidaturaResumo[];
   dependentes: CandidatoDependenteData[];
   valeTransportes: CandidatoValeTransporteData[];
@@ -374,6 +379,12 @@ const candidatoSchema = z
   tamanhoCamisa: z.string().trim().optional(),
   tamanhoCalca: z.string().trim().optional(),
   tamanhoCalcado: z.string().trim().optional(),
+
+  // Responsável legal
+  responsavelNome: z.string().trim().optional(),
+  responsavelCpf: z.string().trim().optional(),
+  responsavelEmail: z.string().trim().email('Informe um e-mail válido').optional().or(z.literal('')),
+  responsavelTelefone: z.string().trim().optional(),
 }).superRefine((values, ctx) => {
   if (
     (values.situacao === 'ELIMINADO' || values.situacao === 'DESISTENTE') &&
@@ -384,6 +395,27 @@ const candidatoSchema = z
       path: ['justificativaReprovacao'],
       message: 'Informe a justificativa',
     });
+  }
+
+  // Validação do responsável legal para menores de 18 anos
+  if (values.dataNascimento) {
+    const nascimento = new Date(values.dataNascimento);
+    const hoje = new Date();
+    let idade = hoje.getFullYear() - nascimento.getFullYear();
+    const mes = hoje.getMonth() - nascimento.getMonth();
+    if (mes < 0 || (mes === 0 && hoje.getDate() < nascimento.getDate())) idade -= 1;
+
+    if (idade >= 16 && idade < 18) {
+      if (!values.responsavelNome?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelNome'], message: 'Informe o nome do responsável legal' });
+      }
+      if (!values.responsavelCpf?.trim() || values.responsavelCpf.replace(/\D/g, '').length !== 11) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelCpf'], message: 'Informe o CPF do responsável legal' });
+      }
+      if (!values.responsavelEmail?.trim() && !values.responsavelTelefone?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelEmail'], message: 'Informe pelo menos o e-mail ou telefone do responsável' });
+      }
+    }
   }
 });
 
@@ -419,7 +451,8 @@ const valeTransporteSchema = z.object({
     .enum(['', 'RESIDENCIA_TRABALHO', 'TRABALHO_RESIDENCIA'])
     .refine((value) => value !== '', 'Informe o tipo de trajeto'),
   transporteUsado: z.string().trim().min(1, 'Informe o transporte usado'),
-  preco: z.string().trim().min(1, 'Informe o preço'),
+  tarifaUnitaria: z.string().trim().min(1, 'Informe a tarifa unitária'),
+  valesPorDia: z.coerce.number().int().min(1, 'Informe a quantidade de vales por dia'),
 });
 
 const etapaSchema = z.object({
@@ -453,7 +486,8 @@ const valeTransporteDefaultValues: ValeTransporteForm = {
   tipoTransporte: '',
   tipoTrajeto: '',
   transporteUsado: '',
-  preco: '',
+  tarifaUnitaria: '',
+  valesPorDia: 1,
 };
 
 const etapaDefaultValues: EtapaForm = {
@@ -562,6 +596,10 @@ const defaultValues: CandidatoForm = {
   tamanhoCamisa: '',
   tamanhoCalca: '',
   tamanhoCalcado: '',
+  responsavelNome: '',
+  responsavelCpf: '',
+  responsavelEmail: '',
+  responsavelTelefone: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -613,7 +651,8 @@ const buildValeTransportePayload = (values: ValeTransporteForm): ValeTransporteP
   tipoTransporte: values.tipoTransporte as ValeTransportePayload['tipoTransporte'],
   tipoTrajeto: values.tipoTrajeto as ValeTransportePayload['tipoTrajeto'],
   transporteUsado: values.transporteUsado.trim(),
-  preco: parseMoney(values.preco),
+  tarifaUnitaria: parseMoney(values.tarifaUnitaria),
+  valesPorDia: Number(values.valesPorDia),
 });
 
 const buildPayloadValeTransportes = (valeTransportes?: CandidatoValeTransporteData[]) =>
@@ -621,7 +660,8 @@ const buildPayloadValeTransportes = (valeTransportes?: CandidatoValeTransporteDa
     tipoTransporte: valeTransporte.tipoTransporte,
     tipoTrajeto: valeTransporte.tipoTrajeto,
     transporteUsado: valeTransporte.transporteUsado,
-    preco: parseMoney(valeTransporte.preco),
+    tarifaUnitaria: parseMoney(valeTransporte.tarifaUnitaria),
+    valesPorDia: valeTransporte.valesPorDia,
   }));
 
 const buildEtapaPayload = (
@@ -711,6 +751,10 @@ const buildPayload = (
   tamanhoCamisa: optionalString(values.tamanhoCamisa),
   tamanhoCalca: optionalString(values.tamanhoCalca),
   tamanhoCalcado: optionalString(values.tamanhoCalcado),
+  responsavelNome: optionalString(values.responsavelNome),
+  responsavelCpf: optionalDigits(values.responsavelCpf),
+  responsavelEmail: optionalString(values.responsavelEmail),
+  responsavelTelefone: optionalString(values.responsavelTelefone),
   dependentes: buildPayloadDependentes(dependentes),
   valeTransportes: buildPayloadValeTransportes(valeTransportes),
   etapas: buildPayloadEtapas(etapas),
@@ -1428,6 +1472,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           tamanhoCamisa: toText(data.tamanhoCamisa),
           tamanhoCalca: toText(data.tamanhoCalca),
           tamanhoCalcado: toText(data.tamanhoCalcado),
+          responsavelNome: toText(data.responsavelNome),
+          responsavelCpf: toText(data.responsavelCpf),
+          responsavelEmail: toText(data.responsavelEmail),
+          responsavelTelefone: toText(data.responsavelTelefone),
         });
       })
       .catch(() => setError('Não foi possível carregar o candidato.'))
@@ -1634,7 +1682,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       tipoTransporte: valeTransporte.tipoTransporte,
       tipoTrajeto: valeTransporte.tipoTrajeto,
       transporteUsado: valeTransporte.transporteUsado,
-      preco: String(valeTransporte.preco).replace('.', ','),
+      tarifaUnitaria: String(valeTransporte.tarifaUnitaria).replace('.', ','),
+      valesPorDia: valeTransporte.valesPorDia,
     });
   };
 
@@ -2759,6 +2808,69 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 </CardContent>
               </Card>
 
+              {/* ---- Responsável Legal (menores 16-17 anos) ---- */}
+              {(() => {
+                const dataNasc = watch('dataNascimento');
+                if (!dataNasc) return null;
+                const nascimento = new Date(dataNasc);
+                const hoje = new Date();
+                let idadeCalc = hoje.getFullYear() - nascimento.getFullYear();
+                const mesCalc = hoje.getMonth() - nascimento.getMonth();
+                if (mesCalc < 0 || (mesCalc === 0 && hoje.getDate() < nascimento.getDate())) idadeCalc -= 1;
+                if (idadeCalc < 16 || idadeCalc >= 18) return null;
+                return (
+                  <Card className="border-amber-200 dark:border-amber-800">
+                    <CardHeader>
+                      <CardTitle>Responsável Legal</CardTitle>
+                      <CardDescription>
+                        Candidato menor de 18 anos. Informe os dados do responsável legal para assinatura dos documentos.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <TextField
+                          id="responsavelNome"
+                          label="Nome completo *"
+                          placeholder="Nome do responsável legal"
+                          disabled={isViewMode}
+                          error={errors.responsavelNome?.message}
+                          {...register('responsavelNome')}
+                        />
+                        <TextField
+                          id="responsavelCpf"
+                          label="CPF *"
+                          placeholder="00000000000"
+                          disabled={isViewMode}
+                          error={errors.responsavelCpf?.message}
+                          {...register('responsavelCpf')}
+                        />
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <TextField
+                          id="responsavelEmail"
+                          label="E-mail"
+                          placeholder="email@exemplo.com"
+                          disabled={isViewMode}
+                          error={errors.responsavelEmail?.message}
+                          {...register('responsavelEmail')}
+                        />
+                        <TextField
+                          id="responsavelTelefone"
+                          label="Telefone"
+                          placeholder="+5531999999999"
+                          disabled={isViewMode}
+                          error={errors.responsavelTelefone?.message}
+                          {...register('responsavelTelefone')}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Pelo menos um contato (e-mail ou telefone) é obrigatório para envio do código de assinatura.
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
               </div>
               </div>
             </TabsContent>
@@ -2861,7 +2973,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                             {valeTransporte.tipoTransporte} • {valeTransporte.tipoTrajeto}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Preço R$ {String(valeTransporte.preco).replace('.', ',')}
+                            Tarifa R$ {String(valeTransporte.tarifaUnitaria).replace('.', ',')} • {valeTransporte.valesPorDia} vale(s)/dia
                           </p>
                         </div>
                         {!isViewMode && (
@@ -3073,7 +3185,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </div>
               <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
                 <TextField id="transporteUsado" label="Transporte usado" required disabled={isViewMode} error={valeTransporteErrors.transporteUsado?.message} {...registerValeTransporte('transporteUsado')} />
-                <TextField id="preco" label="Preço" required disabled={isViewMode} placeholder="0,00" error={valeTransporteErrors.preco?.message} {...registerValeTransporte('preco')} />
+                <TextField id="tarifaUnitaria" label="Tarifa unitária" required disabled={isViewMode} placeholder="0,00" error={valeTransporteErrors.tarifaUnitaria?.message} {...registerValeTransporte('tarifaUnitaria')} />
+                <TextField id="valesPorDia" label="Vales por dia" required disabled={isViewMode} type="number" min="1" error={valeTransporteErrors.valesPorDia?.message} {...registerValeTransporte('valesPorDia', { valueAsNumber: true })} />
               </div>
               {valeTransporteError && <p className="text-sm text-destructive">{valeTransporteError}</p>}
             </div>

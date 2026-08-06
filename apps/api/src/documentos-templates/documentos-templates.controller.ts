@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ContratoExperienciaService } from './relatorios/contrato-experiencia.service';
 import { DeclaracaoTreinamentoService } from './relatorios/declaracao-treinamento.service';
+import { TermoValeTransporteService } from './relatorios/termo-vale-transporte.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('documentos-templates')
@@ -10,6 +11,7 @@ export class DocumentosTemplatesController {
   constructor(
     private readonly contrato: ContratoExperienciaService,
     private readonly declaracao: DeclaracaoTreinamentoService,
+    private readonly termoValeTransporte: TermoValeTransporteService,
   ) {}
 
   @Get('contrato-experiencia/:candidaturaId')
@@ -19,6 +21,15 @@ export class DocumentosTemplatesController {
   ) {
     const pdf = await this.contrato.gerarPdfById(candidaturaId);
     this.sendPdf(res, pdf, `contrato-experiencia-${candidaturaId}.pdf`);
+  }
+
+  @Get('termo-opcao-vale-transporte/:candidaturaId')
+  async downloadTermoValeTransporte(
+    @Param('candidaturaId', ParseIntPipe) candidaturaId: number,
+    @Res() res: Response,
+  ) {
+    const pdf = await this.termoValeTransporte.gerarPdfById(candidaturaId);
+    this.sendPdf(res, pdf, `termo-opcao-vale-transporte-${candidaturaId}.pdf`);
   }
 
   @Get('declaracao-treinamento/:candidaturaId')

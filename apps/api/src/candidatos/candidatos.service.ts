@@ -117,7 +117,8 @@ const buildValeTransporteData = (
   tipoTransporte: cleanString(dto.tipoTransporte),
   tipoTrajeto: cleanString(dto.tipoTrajeto),
   transporteUsado: cleanString(dto.transporteUsado),
-  preco: dto.preco,
+  tarifaUnitaria: dto.tarifaUnitaria,
+  valesPorDia: dto.valesPorDia,
 });
 
 const buildEtapaData = (dto: CreateCandidatoEtapaDto | UpdateCandidatoEtapaDto) => ({
@@ -216,6 +217,12 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   tamanhoCamisa: cleanString(dto.tamanhoCamisa),
   tamanhoCalca: cleanString(dto.tamanhoCalca),
   tamanhoCalcado: cleanString(dto.tamanhoCalcado),
+
+  // Responsável legal
+  responsavelNome: cleanString(dto.responsavelNome),
+  responsavelCpf: normalizeCpf(dto.responsavelCpf),
+  responsavelEmail: cleanString(dto.responsavelEmail),
+  responsavelTelefone: cleanString(dto.responsavelTelefone),
 });
 
 @Injectable()

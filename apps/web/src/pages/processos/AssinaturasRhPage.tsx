@@ -12,6 +12,7 @@ import {
   Loader2,
   PenLine,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -26,11 +27,7 @@ import {
 } from './documentos.model';
 
 const documentosProntosParaAssinatura = (candidatura: DocumentosCandidatura) => {
-  const obrigatorios = candidatura.documentos.filter((documento) => documento.obrigatorio);
-  if (obrigatorios.length === 0) return false;
-  return obrigatorios.every(
-    (documento) => documento.dispensadoPorId != null || documento.status === 'APROVADO',
-  );
+  return candidatura.status === 'APROVADO' || candidatura.status === 'EFETIVADO';
 };
 
 const getEnvelopeStats = (envelopes: EnvelopeAssinatura[]) => {
@@ -54,8 +51,11 @@ interface AssinaturasRhResponse {
 
 const LIMIT = 20;
 
-const envelopeTitle = (envelope: EnvelopeAssinatura) =>
-  envelope.setor === 'ADM_PESSOAL' ? 'Adm Pessoal' : 'SESMT';
+const envelopeTitle = (envelope: EnvelopeAssinatura) => {
+  const setor = envelope.setor === 'ADM_PESSOAL' ? 'Adm Pessoal' : 'SESMT';
+  if (envelope.tipoSignatario === 'RESPONSAVEL') return `${setor} — Responsável Legal`;
+  return setor;
+};
 
 export default function AssinaturasRhPage() {
   const { candidatoId: candidatoIdParam } = useParams<{ candidatoId: string }>();
@@ -68,6 +68,8 @@ export default function AssinaturasRhPage() {
   const [assinaturas, setAssinaturas] = useState<AssinaturasRhResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [gerandoId, setGerandoId] = useState<number | null>(null);
+  const [excluindoId, setExcluindoId] = useState<number | null>(null);
+  const [confirmandoExclusaoId, setConfirmandoExclusaoId] = useState<number | null>(null);
   const [cadastrandoBiometriaId, setCadastrandoBiometriaId] = useState<number | null>(null);
   const [solicitandoBiometriaEnvelopeId, setSolicitandoBiometriaEnvelopeId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -172,6 +174,23 @@ export default function AssinaturasRhPage() {
     }
   };
 
+  const excluirAssinaturas = async (candidaturaId: number) => {
+    setError('');
+    setMessage('');
+    setExcluindoId(candidaturaId);
+    try {
+      await api.delete(`/documentos/assinaturas/rh/candidaturas/${candidaturaId}`);
+      await loadData();
+      setMessage('Documentos de assinatura excluídos.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(typeof msg === 'string' ? msg : 'Não foi possível excluir os documentos de assinatura.');
+    } finally {
+      setExcluindoId(null);
+      setConfirmandoExclusaoId(null);
+    }
+  };
+
   const solicitarCadastroBiometria = async (candidatoId: number) => {
     setError('');
     setMessage('');
@@ -258,9 +277,11 @@ export default function AssinaturasRhPage() {
               candidatura={row.candidatura}
               assinatura={row.assinatura}
               isGerando={gerandoId === row.candidatura.id}
+              isExcluindo={excluindoId === row.candidatura.id}
               isCadastrandoBiometria={cadastrandoBiometriaId === row.candidatura.candidato.id}
               solicitandoBiometriaEnvelopeId={solicitandoBiometriaEnvelopeId}
               onGerar={() => gerarAssinaturas(row.candidatura.id)}
+              onExcluir={() => setConfirmandoExclusaoId(row.candidatura.id)}
               onCadastrarBiometria={() => solicitarCadastroBiometria(row.candidatura.candidato.id)}
               onSolicitarBiometria={solicitarAssinaturaBiometrica}
             />
@@ -294,7 +315,62 @@ export default function AssinaturasRhPage() {
           )}
         </section>
       )}
+
+      {confirmandoExclusaoId !== null && (
+        <ConfirmDeleteModal
+          isSubmitting={excluindoId === confirmandoExclusaoId}
+          onCancel={() => setConfirmandoExclusaoId(null)}
+          onConfirm={() => excluirAssinaturas(confirmandoExclusaoId)}
+        />
+      )}
     </>
+  );
+}
+
+function ConfirmDeleteModal({
+  isSubmitting,
+  onCancel,
+  onConfirm,
+}: {
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
+      <div
+        className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-delete-title"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+            <Trash2 className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 id="confirm-delete-title" className="font-semibold">Excluir documentos de assinatura?</h2>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">
+              Os documentos gerados e seus envelopes serão removidos. Essa ação só pode ser feita antes de qualquer assinatura.
+            </p>
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button type="button" variant="outline" disabled={isSubmitting} onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={isSubmitting}
+            onClick={onConfirm}
+          >
+            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            Excluir documentos
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -302,18 +378,22 @@ function AssinaturaCandidaturaCard({
   candidatura,
   assinatura,
   isGerando,
+  isExcluindo,
   isCadastrandoBiometria,
   solicitandoBiometriaEnvelopeId,
   onGerar,
+  onExcluir,
   onCadastrarBiometria,
   onSolicitarBiometria,
 }: {
   candidatura: DocumentosCandidatura;
   assinatura: AssinaturasCandidatura | null;
   isGerando: boolean;
+  isExcluindo: boolean;
   isCadastrandoBiometria: boolean;
   solicitandoBiometriaEnvelopeId: number | null;
   onGerar: () => void;
+  onExcluir: () => void;
   onCadastrarBiometria: () => void;
   onSolicitarBiometria: (envelopeId: number) => void;
 }) {
@@ -375,6 +455,12 @@ function AssinaturaCandidaturaCard({
               <span className="font-semibold">{stats.signed}/{stats.total}</span>{' '}
               <span className="text-muted-foreground">documentos assinados</span>
             </div>
+            {stats.signed === 0 && (
+              <Button type="button" variant="outline" disabled={isExcluindo} onClick={onExcluir}>
+                {isExcluindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Excluir documentos
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">

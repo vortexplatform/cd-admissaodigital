@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
 
 export class CreateCandidatoValeTransporteDto {
   @IsIn(['ONIBUS', 'METRO', 'TREM'])
@@ -13,5 +13,9 @@ export class CreateCandidatoValeTransporteDto {
 
   @IsNumber()
   @Min(0)
-  preco!: number;
+  tarifaUnitaria!: number;
+
+  @IsInt()
+  @Min(1)
+  valesPorDia!: number;
 }

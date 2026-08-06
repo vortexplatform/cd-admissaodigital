@@ -7,11 +7,12 @@ import { DeclaracaoTreinamentoService } from './relatorios/declaracao-treinament
 import { DocumentosTemplatesController } from './documentos-templates.controller';
 import { DocumentosTemplatesService } from './documentos-templates.service';
 import { TermoProrrogacaoExperienciaService } from './relatorios/termo-prorrogacao-experiencia.service';
+import { TermoValeTransporteService } from './relatorios/termo-vale-transporte.service';
 
 @Module({
   imports: [GeneralModule],
   controllers: [DocumentosTemplatesController],
-  providers: [DocumentosTemplatesService, ContratoExperienciaService, DeclaracaoTreinamentoService, AcordoDomingosFeriadosService, TermoProrrogacaoExperienciaService, AutorizacaoPlanoSaudeService],
+  providers: [DocumentosTemplatesService, ContratoExperienciaService, DeclaracaoTreinamentoService, AcordoDomingosFeriadosService, TermoProrrogacaoExperienciaService, AutorizacaoPlanoSaudeService, TermoValeTransporteService],
   exports: [DocumentosTemplatesService],
 })
 export class DocumentosTemplatesModule {}

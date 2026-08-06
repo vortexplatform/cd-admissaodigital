@@ -15,6 +15,7 @@ import { DocumentoValidationService } from './documento-validation.service';
 import { DocumentoTemplatesService } from './documento-templates.service';
 import { DocumentosController } from './documentos.controller';
 import { DocumentosService } from './documentos.service';
+import { ResponsavelAssinaturasController } from './responsavel-assinaturas.controller';
 import { OcrService } from './ocr.service';
 import { PdfDigitalSignatureService } from './pdf-digital-signature.service';
 import { S3StorageService } from './s3-storage.service';
@@ -28,6 +29,7 @@ import { VerificacaoController } from './verificacao.controller';
     DocumentoTemplateDefaultsController,
     VerificacaoController,
     AceiteRegulamentoController,
+    ResponsavelAssinaturasController,
   ],
   providers: [
     DocumentosService,

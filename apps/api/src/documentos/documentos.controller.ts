@@ -62,6 +62,11 @@ export class DocumentosController {
     return this.assinaturas.listMyEnvelopes(req.user.id);
   }
 
+  @Post('assinaturas/candidato/candidaturas/:id/gerar')
+  gerarAssinaturasCandidato(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
+    return this.assinaturas.gerarParaCandidato(req.user.id, id);
+  }
+
   @Get('assinaturas/rh')
   listAssinaturasRh(
     @Request() req: AuthRequest,
@@ -106,6 +111,11 @@ export class DocumentosController {
   @Post('assinaturas/rh/candidaturas/:id/gerar')
   gerarAssinaturasRh(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
     return this.assinaturas.gerarParaRh(req.user.id, id);
+  }
+
+  @Delete('assinaturas/rh/candidaturas/:id')
+  excluirAssinaturasRh(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
+    return this.assinaturas.excluirParaRh(req.user.id, id);
   }
 
   @Post('assinaturas/:id/otp')

@@ -29,7 +29,7 @@ const BULLETS = [
 @Injectable()
 export class DeclaracaoTreinamentoService {
   static readonly CODIGO = 'declaracao-treinamento-biometrico';
-  static readonly NOME = 'Declaração de Treinamento - Registro Eletrônico Biométrico/Facial';
+  static readonly NOME = 'Declaração de Treinamento - Registro Eletrônico Biométrico';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -58,7 +58,16 @@ export class DeclaracaoTreinamentoService {
       candidatura.admissao ?? candidatura.requisicao.dataPrevistaAdmissao ?? new Date();
 
     const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    this.desenharDeclaracao(pdf, page, regular, bold, logo, candidatoNome, empresaCidade, dataAdmissao);
+    this.desenharDeclaracao(
+      pdf,
+      page,
+      regular,
+      bold,
+      logo,
+      candidatoNome,
+      empresaCidade,
+      dataAdmissao,
+    );
 
     return Buffer.from(await pdf.save());
   }
@@ -82,7 +91,8 @@ export class DeclaracaoTreinamentoService {
     y -= 22;
 
     // Texto introdutório
-    const intro = 'Declaro haver lido e compreendido o conteúdo abaixo relativo ao assunto e ter recebido treinamento para utilização do \'Registro Eletrônico Biométrico/Facial da Jornada de Trabalho\'. Estou ciente, portanto, de que utilizar o Registro Eletrônico corretamente faz parte das minhas obrigações como funcionário tendo como premissas principais:';
+    const intro =
+      "Declaro haver lido e compreendido o conteúdo abaixo relativo ao assunto e ter recebido treinamento para utilização do 'Registro Eletrônico Biométrico da Jornada de Trabalho'. Estou ciente, portanto, de que utilizar o Registro Eletrônico corretamente faz parte das minhas obrigações como funcionário tendo como premissas principais:";
     const { y: yAposIntro } = drawParagraphs(pdf, page, intro, regular, y, 10);
     y = yAposIntro;
 
@@ -120,10 +130,16 @@ export class DeclaracaoTreinamentoService {
     y -= 20;
 
     const dataFormatada = new Intl.DateTimeFormat('pt-BR', {
-      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
     }).format(dataAdmissao);
     page.drawText(`${empresaCidade}, ${dataFormatada}.`, {
-      x: 70, y, size: 10, font: regular,
+      x: 70,
+      y,
+      size: 10,
+      font: regular,
     });
     y -= 20;
 

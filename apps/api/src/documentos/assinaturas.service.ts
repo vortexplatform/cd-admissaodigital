@@ -9,6 +9,7 @@ import {
   StatusEnvelopeAssinatura,
   StatusRequisicaoVaga,
   TipoEventoAssinatura,
+  TipoSignatario,
 } from '@prisma/client';
 import { randomBytes, randomUUID, createHash } from 'crypto';
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
@@ -32,6 +33,7 @@ const assinaturaTemplates = {
     ['acordo-domingos-feriados', 'Acordo para Trabalho aos Domingos e Feriados'],
     ['autorizacao-plano-saude', 'Autorização Desconto Plano de Saúde'],
     ['termo-prorrogacao-experiencia', 'Termo de Prorrogação do Contrato de Experiência'],
+    ['termo-opcao-vale-transporte', 'Termo de Opção, Declaração e Autorização - Vale-Transporte'],
   ],
   [SetorAssinatura.SESMT]: [],
 } satisfies Record<SetorAssinatura, [string, string][]>;
@@ -56,7 +58,7 @@ export class AssinaturasService {
 
   async listMyEnvelopes(userId: number) {
     return this.prisma.candidatura.findMany({
-      where: { candidato: { userId }, envelopesAssinatura: { some: {} } },
+      where: { candidato: { userId } },
       include: {
         candidato: true,
         requisicao: { include: { empresa: true } },
@@ -67,6 +69,67 @@ export class AssinaturasService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async gerarParaCandidato(userId: number, candidaturaId: number) {
+    const candidatura = await this.prisma.candidatura.findUnique({
+      where: { id: candidaturaId },
+      include: { candidato: true },
+    });
+
+    if (!candidatura) throw new NotFoundException('Candidatura não encontrada.');
+    if (candidatura.candidato.userId !== userId) {
+      throw new ForbiddenException('Candidatura não pertence ao candidato autenticado.');
+    }
+    if (candidatura.status !== StatusCandidatura.APROVADO && candidatura.status !== StatusCandidatura.EFETIVADO) {
+      throw new BadRequestException('Os documentos só podem ser gerados para candidaturas aprovadas ou efetivadas.');
+    }
+
+    await this.documentos.ensureDocumentos(candidaturaId);
+    const candidatoUserId = await this.ensureCandidateUser(candidatura.candidato);
+    await this.ensureEnvelopes(candidaturaId, candidatoUserId, userId);
+
+    return this.prisma.candidatura.findUnique({
+      where: { id: candidaturaId },
+      include: {
+        candidato: true,
+        requisicao: { include: { empresa: true } },
+        envelopesAssinatura: {
+          include: { documentos: { orderBy: { ordem: 'asc' } } },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+  }
+
+  async excluirParaRh(userId: number, candidaturaId: number) {
+    await this.ensureRh(userId);
+
+    const candidatura = await this.prisma.candidatura.findUnique({
+      where: { id: candidaturaId },
+      include: { envelopesAssinatura: { include: { documentos: true } } },
+    });
+    if (!candidatura) throw new NotFoundException('Candidatura não encontrada.');
+    if (candidatura.envelopesAssinatura.length === 0) {
+      throw new BadRequestException('Não há documentos de assinatura para excluir.');
+    }
+
+    const documentos = candidatura.envelopesAssinatura.flatMap((envelope) => envelope.documentos);
+    if (documentos.some((documento) => documento.status === StatusDocumentoAssinatura.ASSINADO)) {
+      throw new BadRequestException('Não é possível excluir documentos que já foram assinados.');
+    }
+
+    await Promise.all(
+      documentos.flatMap((documento) => {
+        const paths = [documento.conteudoStoragePath, documento.empresaPdfFinalStoragePath].filter(
+          (path): path is string => Boolean(path),
+        );
+        return paths.map((path) => this.s3.delete(path));
+      }),
+    );
+
+    await this.prisma.envelopeAssinatura.deleteMany({ where: { candidaturaId } });
+    return { message: 'Documentos de assinatura excluídos.' };
   }
 
   async listForRh(userId: number, page: number, limit: number, candidatoId?: number) {
@@ -207,13 +270,17 @@ export class AssinaturasService {
 
   async gerarParaRh(userId: number, candidaturaId: number) {
     await this.ensureRh(userId);
-    await this.documentos.ensureDocumentos(candidaturaId);
 
     const candidatura = await this.prisma.candidatura.findUnique({
       where: { id: candidaturaId },
       include: { candidato: true },
     });
     if (!candidatura) throw new NotFoundException('Candidatura não encontrada.');
+    if (candidatura.status !== StatusCandidatura.APROVADO && candidatura.status !== StatusCandidatura.EFETIVADO) {
+      throw new BadRequestException('Os documentos só podem ser gerados para candidaturas aprovadas ou efetivadas.');
+    }
+
+    await this.documentos.ensureDocumentos(candidaturaId);
     const candidatoUserId = await this.ensureCandidateUser(candidatura.candidato);
 
     await this.ensureEnvelopes(candidatura.id, candidatoUserId, userId);
@@ -237,7 +304,7 @@ export class AssinaturasService {
       throw new BadRequestException('Envelope já concluído.');
     }
 
-    const identifier = this.signatureIdentifier(envelope.candidatura.candidato);
+    const identifier = this.signatureIdentifier(envelope.candidatura.candidato, envelope.tipoSignatario);
     const code = this.otp.generate();
     await this.otp.save(identifier, code);
     await this.deliverOtp(identifier, code);
@@ -312,6 +379,13 @@ export class AssinaturasService {
     this.validateSession(documento.envelope, sessionToken);
 
     const candidato = documento.envelope.candidatura.candidato;
+    const isResponsavel = documento.envelope.tipoSignatario === TipoSignatario.RESPONSAVEL;
+    const signatarioNome = isResponsavel
+      ? candidato.responsavelNome ?? 'RESPONSÁVEL NÃO INFORMADO'
+      : candidato.nome ?? documento.envelope.user.nome;
+    const signatarioCpf = isResponsavel
+      ? candidato.responsavelCpf ?? candidato.cpf
+      : candidato.cpf;
     const otpIdentifier = documento.envelope.otpIdentifier;
     const assinaturaEmail = otpIdentifier?.includes('@') ? otpIdentifier : null;
     const assinaturaTelefone = otpIdentifier && !otpIdentifier.includes('@') ? otpIdentifier : null;
@@ -322,8 +396,8 @@ export class AssinaturasService {
         ...documento,
         status: StatusDocumentoAssinatura.ASSINADO,
         assinadoEm: signedAt,
-        assinaturaNome: candidato.nome ?? documento.envelope.user.nome,
-        assinaturaCpf: candidato.cpf,
+        assinaturaNome: signatarioNome,
+        assinaturaCpf: signatarioCpf,
         assinaturaIp: evidence.ip ?? null,
         assinaturaUserAgent: evidence.userAgent ?? null,
         codigoVerificacao,
@@ -336,8 +410,8 @@ export class AssinaturasService {
       data: {
         status: StatusDocumentoAssinatura.ASSINADO,
         assinadoEm: signedAt,
-        assinaturaNome: candidato.nome ?? documento.envelope.user.nome,
-        assinaturaCpf: candidato.cpf,
+        assinaturaNome: signatarioNome,
+        assinaturaCpf: signatarioCpf,
         assinaturaIp: evidence.ip,
         assinaturaUserAgent: evidence.userAgent,
         assinaturaEmail,
@@ -488,23 +562,66 @@ export class AssinaturasService {
   }
 
   private async ensureEnvelopes(candidaturaId: number, userId: number, geradoPorUserId?: number) {
+    const candidatura = await this.prisma.candidatura.findUnique({
+      where: { id: candidaturaId },
+      include: { candidato: true, requisicao: true },
+    });
+    const dataAdmissao = candidatura?.admissao ?? candidatura?.requisicao.dataPrevistaAdmissao ?? new Date();
+    const isMenor = candidatura?.candidato.dataNascimento
+      ? this.calcularIdade(candidatura.candidato.dataNascimento, dataAdmissao) < 18
+      : false;
+
     for (const setor of Object.values(SetorAssinatura)) {
       const templates = assinaturaTemplates[setor];
       if (templates.length === 0) continue;
 
       const envelope = await this.prisma.envelopeAssinatura.upsert({
-        where: { candidaturaId_setor: { candidaturaId, setor } },
-        create: { candidaturaId, userId, setor, geradoPorUserId: geradoPorUserId ?? null },
+        where: {
+          candidaturaId_setor_tipoSignatario: {
+            candidaturaId, setor, tipoSignatario: TipoSignatario.CANDIDATO,
+          },
+        },
+        create: { candidaturaId, userId, setor, tipoSignatario: TipoSignatario.CANDIDATO, geradoPorUserId: geradoPorUserId ?? null },
         update: {},
       });
       await this.ensureDocuments(envelope.id, candidaturaId, setor);
       await this.recordEvent(envelope.id, TipoEventoAssinatura.ENVELOPE_CRIADO, {});
+
+      if (isMenor) {
+        const responsavelEnvelope = await this.prisma.envelopeAssinatura.upsert({
+          where: {
+            candidaturaId_setor_tipoSignatario: {
+              candidaturaId, setor, tipoSignatario: TipoSignatario.RESPONSAVEL,
+            },
+          },
+          create: {
+            candidaturaId,
+            userId,
+            setor,
+            tipoSignatario: TipoSignatario.RESPONSAVEL,
+            accessToken: randomUUID(),
+            geradoPorUserId: geradoPorUserId ?? null,
+          },
+          update: {},
+        });
+        await this.ensureDocuments(responsavelEnvelope.id, candidaturaId, setor);
+        await this.recordEvent(responsavelEnvelope.id, TipoEventoAssinatura.ENVELOPE_CRIADO, {});
+      }
     }
 
     await this.prisma.requisicaoVaga.updateMany({
       where: { candidaturas: { some: { id: candidaturaId } } },
       data: { status: StatusRequisicaoVaga.AGUARDANDO_ASSINATURA },
     });
+  }
+
+  private calcularIdade(dataNascimento: Date, dataReferencia: Date): number {
+    let idade = dataReferencia.getUTCFullYear() - dataNascimento.getUTCFullYear();
+    const mes = dataReferencia.getUTCMonth() - dataNascimento.getUTCMonth();
+    if (mes < 0 || (mes === 0 && dataReferencia.getUTCDate() < dataNascimento.getUTCDate())) {
+      idade -= 1;
+    }
+    return idade;
   }
 
   private async ensureDocuments(envelopeId: number, candidaturaId: number, setor: SetorAssinatura) {
@@ -561,6 +678,7 @@ export class AssinaturasService {
     assinaturaUserAgent: string | null;
     metodoAssinatura?: MetodoAssinatura | null;
     codigoVerificacao: string | null;
+    signatarioLabel?: string;
     // Dados da empresa (preenchidos ao certificar com A1)
     empresaCertSubject?: string | null;
     empresaCertIssuer?: string | null;
@@ -655,6 +773,7 @@ export class AssinaturasService {
       assinaturaUserAgent: string | null;
       metodoAssinatura?: MetodoAssinatura | null;
       codigoVerificacao: string | null;
+      signatarioLabel?: string;
       empresaCertSubject?: string | null;
       empresaCertIssuer?: string | null;
       empresaCertSerial?: string | null;
@@ -704,7 +823,8 @@ export class AssinaturasService {
         ? 'Assinatura biométrica assistida (verificação facial)'
         : 'Assinatura eletrônica avançada por OTP (MP 2.200-2/2001 e Lei 14.063/2020)';
 
-    page.drawText('COLABORADOR', { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.3, 0.3, 0.3) });
+    const signatarioSectionLabel = documento.signatarioLabel ?? 'COLABORADOR';
+    page.drawText(signatarioSectionLabel, { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.3, 0.3, 0.3) });
     cursorY -= 13;
     drawRow('Assinado por', documento.assinaturaNome ?? 'Não informado');
     drawRow('CPF', documento.assinaturaCpf ? this.maskCpf(documento.assinaturaCpf) : 'Não informado');
@@ -819,7 +939,7 @@ export class AssinaturasService {
   private async concludeEnvelopeIfComplete(envelopeId: number) {
     const envelope = await this.prisma.envelopeAssinatura.findUnique({
       where: { id: envelopeId },
-      include: { documentos: true, candidatura: true },
+      include: { documentos: true, candidatura: { include: { candidato: true } } },
     });
     if (!envelope) return;
     const complete = envelope.documentos.every((documento) => documento.status === StatusDocumentoAssinatura.ASSINADO);
@@ -831,15 +951,119 @@ export class AssinaturasService {
     });
     await this.recordEvent(envelopeId, TipoEventoAssinatura.ENVELOPE_CONCLUIDO, {});
 
+    // Quando um envelope do CANDIDATO é concluído, verificar se todos os envelopes do candidato
+    // foram concluídos para notificar o responsável legal (se existir)
+    if (envelope.tipoSignatario === TipoSignatario.CANDIDATO) {
+      const pendingCandidatoEnvelopes = await this.prisma.envelopeAssinatura.count({
+        where: {
+          candidaturaId: envelope.candidaturaId,
+          tipoSignatario: TipoSignatario.CANDIDATO,
+          status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+        },
+      });
+      if (pendingCandidatoEnvelopes === 0) {
+        await this.notifyResponsavelIfNeeded(envelope.candidaturaId, envelope.candidatura.candidato);
+      }
+    }
+
     const pending = await this.prisma.envelopeAssinatura.count({
       where: { candidaturaId: envelope.candidaturaId, status: { not: StatusEnvelopeAssinatura.CONCLUIDO } },
     });
     if (pending === 0) {
-      await this.certifyAndEmailSignedDocuments(envelope.candidaturaId);
-      await this.prisma.requisicaoVaga.update({
-        where: { id: envelope.candidatura.requisicaoId },
-        data: { status: StatusRequisicaoVaga.AGUARDANDO_RH },
-      });
+      // Certifica com A1 e atualiza status (ambos — candidato e responsável — já assinaram)
+      try {
+        await this.certifyAndEmailSignedDocuments(envelope.candidaturaId);
+        await this.prisma.requisicaoVaga.update({
+          where: { id: envelope.candidatura.requisicaoId },
+          data: { status: StatusRequisicaoVaga.AGUARDANDO_RH },
+        });
+        // Notifica menor e responsável que todos os documentos foram assinados
+        await this.notifyAllSignaturesComplete(envelope.candidaturaId, envelope.candidatura.candidato);
+      } catch (err) {
+        this.logger.error(`Erro na certificação/notificação pós-assinatura (candidatura ${envelope.candidaturaId}): ${err}`);
+      }
+    }
+  }
+
+  private async notifyResponsavelIfNeeded(
+    candidaturaId: number,
+    candidato: { responsavelEmail?: string | null; responsavelTelefone?: string | null; responsavelNome?: string | null; nome?: string | null },
+  ) {
+    const responsavelEnvelopes = await this.prisma.envelopeAssinatura.findMany({
+      where: {
+        candidaturaId,
+        tipoSignatario: TipoSignatario.RESPONSAVEL,
+        status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+      },
+    });
+    if (responsavelEnvelopes.length === 0) return;
+
+    const accessToken = responsavelEnvelopes[0].accessToken;
+    if (!accessToken) return;
+
+    const responsavelIdentifier = candidato.responsavelEmail ?? candidato.responsavelTelefone;
+    if (!responsavelIdentifier) return;
+
+    const candidatoNome = candidato.nome ?? 'candidato';
+    if (responsavelIdentifier.includes('@')) {
+      await this.email.sendGuardianSigningNotification(
+        responsavelIdentifier,
+        candidato.responsavelNome ?? 'Responsável',
+        candidatoNome,
+        accessToken,
+      );
+    } else {
+      const baseUrl = process.env.WEB_URL ?? 'https://admissao.coelhodiniz.com.br';
+      const link = `${baseUrl}/responsavel/assinaturas/${accessToken}`;
+      await this.sms.sendOtp(responsavelIdentifier, `Admissão Digital: Assine os documentos de ${candidatoNome} em ${link}`);
+    }
+  }
+
+  /**
+   * Após todos os envelopes (candidato + responsável) serem concluídos,
+   * envia notificação de conclusão para o menor e para o responsável legal.
+   */
+  private async notifyAllSignaturesComplete(
+    candidaturaId: number,
+    candidato: {
+      email?: string | null;
+      telefone?: string | null;
+      nome?: string | null;
+      responsavelEmail?: string | null;
+      responsavelTelefone?: string | null;
+      responsavelNome?: string | null;
+    },
+  ) {
+    // Só notifica se existem envelopes de responsável (candidato é menor)
+    const responsavelCount = await this.prisma.envelopeAssinatura.count({
+      where: { candidaturaId, tipoSignatario: TipoSignatario.RESPONSAVEL },
+    });
+    if (responsavelCount === 0) return;
+
+    const candidatoNome = candidato.nome ?? 'Candidato';
+    const baseUrl = process.env.WEB_URL ?? 'https://admissao.coelhodiniz.com.br';
+
+    // Notifica o candidato (menor)
+    const candidatoIdentifier = candidato.email ?? candidato.telefone;
+    if (candidatoIdentifier) {
+      const msg = `Admissão Digital: Todos os documentos de ${candidatoNome} foram assinados. A empresa concluirá a certificação em breve.`;
+      if (candidatoIdentifier.includes('@')) {
+        await this.email.sendSignaturesCompleteNotification(candidatoIdentifier, candidatoNome, baseUrl);
+      } else {
+        await this.sms.sendOtp(candidatoIdentifier, msg);
+      }
+    }
+
+    // Notifica o responsável legal
+    const responsavelIdentifier = candidato.responsavelEmail ?? candidato.responsavelTelefone;
+    if (responsavelIdentifier) {
+      const responsavelNome = candidato.responsavelNome ?? 'Responsável';
+      const msg = `Admissão Digital: Todos os documentos de ${candidatoNome} foram assinados por você e pelo candidato. A empresa concluirá a certificação em breve.`;
+      if (responsavelIdentifier.includes('@')) {
+        await this.email.sendSignaturesCompleteNotification(responsavelIdentifier, responsavelNome, baseUrl, candidatoNome);
+      } else {
+        await this.sms.sendOtp(responsavelIdentifier, msg);
+      }
     }
   }
 
@@ -1001,6 +1225,229 @@ export class AssinaturasService {
     return pdfFinalEmpresa;
   }
 
+  // ─── Métodos para o responsável legal (acesso por accessToken) ───
+
+  async findEnvelopesByAccessToken(accessToken: string) {
+    const envelope = await this.prisma.envelopeAssinatura.findUnique({
+      where: { accessToken },
+      include: {
+        candidatura: {
+          include: {
+            candidato: true,
+            requisicao: { include: { empresa: true } },
+          },
+        },
+        documentos: { orderBy: { ordem: 'asc' } },
+      },
+    });
+    if (!envelope) throw new NotFoundException('Link de acesso inválido ou expirado.');
+    if (envelope.tipoSignatario !== TipoSignatario.RESPONSAVEL) {
+      throw new BadRequestException('Acesso inválido.');
+    }
+
+    // Busca todos os envelopes RESPONSAVEL da mesma candidatura
+    const envelopes = await this.prisma.envelopeAssinatura.findMany({
+      where: {
+        candidaturaId: envelope.candidaturaId,
+        tipoSignatario: TipoSignatario.RESPONSAVEL,
+      },
+      include: { documentos: { orderBy: { ordem: 'asc' } } },
+      orderBy: { id: 'asc' },
+    });
+
+    return {
+      candidato: envelope.candidatura.candidato,
+      empresa: envelope.candidatura.requisicao.empresa,
+      envelopes,
+    };
+  }
+
+  async sendOtpResponsavel(accessToken: string, evidence: RequestEvidence) {
+    const envelope = await this.findEnvelopeByAccessToken(accessToken);
+
+    if (envelope.status === StatusEnvelopeAssinatura.CONCLUIDO) {
+      throw new BadRequestException('Todos os documentos já foram assinados pelo responsável legal.');
+    }
+
+    // Verificar que o candidato já assinou todos os envelopes
+    await this.ensureCandidatoEnvelopesConcluidos(envelope.candidaturaId);
+
+    const identifier = this.signatureIdentifier(envelope.candidatura.candidato, TipoSignatario.RESPONSAVEL);
+    const code = this.otp.generate();
+    await this.otp.save(identifier, code);
+    await this.deliverOtp(identifier, code);
+
+    // Atualiza apenas os envelopes RESPONSAVEL que ainda não estão concluídos
+    await this.prisma.envelopeAssinatura.updateMany({
+      where: {
+        candidaturaId: envelope.candidaturaId,
+        tipoSignatario: TipoSignatario.RESPONSAVEL,
+        status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+      },
+      data: {
+        status: StatusEnvelopeAssinatura.AGUARDANDO_OTP,
+        otpIdentifier: identifier,
+        sessionToken: null,
+        sessionExpiraEm: null,
+      },
+    });
+    await this.recordEvent(envelope.id, TipoEventoAssinatura.OTP_ENVIADO, evidence, {
+      identifierMasked: this.maskIdentifier(identifier),
+      tipoSignatario: 'RESPONSAVEL',
+    });
+
+    return { message: 'Código enviado.', identifier: this.maskIdentifier(identifier) };
+  }
+
+  async verifyOtpResponsavel(accessToken: string, code: string, evidence: RequestEvidence) {
+    const envelope = await this.findEnvelopeByAccessToken(accessToken);
+    if (envelope.status === StatusEnvelopeAssinatura.CONCLUIDO) {
+      throw new BadRequestException('Todos os documentos já foram assinados pelo responsável legal.');
+    }
+    if (!envelope.otpIdentifier) throw new BadRequestException('Solicite o código antes de validar.');
+
+    const valid = await this.otp.verify(envelope.otpIdentifier, code);
+    if (!valid) throw new ForbiddenException('Código inválido ou expirado.');
+
+    const sessionToken = randomUUID();
+    const sessionExpiraEm = new Date(Date.now() + 30 * 60 * 1000);
+
+    // Atualiza apenas os envelopes RESPONSAVEL que ainda não estão concluídos
+    await this.prisma.envelopeAssinatura.updateMany({
+      where: {
+        candidaturaId: envelope.candidaturaId,
+        tipoSignatario: TipoSignatario.RESPONSAVEL,
+        status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+      },
+      data: { status: StatusEnvelopeAssinatura.OTP_VALIDADO, otpValidadoEm: new Date(), sessionToken, sessionExpiraEm },
+    });
+    await this.recordEvent(envelope.id, TipoEventoAssinatura.OTP_VALIDADO, evidence, {
+      tipoSignatario: 'RESPONSAVEL',
+    });
+
+    return { sessionToken, sessionExpiraEm };
+  }
+
+  async viewDocumentResponsavel(accessToken: string, documentoId: number, evidence: RequestEvidence) {
+    const documento = await this.findDocumentByAccessToken(accessToken, documentoId);
+    if (documento.empresaPdfFinalStoragePath) return this.s3.download(documento.empresaPdfFinalStoragePath);
+    if (documento.empresaPdfFinal) return Buffer.from(documento.empresaPdfFinal);
+
+    if (!documento.visualizadoEm) {
+      await this.prisma.documentoAssinatura.update({
+        where: { id: documento.id },
+        data: { visualizadoEm: new Date() },
+      });
+      await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_VISUALIZADO, evidence, {
+        documentoId: documento.id,
+        tipoSignatario: 'RESPONSAVEL',
+      });
+    }
+
+    return this.renderDocumentoPdf(documento);
+  }
+
+  async signDocumentResponsavel(accessToken: string, documentoId: number, sessionToken: string, evidence: RequestEvidence) {
+    const documento = await this.findDocumentByAccessToken(accessToken, documentoId);
+    if (documento.status === StatusDocumentoAssinatura.ASSINADO) return documento;
+    if (!documento.visualizadoEm) throw new BadRequestException('Visualize o documento antes de assinar.');
+
+    this.validateSession(documento.envelope, sessionToken);
+
+    const candidato = documento.envelope.candidatura.candidato;
+    const signatarioNome = candidato.responsavelNome ?? 'RESPONSÁVEL NÃO INFORMADO';
+    const signatarioCpf = candidato.responsavelCpf ?? candidato.cpf;
+    const otpIdentifier = documento.envelope.otpIdentifier;
+    const assinaturaEmail = otpIdentifier?.includes('@') ? otpIdentifier : null;
+    const assinaturaTelefone = otpIdentifier && !otpIdentifier.includes('@') ? otpIdentifier : null;
+
+    const signedAt = new Date();
+    const codigoVerificacao = this.generateVerificationCode();
+    const pdfResponsavel = await this.renderDocumentoPdf({
+      ...documento,
+      status: StatusDocumentoAssinatura.ASSINADO,
+      assinadoEm: signedAt,
+      assinaturaNome: signatarioNome,
+      assinaturaCpf: signatarioCpf,
+      assinaturaIp: evidence.ip ?? null,
+      assinaturaUserAgent: evidence.userAgent ?? null,
+      codigoVerificacao,
+      hashAssinado: null,
+      signatarioLabel: 'RESPONSÁVEL LEGAL',
+    });
+    const hashAssinado = this.hashBuffer(pdfResponsavel);
+
+    const signed = await this.prisma.documentoAssinatura.update({
+      where: { id: documento.id },
+      data: {
+        status: StatusDocumentoAssinatura.ASSINADO,
+        assinadoEm: signedAt,
+        assinaturaNome: signatarioNome,
+        assinaturaCpf: signatarioCpf,
+        assinaturaIp: evidence.ip,
+        assinaturaUserAgent: evidence.userAgent,
+        assinaturaEmail,
+        assinaturaTelefone,
+        metodoAssinatura: MetodoAssinatura.OTP,
+        codigoVerificacao,
+        hashAssinado,
+      },
+    });
+
+    await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_ASSINADO, evidence, {
+      documentoId: documento.id,
+      hashOriginal: documento.hashOriginal,
+      hashAssinado,
+      codigoVerificacao,
+      tipoSignatario: 'RESPONSAVEL',
+    });
+    await this.concludeEnvelopeIfComplete(documento.envelopeId);
+
+    return signed;
+  }
+
+  private async findEnvelopeByAccessToken(accessToken: string) {
+    const envelope = await this.prisma.envelopeAssinatura.findUnique({
+      where: { accessToken },
+      include: { candidatura: { include: { candidato: true } }, user: true },
+    });
+    if (!envelope || envelope.tipoSignatario !== TipoSignatario.RESPONSAVEL) {
+      throw new NotFoundException('Link de acesso inválido.');
+    }
+    return envelope;
+  }
+
+  private async findDocumentByAccessToken(accessToken: string, documentoId: number) {
+    const documento = await this.prisma.documentoAssinatura.findUnique({
+      where: { id: documentoId },
+      include: {
+        envelope: {
+          include: {
+            candidatura: { include: { candidato: true, requisicao: true } },
+            user: true,
+          },
+        },
+      },
+    });
+    if (!documento || documento.envelope.accessToken !== accessToken || documento.envelope.tipoSignatario !== TipoSignatario.RESPONSAVEL) {
+      throw new NotFoundException('Documento não encontrado.');
+    }
+    return documento;
+  }
+
+  private async ensureCandidatoEnvelopesConcluidos(candidaturaId: number) {
+    const pendingCandidato = await this.prisma.envelopeAssinatura.count({
+      where: {
+        candidaturaId,
+        tipoSignatario: TipoSignatario.CANDIDATO,
+        status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+      },
+    });
+    if (pendingCandidato > 0) {
+      throw new BadRequestException('O candidato ainda não assinou todos os documentos.');
+    }
+  }
+
   private async findEnvelopeForUser(userId: number, envelopeId: number) {
     const envelope = await this.prisma.envelopeAssinatura.findUnique({
       where: { id: envelopeId },
@@ -1037,10 +1484,17 @@ export class AssinaturasService {
     }
   }
 
-  private signatureIdentifier(candidato: { email: string | null; telefone: string | null }) {
+  private signatureIdentifier(
+    candidato: { email: string | null; telefone: string | null; responsavelEmail?: string | null; responsavelTelefone?: string | null },
+    tipoSignatario: TipoSignatario = TipoSignatario.CANDIDATO,
+  ) {
+    if (tipoSignatario === TipoSignatario.RESPONSAVEL) {
+      const identifier = candidato.responsavelEmail ?? candidato.responsavelTelefone;
+      if (!identifier) throw new BadRequestException('Responsável legal sem e-mail ou telefone para envio do OTP.');
+      return identifier;
+    }
     const identifier = candidato.email ?? candidato.telefone;
     if (!identifier) throw new BadRequestException('Candidato sem e-mail ou telefone para envio do OTP.');
-
     return identifier;
   }
 

@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -84,6 +85,12 @@ export class CreateRequisicaoDto {
   @IsNotEmpty()
   @IsOptional()
   sindicato?: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @IsOptional()
+  salario?: number;
 
   @IsDateString()
   @IsOptional()

@@ -75,4 +75,77 @@ export class EmailService {
     });
     this.logger.log(`Documentos assinados enviados para ${email}`);
   }
+
+  async sendGuardianSigningNotification(
+    email: string,
+    responsavelNome: string,
+    candidatoNome: string,
+    accessToken: string,
+  ): Promise<void> {
+    const baseUrl = process.env.WEB_URL ?? 'https://admissao.coelhodiniz.com.br';
+    const link = `${baseUrl}/responsavel/assinaturas/${accessToken}`;
+
+    await this.transporter.sendMail({
+      from: this.config.get<string>('SMTP_FROM'),
+      to: email,
+      subject: 'Assinatura de responsável legal — Admissão Digital',
+      text: [
+        `Olá, ${responsavelNome}.`,
+        '',
+        `Os documentos de admissão de ${candidatoNome} estão aguardando sua assinatura como responsável legal.`,
+        '',
+        `Acesse o link abaixo para visualizar e assinar os documentos:`,
+        link,
+      ].join('\n'),
+      html: `
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
+          <h2>Admissão Digital</h2>
+          <p>Olá, ${responsavelNome}.</p>
+          <p>Os documentos de admissão de <strong>${candidatoNome}</strong> estão aguardando sua assinatura como responsável legal.</p>
+          <p>Acesse o link abaixo para visualizar e assinar os documentos:</p>
+          <p><a href="${link}" style="display: inline-block; background: #1d4ed8; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Assinar documentos</a></p>
+          <p style="color: #6b7280; font-size: 14px;">Este link é pessoal e intransferível.</p>
+        </div>
+      `,
+    });
+    this.logger.log(`Notificação de assinatura de responsável enviada para ${email}`);
+  }
+
+  async sendSignaturesCompleteNotification(
+    email: string,
+    destinatarioNome: string,
+    baseUrl: string,
+    candidatoNome?: string,
+  ): Promise<void> {
+    const isResponsavel = Boolean(candidatoNome);
+    const subject = 'Assinaturas concluídas — Admissão Digital';
+    const descricao = isResponsavel
+      ? `Todos os documentos de admissão de <strong>${candidatoNome}</strong> foram assinados por você e pelo candidato.`
+      : 'Todos os seus documentos de admissão foram assinados.';
+
+    await this.transporter.sendMail({
+      from: this.config.get<string>('SMTP_FROM'),
+      to: email,
+      subject,
+      text: [
+        `Olá, ${destinatarioNome}.`,
+        '',
+        isResponsavel
+          ? `Todos os documentos de admissão de ${candidatoNome} foram assinados por você e pelo candidato.`
+          : 'Todos os seus documentos de admissão foram assinados.',
+        '',
+        'A empresa concluirá a certificação digital em breve. Você receberá uma cópia dos documentos certificados por e-mail.',
+      ].join('\n'),
+      html: `
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
+          <h2>Admissão Digital</h2>
+          <p>Olá, ${destinatarioNome}.</p>
+          <p>${descricao}</p>
+          <p>A empresa concluirá a certificação digital em breve. Você receberá uma cópia dos documentos certificados por e-mail.</p>
+          <p style="color: #6b7280; font-size: 14px;">Este é um e-mail automático. Em caso de dúvida, entre em contato com o departamento pessoal.</p>
+        </div>
+      `,
+    });
+    this.logger.log(`Notificação de assinaturas concluídas enviada para ${email}`);
+  }
 }

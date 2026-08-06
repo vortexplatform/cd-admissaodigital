@@ -7,6 +7,7 @@ import {
   PAGE_HEIGHT,
   PAGE_WIDTH,
   drawAssinaturasEletronicas,
+  drawAssinaturasEletronicasMenor,
   drawFooter,
   drawHeader,
   drawParagraphs,
@@ -103,11 +104,13 @@ export class ContratoExperienciaService {
     const empresaEndereco = filial
       ? `${filial.TIPLGR} ${filial.ENDFIL}, ${filial.ENDNUM} - ${filial.NOMBAI}`
       : 'MARECHAL FLORIANO, 1527 - CENTRO';
-    const salarioFormatado = salario
-      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-          salario.VALSAL,
-        )
-      : '__________';
+    const valorSalario = salario?.VALSAL ?? candidatura.requisicao.salario;
+    const salarioFormatado =
+      valorSalario != null
+        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+            Number(valorSalario),
+          )
+        : '__________';
 
     const candidatoNome = (candidatura.candidato.nome ?? 'NOME NÃO INFORMADO').toUpperCase();
     const candidatoCpf = this.formatarCpf(candidatura.candidato.cpf);
@@ -133,6 +136,13 @@ export class ContratoExperienciaService {
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
     const logo = await embedLogo(pdf);
 
+    const responsavelNome = candidatura.candidato.responsavelNome
+      ? candidatura.candidato.responsavelNome.toUpperCase()
+      : null;
+    const responsavelCpf = candidatura.candidato.responsavelCpf
+      ? this.formatarCpf(candidatura.candidato.responsavelCpf)
+      : null;
+
     const page1 = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     this.desenharContrato(pdf, page1, regular, bold, logo, {
       empresaNome,
@@ -151,6 +161,8 @@ export class ContratoExperienciaService {
       candidatoBairro,
       candidatoCep,
       candidatoPis,
+      responsavelNome,
+      responsavelCpf,
     });
 
     return Buffer.from(await pdf.save());
@@ -176,8 +188,9 @@ export class ContratoExperienciaService {
     datadm: Date,
   ): Promise<SalarioAdmissao | null> {
     if (!codcar || !codfil) return null;
+    const estcarNormalizado = estcar === 0 ? 2 : estcar;
     const datadmStr = this.formatarDataAdmissao(datadm);
-    const url = `/admissao/salario?numemp=${numemp}&estcar=${estcar}&codcar=${encodeURIComponent(codcar)}&codfil=${codfil}&datadm=${encodeURIComponent(datadmStr)}`;
+    const url = `/admissao/salario?numemp=${numemp}&estcar=${estcarNormalizado}&codcar=${encodeURIComponent(codcar)}&codfil=${codfil}&datadm=${encodeURIComponent(datadmStr)}`;
     try {
       return await this.seniorApi.get<SalarioAdmissao | null>(url);
     } catch (err) {
@@ -250,6 +263,8 @@ export class ContratoExperienciaService {
       candidatoBairro: string;
       candidatoCep: string;
       candidatoPis: string;
+      responsavelNome: string | null;
+      responsavelCpf: string | null;
     },
   ): void {
     let y = drawHeader(page, logo, 'Contrato de Trabalho a Título de Experiência', bold);
@@ -271,15 +286,28 @@ export class ContratoExperienciaService {
       x: 42, y: lastY - 10, size: 8.5, font: regular,
     });
 
-    drawAssinaturasEletronicas(
-      pdf,
-      lastPage,
-      regular,
-      bold,
-      lastY - 30,
-      data.empresaNome,
-      data.candidatoNome,
-    );
+    if (data.menorDe18 && data.responsavelNome) {
+      drawAssinaturasEletronicasMenor(
+        pdf,
+        lastPage,
+        regular,
+        bold,
+        lastY - 30,
+        data.empresaNome,
+        data.candidatoNome,
+        data.responsavelNome,
+      );
+    } else {
+      drawAssinaturasEletronicas(
+        pdf,
+        lastPage,
+        regular,
+        bold,
+        lastY - 30,
+        data.empresaNome,
+        data.candidatoNome,
+      );
+    }
     drawFooter(page);
   }
 
@@ -301,6 +329,8 @@ export class ContratoExperienciaService {
       candidatoBairro: string;
       candidatoCep: string;
       candidatoPis: string;
+      responsavelNome: string | null;
+      responsavelCpf: string | null;
     },
   ): string[] {
     if (data.menorDe18) return this.montarClausulasMenorIdade(data);
@@ -342,6 +372,12 @@ export class ContratoExperienciaService {
     data: Parameters<ContratoExperienciaService['montarClausulasContrato']>[0],
   ): string[] {
     const clausulas = this.montarClausulasPadrao(data);
+
+    // Atualizar preâmbulo para incluir o responsável legal como assistente
+    if (data.responsavelNome && data.responsavelCpf) {
+      clausulas[0] = `Entre a firma ${data.empresaNome}, CNPJ ${data.empresaCnpj} com sede em ${data.empresaCidade} na ${data.empresaEndereco}, doravante designada simplesmente EMPREGADORA e ${data.candidatoNome} portador(a) do CPF nº ${data.candidatoCpf}, menor de 18 anos, neste ato assistido(a) por seu responsável legal, Sr(a). ${data.responsavelNome}, portador(a) do CPF nº ${data.responsavelCpf}, a seguir chamado apenas EMPREGADO, e celebrado o presente CONTRATO DE EXPERIÊNCIA, que terá vigência a partir da data de início de serviços, de acordo com as condições a seguir especificadas:`;
+    }
+
     clausulas[1] = `1 - Fica o EMPREGADO admitido no quadro de funcionários da EMPREGADORA para exercer as funções de ${data.cargo} mediante a remuneração de ${data.salarioFormatado} por mês. A circunstância, porém, de ser a função especificada não importa na intransferibilidade do EMPREGADO para outro serviço, o qual demonstre melhor capacidade de adaptação desde que compatível com a sua condição pessoal, e respeitado o disposto no inciso XXXIII do artigo 7º, da Constituição Federal e nos artigos 403 a 405, da Consolidação da Leis do Trabalho, que vedam a realização de trabalho perigoso, insalubre ou prejudicial ao desenvolvimento físico, psicológico e moral do menor de 18 anos.`;
     clausulas[3] = `3 - Obriga-se também o EMPREGADO a prestar serviços em horas extraordinárias, sempre que lhe for determinado pela EMPREGADORA, observando-se as limitações impostas pela legislação vigente para menores de 18 anos, em especial o artigo 413 da Consolidação das Leis do Trabalho. Na hipótese desta faculdade pela EMPREGADORA, o EMPREGADO receberá as horas extraordinárias em acréscimo legal, salvo a ocorrência de compensação, com a consequente redução da jornada de trabalho em outro dia.`;
     clausulas[4] = `4 - Aceita o EMPREGADO, expressamente, a condição de prestar serviços em qualquer dos turnos de trabalho, isto é, tanto durante o dia como a noite, desde que sem simultaneidade, observadas as prescrições legais, reguladoras do assunto e o disposto no artigo 7º, inciso XXXIII, da Constituição Federal e no artigo 404 da Consolidação das Leis do Trabalho, que vedam a realização de trabalho noturno (entre 22h e 5h) ao menor de 18 anos.`;

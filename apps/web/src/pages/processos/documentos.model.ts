@@ -42,7 +42,7 @@ export interface DocumentoAdmissao {
 
 export interface DocumentosCandidatura {
   id: number;
-  status: string;
+  status: 'INSCRITO' | 'EM_ANALISE' | 'ENTREVISTA' | 'APROVADO' | 'EFETIVADO' | 'REPROVADO' | 'DESISTIU' | 'CANCELADO';
   admissao: string | null;
   candidato: {
     id: number;
@@ -92,6 +92,7 @@ export interface DocumentoAssinatura {
 export interface EnvelopeAssinatura {
   id: number;
   setor: 'ADM_PESSOAL' | 'SESMT';
+  tipoSignatario: 'CANDIDATO' | 'RESPONSAVEL';
   status: StatusEnvelopeAssinatura;
   otpValidadoEm: string | null;
   sessionExpiraEm: string | null;
@@ -136,5 +137,8 @@ export const getDocumentoAssinaturaUrl = (id: number) =>
 
 export const getDocumentoAssinaturaRhUrl = (id: number) =>
   `${apiBaseUrl()}/documentos/assinaturas/rh/documentos/${id}/view`;
+
+export const getDocumentoAssinaturaResponsavelUrl = (accessToken: string, id: number) =>
+  `${apiBaseUrl()}/documentos/assinaturas/responsavel/${accessToken}/documentos/${id}/view`;
 
 const apiBaseUrl = () => import.meta.env.VITE_API_URL ?? 'http://localhost:5011';

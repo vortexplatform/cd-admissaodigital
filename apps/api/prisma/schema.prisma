@@ -123,6 +123,12 @@ model Candidato {
   tamanhoCalcado                String?                @map("tamanho_calcado")
   cidadeVagaId                  Int                    @map("cidade_vaga_id")
 
+  // Responsável legal (obrigatório para menores 16-17 anos)
+  responsavelNome               String?                @map("responsavel_nome")
+  responsavelCpf                String?                @map("responsavel_cpf")
+  responsavelEmail              String?                @map("responsavel_email")
+  responsavelTelefone           String?                @map("responsavel_telefone")
+
   user                          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
   cidadeVaga                    CidadeVaga             @relation(fields: [cidadeVagaId], references: [id], onDelete: Restrict)
   candidaturas                  Candidatura[]
@@ -171,7 +177,8 @@ model CandidatoValeTransporte {
   tipoTransporte      String   @map("tipo_transporte")
   tipoTrajeto         String   @map("tipo_trajeto")
   transporteUsado     String   @map("transporte_usado")
-  preco               Decimal  @db.Decimal(10, 2)
+   tarifaUnitaria      Decimal  @db.Decimal(10, 2) @map("tarifa_unitaria")
+   valesPorDia         Int      @default(1) @map("vales_por_dia")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
@@ -375,6 +382,7 @@ model RequisicaoVaga {
   escala            String?
   descricaoEscala   String?  @map("descricao_escala")
   sindicato         String?
+  salario           Decimal? @db.Decimal(12, 2)
 
   dataPrevistaAdmissao DateTime? @db.Date
 
@@ -453,6 +461,11 @@ enum MetodoAssinatura {
   BIOMETRIA
 }
 
+enum TipoSignatario {
+  CANDIDATO
+  RESPONSAVEL
+}
+
 enum TipoEventoAssinatura {
   ENVELOPE_CRIADO
   OTP_ENVIADO
@@ -497,11 +510,13 @@ model EnvelopeAssinatura {
   userId          Int                      @map("user_id")
   geradoPorUserId Int?                     @map("gerado_por_user_id")
   setor           SetorAssinatura
+  tipoSignatario  TipoSignatario           @default(CANDIDATO) @map("tipo_signatario")
   status          StatusEnvelopeAssinatura @default(RASCUNHO)
   otpIdentifier   String?                  @map("otp_identifier")
   otpValidadoEm   DateTime?                @map("otp_validado_em")
   sessionToken    String?                  @unique @map("session_token")
   sessionExpiraEm DateTime?                @map("session_expira_em")
+  accessToken     String?                  @unique @map("access_token")
   concluidoEm     DateTime?                @map("concluido_em")
   createdAt       DateTime                 @default(now()) @map("created_at")
   updatedAt       DateTime                 @updatedAt @map("updated_at")
@@ -513,7 +528,7 @@ model EnvelopeAssinatura {
   eventos               EventoAssinatura[]
   biometriaSolicitacoes BiometriaSolicitacao[]
 
-  @@unique([candidaturaId, setor])
+  @@unique([candidaturaId, setor, tipoSignatario])
   @@index([userId])
   @@index([status])
   @@map("envelope_assinatura")
