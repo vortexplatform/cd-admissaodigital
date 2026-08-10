@@ -26,6 +26,7 @@ import DocumentoTemplatesPage from '@/pages/configuracoes/DocumentoTemplatesPage
 import CandidateAssinaturasPage from '@/pages/candidato/CandidateAssinaturasPage';
 // Público
 import VagasPage from '@/pages/public/VagasPage';
+import CandidatoPortalPage from '@/pages/public/CandidatoPortalPage';
 import ResponsavelAssinaturasPage from '@/pages/public/ResponsavelAssinaturasPage';
 import VerificacaoPage from '@/pages/verificacao/VerificacaoPage';
 import AdminLayout from '@/layouts/AdminLayout';
@@ -197,6 +198,7 @@ export default function Router() {
           element={<Navigate to="/candidato-assinaturas" replace />}
         />
       </Route>
+      <Route path="/candidato/documentos/:portalAccessToken" element={<CandidatoPortalPage />} />
       <Route path="/responsavel/assinaturas/:accessToken" element={<ResponsavelAssinaturasPage />} />
       <Route path="/verificar/:codigo?" element={<VerificacaoPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

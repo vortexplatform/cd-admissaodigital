@@ -89,6 +89,10 @@ export class AssinaturasService {
     const candidatoUserId = await this.ensureCandidateUser(candidatura.candidato);
     await this.ensureEnvelopes(candidaturaId, candidatoUserId, userId);
 
+    this.notifyCandidatoDocumentsGenerated(candidaturaId).catch((err) =>
+      this.logger.error(`Erro na notificação de documentos gerados (candidatura ${candidaturaId}): ${err}`),
+    );
+
     return this.prisma.candidatura.findUnique({
       where: { id: candidaturaId },
       include: {
@@ -284,6 +288,10 @@ export class AssinaturasService {
     const candidatoUserId = await this.ensureCandidateUser(candidatura.candidato);
 
     await this.ensureEnvelopes(candidatura.id, candidatoUserId, userId);
+
+    this.notifyCandidatoDocumentsGenerated(candidatura.id).catch((err) =>
+      this.logger.error(`Erro na notificação de documentos gerados (candidatura ${candidatura.id}): ${err}`),
+    );
 
     return this.prisma.candidatura.findUnique({
       where: { id: candidatura.id },
@@ -613,6 +621,57 @@ export class AssinaturasService {
       where: { candidaturas: { some: { id: candidaturaId } } },
       data: { status: StatusRequisicaoVaga.AGUARDANDO_ASSINATURA },
     });
+
+    // Gerar portalAccessToken se ainda não existir
+    if (!candidatura!.portalAccessToken) {
+      await this.prisma.candidatura.update({
+        where: { id: candidaturaId },
+        data: { portalAccessToken: randomUUID() },
+      });
+    }
+  }
+
+  private async notifyCandidatoDocumentsGenerated(candidaturaId: number) {
+    const candidatura = await this.prisma.candidatura.findUnique({
+      where: { id: candidaturaId },
+      include: {
+        candidato: { include: { user: { select: { email: true, telefone: true } } } },
+        requisicao: { include: { empresa: true } },
+      },
+    });
+    if (!candidatura) return;
+
+    const candidato = candidatura.candidato;
+    const candidatoNome = candidato.nome ?? 'Candidato';
+    const empresaNome = candidatura.requisicao.empresa?.nome ?? 'empresa';
+    const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5010';
+    const signingLink = `${baseUrl}/candidato/documentos/${candidatura.portalAccessToken}`;
+
+    const email = candidato.email ?? candidato.user?.email ?? null;
+    const telefone = this.resolveCandidatoTelefone(candidato);
+
+    if (email) {
+      try {
+        await this.email.sendDocumentsReadyNotification(email, candidatoNome, empresaNome, signingLink);
+      } catch (err) {
+        this.logger.error(`Erro ao enviar e-mail de documentos prontos para ${email}: ${err}`);
+      }
+    }
+
+    if (telefone) {
+      try {
+        await this.sms.sendMessage(
+          telefone,
+          `Admissão Digital: Seus documentos de admissão na ${empresaNome} estão prontos para assinatura. Acesse: ${signingLink}`,
+        );
+      } catch (err) {
+        this.logger.error(`Erro ao enviar SMS de documentos prontos para ${telefone}: ${err}`);
+      }
+    }
+
+    if (!email && !telefone) {
+      this.logger.warn(`Candidato ${candidato.id} sem e-mail e telefone para notificação de documentos prontos.`);
+    }
   }
 
   private calcularIdade(dataNascimento: Date, dataReferencia: Date): number {
@@ -863,6 +922,15 @@ export class AssinaturasService {
       drawRow('Condição', 'Representante autorizado conforme certificado digital ICP-Brasil');
     }
 
+    // Link de verificação
+    if (documento.codigoVerificacao) {
+      const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5010';
+      const verificationUrl = `${baseUrl}/verificar/${documento.codigoVerificacao}`;
+
+      drawSection('VERIFICAÇÃO');
+      drawRow('URL de verificação', verificationUrl);
+    }
+
     // Rodapé
     cursorY -= 10;
     if (cursorY > 60) {
@@ -1013,9 +1081,9 @@ export class AssinaturasService {
         accessToken,
       );
     } else {
-      const baseUrl = process.env.WEB_URL ?? 'https://admissao.coelhodiniz.com.br';
+      const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5010';
       const link = `${baseUrl}/responsavel/assinaturas/${accessToken}`;
-      await this.sms.sendOtp(responsavelIdentifier, `Admissão Digital: Assine os documentos de ${candidatoNome} em ${link}`);
+      await this.sms.sendMessage(responsavelIdentifier, `Admissão Digital: Assine os documentos de ${candidatoNome} em ${link}`);
     }
   }
 
@@ -1041,7 +1109,7 @@ export class AssinaturasService {
     if (responsavelCount === 0) return;
 
     const candidatoNome = candidato.nome ?? 'Candidato';
-    const baseUrl = process.env.WEB_URL ?? 'https://admissao.coelhodiniz.com.br';
+    const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5010';
 
     // Notifica o candidato (menor)
     const candidatoIdentifier = candidato.email ?? candidato.telefone;
@@ -1050,7 +1118,7 @@ export class AssinaturasService {
       if (candidatoIdentifier.includes('@')) {
         await this.email.sendSignaturesCompleteNotification(candidatoIdentifier, candidatoNome, baseUrl);
       } else {
-        await this.sms.sendOtp(candidatoIdentifier, msg);
+        await this.sms.sendMessage(candidatoIdentifier, msg);
       }
     }
 
@@ -1062,7 +1130,7 @@ export class AssinaturasService {
       if (responsavelIdentifier.includes('@')) {
         await this.email.sendSignaturesCompleteNotification(responsavelIdentifier, responsavelNome, baseUrl, candidatoNome);
       } else {
-        await this.sms.sendOtp(responsavelIdentifier, msg);
+        await this.sms.sendMessage(responsavelIdentifier, msg);
       }
     }
   }
@@ -1138,11 +1206,17 @@ export class AssinaturasService {
       return;
     }
 
+    const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5010';
+    const portalLink = candidatura.portalAccessToken
+      ? `${baseUrl}/candidato/documentos/${candidatura.portalAccessToken}`
+      : undefined;
+
     await this.email.sendSignedDocuments(
       candidatura.candidato.email,
       candidatura.candidato.nome ?? 'candidato',
       candidatura.requisicao.empresa?.nome ?? 'empresa',
       attachments,
+      portalLink,
     );
   }
 
@@ -1406,6 +1480,293 @@ export class AssinaturasService {
     return signed;
   }
 
+  // ─── Portal do candidato (acesso público via portalAccessToken) ───
+
+  async findPortalSummary(portalAccessToken: string) {
+    const candidatura = await this.prisma.candidatura.findUnique({
+      where: { portalAccessToken },
+      include: {
+        candidato: {
+          select: {
+            nome: true, email: true, telefone: true,
+            ddiTelefone: true, dddTelefone: true, numeroTelefone: true,
+            user: { select: { email: true, telefone: true } },
+          },
+        },
+        requisicao: { include: { empresa: { select: { nome: true } } } },
+        envelopesAssinatura: {
+          where: { tipoSignatario: TipoSignatario.CANDIDATO },
+          include: { documentos: { select: { id: true, status: true } } },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+    if (!candidatura) throw new NotFoundException('Link de acesso inválido.');
+
+    const email = candidatura.candidato.email ?? candidatura.candidato.user?.email ?? null;
+    const telefone = this.resolveCandidatoTelefone(candidatura.candidato);
+
+    const totalDocs = candidatura.envelopesAssinatura.reduce((sum, env) => sum + env.documentos.length, 0);
+    const signedDocs = candidatura.envelopesAssinatura.reduce(
+      (sum, env) => sum + env.documentos.filter((d) => d.status === StatusDocumentoAssinatura.ASSINADO).length, 0,
+    );
+    const allComplete = candidatura.envelopesAssinatura.length > 0 &&
+      candidatura.envelopesAssinatura.every((env) => env.status === StatusEnvelopeAssinatura.CONCLUIDO);
+
+    return {
+      candidatoNome: candidatura.candidato.nome ?? 'Candidato',
+      empresaNome: candidatura.requisicao.empresa?.nome ?? null,
+      totalDocumentos: totalDocs,
+      documentosAssinados: signedDocs,
+      assinaturasCompletas: allComplete,
+      canaisDisponiveis: {
+        email: email ? this.maskIdentifier(email) : null,
+        sms: telefone ? this.maskIdentifier(telefone) : null,
+      },
+    };
+  }
+
+  async listEnvelopesByPortalToken(portalAccessToken: string, sessionToken: string) {
+    const candidatura = await this.prisma.candidatura.findUnique({
+      where: { portalAccessToken },
+      include: {
+        envelopesAssinatura: {
+          where: { tipoSignatario: TipoSignatario.CANDIDATO },
+          include: { documentos: { orderBy: { ordem: 'asc' } } },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+    if (!candidatura) throw new NotFoundException('Link de acesso inválido.');
+
+    // Valida que o sessionToken pertence a um envelope desta candidatura
+    const hasValidSession = candidatura.envelopesAssinatura.some(
+      (env) => env.sessionToken === sessionToken && env.sessionExpiraEm && env.sessionExpiraEm > new Date(),
+    );
+    if (!hasValidSession) throw new ForbiddenException('Sessão inválida ou expirada. Solicite um novo código.');
+
+    return candidatura.envelopesAssinatura;
+  }
+
+  async sendOtpPortal(portalAccessToken: string, channel: 'email' | 'sms', evidence: RequestEvidence) {
+    const candidatura = await this.prisma.candidatura.findUnique({
+      where: { portalAccessToken },
+      include: {
+        candidato: {
+          include: { user: { select: { email: true, telefone: true } } },
+        },
+        envelopesAssinatura: {
+          where: { tipoSignatario: TipoSignatario.CANDIDATO },
+        },
+      },
+    });
+    if (!candidatura) throw new NotFoundException('Link de acesso inválido.');
+
+    const candidatoEmail = candidatura.candidato.email ?? candidatura.candidato.user?.email ?? null;
+    const candidatoTelefone = this.resolveCandidatoTelefone(candidatura.candidato);
+    const identifier = channel === 'email' ? candidatoEmail : candidatoTelefone;
+    if (!identifier) {
+      throw new BadRequestException(`Candidato não possui ${channel === 'email' ? 'e-mail' : 'telefone'} cadastrado.`);
+    }
+
+    const code = this.otp.generate();
+    await this.otp.save(identifier, code);
+    await this.deliverOtp(identifier, code);
+
+    // Atualiza envelopes CANDIDATO pendentes (muda status para AGUARDANDO_OTP)
+    await this.prisma.envelopeAssinatura.updateMany({
+      where: {
+        candidaturaId: candidatura.id,
+        tipoSignatario: TipoSignatario.CANDIDATO,
+        status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+      },
+      data: {
+        status: StatusEnvelopeAssinatura.AGUARDANDO_OTP,
+        otpIdentifier: identifier,
+        sessionToken: null,
+        sessionExpiraEm: null,
+      },
+    });
+
+    // Atualiza envelopes CONCLUÍDOS (mantém status, apenas salva otpIdentifier para verificação)
+    await this.prisma.envelopeAssinatura.updateMany({
+      where: {
+        candidaturaId: candidatura.id,
+        tipoSignatario: TipoSignatario.CANDIDATO,
+        status: StatusEnvelopeAssinatura.CONCLUIDO,
+      },
+      data: {
+        otpIdentifier: identifier,
+        sessionToken: null,
+        sessionExpiraEm: null,
+      },
+    });
+
+    if (candidatura.envelopesAssinatura[0]) {
+      await this.recordEvent(candidatura.envelopesAssinatura[0].id, TipoEventoAssinatura.OTP_ENVIADO, evidence, {
+        identifierMasked: this.maskIdentifier(identifier),
+        via: 'portal',
+      });
+    }
+
+    return { identifier: this.maskIdentifier(identifier) };
+  }
+
+  async verifyOtpPortal(portalAccessToken: string, code: string, evidence: RequestEvidence) {
+    const candidatura = await this.prisma.candidatura.findUnique({
+      where: { portalAccessToken },
+      include: {
+        candidato: { include: { user: { select: { email: true, telefone: true } } } },
+        envelopesAssinatura: {
+          where: { tipoSignatario: TipoSignatario.CANDIDATO },
+        },
+      },
+    });
+    if (!candidatura) throw new NotFoundException('Link de acesso inválido.');
+
+    // Usa o otpIdentifier salvo no envelope (definido pelo sendOtpPortal)
+    const envelopeWithOtp = candidatura.envelopesAssinatura.find((e) => e.otpIdentifier);
+    const identifier = envelopeWithOtp?.otpIdentifier
+      ?? candidatura.candidato.email ?? candidatura.candidato.user?.email
+      ?? candidatura.candidato.telefone ?? candidatura.candidato.user?.telefone;
+    if (!identifier) throw new BadRequestException('Candidato sem contato cadastrado.');
+
+    const valid = await this.otp.verify(identifier, code);
+    if (!valid) throw new ForbiddenException('Código inválido ou expirado.');
+
+    const sessionToken = randomUUID();
+    const sessionExpiraEm = new Date(Date.now() + 30 * 60 * 1000);
+
+    // Atualiza envelopes pendentes (muda status para OTP_VALIDADO)
+    await this.prisma.envelopeAssinatura.updateMany({
+      where: {
+        candidaturaId: candidatura.id,
+        tipoSignatario: TipoSignatario.CANDIDATO,
+        status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+      },
+      data: { status: StatusEnvelopeAssinatura.OTP_VALIDADO, otpValidadoEm: new Date(), sessionToken, sessionExpiraEm },
+    });
+
+    // Atualiza envelopes concluídos (mantém status, apenas salva sessionToken para validação)
+    await this.prisma.envelopeAssinatura.updateMany({
+      where: {
+        candidaturaId: candidatura.id,
+        tipoSignatario: TipoSignatario.CANDIDATO,
+        status: StatusEnvelopeAssinatura.CONCLUIDO,
+      },
+      data: { sessionToken, sessionExpiraEm },
+    });
+
+    const firstEnvelope = candidatura.envelopesAssinatura[0];
+    if (firstEnvelope) {
+      await this.recordEvent(firstEnvelope.id, TipoEventoAssinatura.OTP_VALIDADO, evidence, {
+        via: 'portal',
+      });
+    }
+
+    return { sessionToken, sessionExpiraEm };
+  }
+
+  async viewDocumentPortal(portalAccessToken: string, documentoId: number, evidence: RequestEvidence) {
+    const documento = await this.findDocumentByPortalToken(portalAccessToken, documentoId);
+
+    if (documento.empresaPdfFinalStoragePath) return this.s3.download(documento.empresaPdfFinalStoragePath);
+    if (documento.empresaPdfFinal) return Buffer.from(documento.empresaPdfFinal);
+
+    if (!documento.visualizadoEm) {
+      await this.prisma.documentoAssinatura.update({
+        where: { id: documento.id },
+        data: { visualizadoEm: new Date() },
+      });
+      await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_VISUALIZADO, evidence, {
+        documentoId: documento.id,
+        via: 'portal',
+      });
+    }
+
+    return this.renderDocumentoPdf(documento);
+  }
+
+  async signDocumentPortal(portalAccessToken: string, documentoId: number, sessionToken: string, evidence: RequestEvidence) {
+    const documento = await this.findDocumentByPortalToken(portalAccessToken, documentoId);
+    if (documento.status === StatusDocumentoAssinatura.ASSINADO) return documento;
+    if (!documento.visualizadoEm) throw new BadRequestException('Visualize o documento antes de assinar.');
+
+    this.validateSession(documento.envelope, sessionToken);
+
+    const candidato = documento.envelope.candidatura.candidato;
+    const signatarioNome = candidato.nome ?? documento.envelope.user.nome;
+    const signatarioCpf = candidato.cpf;
+    const otpIdentifier = documento.envelope.otpIdentifier;
+    const assinaturaEmail = otpIdentifier?.includes('@') ? otpIdentifier : null;
+    const assinaturaTelefone = otpIdentifier && !otpIdentifier.includes('@') ? otpIdentifier : null;
+
+    const signedAt = new Date();
+    const codigoVerificacao = this.generateVerificationCode();
+    const pdfCandidato = await this.renderDocumentoPdf({
+      ...documento,
+      status: StatusDocumentoAssinatura.ASSINADO,
+      assinadoEm: signedAt,
+      assinaturaNome: signatarioNome,
+      assinaturaCpf: signatarioCpf,
+      assinaturaIp: evidence.ip ?? null,
+      assinaturaUserAgent: evidence.userAgent ?? null,
+      codigoVerificacao,
+      hashAssinado: null,
+    });
+    const hashAssinado = this.hashBuffer(pdfCandidato);
+
+    const signed = await this.prisma.documentoAssinatura.update({
+      where: { id: documento.id },
+      data: {
+        status: StatusDocumentoAssinatura.ASSINADO,
+        assinadoEm: signedAt,
+        assinaturaNome: signatarioNome,
+        assinaturaCpf: signatarioCpf,
+        assinaturaIp: evidence.ip,
+        assinaturaUserAgent: evidence.userAgent,
+        assinaturaEmail,
+        assinaturaTelefone,
+        metodoAssinatura: MetodoAssinatura.OTP,
+        codigoVerificacao,
+        hashAssinado,
+      },
+    });
+
+    await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_ASSINADO, evidence, {
+      documentoId: documento.id,
+      hashOriginal: documento.hashOriginal,
+      hashAssinado,
+      codigoVerificacao,
+      via: 'portal',
+    });
+    await this.concludeEnvelopeIfComplete(documento.envelopeId);
+
+    return signed;
+  }
+
+  private async findDocumentByPortalToken(portalAccessToken: string, documentoId: number) {
+    const documento = await this.prisma.documentoAssinatura.findUnique({
+      where: { id: documentoId },
+      include: {
+        envelope: {
+          include: {
+            candidatura: { include: { candidato: true, requisicao: true } },
+            user: true,
+          },
+        },
+      },
+    });
+    if (
+      !documento ||
+      documento.envelope.candidatura.portalAccessToken !== portalAccessToken ||
+      documento.envelope.tipoSignatario !== TipoSignatario.CANDIDATO
+    ) {
+      throw new NotFoundException('Documento não encontrado.');
+    }
+    return documento;
+  }
+
   private async findEnvelopeByAccessToken(accessToken: string) {
     const envelope = await this.prisma.envelopeAssinatura.findUnique({
       where: { accessToken },
@@ -1614,6 +1975,21 @@ export class AssinaturasService {
         documentoPrecertificacao: documento.empresaPdfHash ?? null,
       },
     };
+  }
+
+  private resolveCandidatoTelefone(candidato: {
+    telefone?: string | null;
+    ddiTelefone?: string | null;
+    dddTelefone?: string | null;
+    numeroTelefone?: string | null;
+    user?: { telefone?: string | null } | null;
+  }): string | null {
+    if (candidato.telefone) return candidato.telefone;
+    if (candidato.dddTelefone && candidato.numeroTelefone) {
+      const ddi = candidato.ddiTelefone ?? '55';
+      return `+${ddi}${candidato.dddTelefone}${candidato.numeroTelefone}`;
+    }
+    return candidato.user?.telefone ?? null;
   }
 
   private maskIdentifier(identifier: string) {

@@ -18,6 +18,7 @@ import { DocumentosService } from './documentos.service';
 import { ResponsavelAssinaturasController } from './responsavel-assinaturas.controller';
 import { OcrService } from './ocr.service';
 import { PdfDigitalSignatureService } from './pdf-digital-signature.service';
+import { PortalDocumentosController } from './portal-documentos.controller';
 import { S3StorageService } from './s3-storage.service';
 import { VerificacaoController } from './verificacao.controller';
 
@@ -30,6 +31,7 @@ import { VerificacaoController } from './verificacao.controller';
     VerificacaoController,
     AceiteRegulamentoController,
     ResponsavelAssinaturasController,
+    PortalDocumentosController,
   ],
   providers: [
     DocumentosService,

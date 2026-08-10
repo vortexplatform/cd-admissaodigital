@@ -141,4 +141,7 @@ export const getDocumentoAssinaturaRhUrl = (id: number) =>
 export const getDocumentoAssinaturaResponsavelUrl = (accessToken: string, id: number) =>
   `${apiBaseUrl()}/documentos/assinaturas/responsavel/${accessToken}/documentos/${id}/view`;
 
+export const getDocumentoPortalViewUrl = (portalAccessToken: string, id: number) =>
+  `${apiBaseUrl()}/documentos/portal/${portalAccessToken}/documentos/${id}/view`;
+
 const apiBaseUrl = () => import.meta.env.VITE_API_URL ?? 'http://localhost:5011';

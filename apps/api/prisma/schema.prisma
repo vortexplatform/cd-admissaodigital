@@ -419,6 +419,7 @@ model Candidatura {
 
   criadoPorUserId           Int?      @map("criado_por_user_id")
   admissaoGeradaPorUserId   Int?      @map("admissao_gerada_por_user_id")
+  portalAccessToken         String?   @unique @map("portal_access_token")
 
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")

@@ -18,12 +18,16 @@ export class SmsService {
   }
 
   async sendOtp(phone: string, code: string): Promise<void> {
+    await this.sendMessage(phone, `Admissão Digital: seu código de acesso é ${code}. Expira em 10 minutos.`);
+  }
+
+  async sendMessage(phone: string, message: string): Promise<void> {
     const result = await this.sns.send(
       new PublishCommand({
         PhoneNumber: phone,
-        Message: `Admissão Digital: seu código de acesso é ${code}. Expira em 10 minutos.`,
+        Message: message,
       }),
     );
-    this.logger.log(`OTP enviado para ${phone} — MessageId: ${result.MessageId}`);
+    this.logger.log(`SMS enviado para ${phone} — MessageId: ${result.MessageId}`);
   }
 }

@@ -47,7 +47,16 @@ export class EmailService {
     candidatoNome: string,
     empresaNome: string,
     attachments: SignedDocumentAttachment[],
+    portalLink?: string,
   ): Promise<void> {
+    const portalText = portalLink
+      ? `\nVocê também pode acessar seus documentos a qualquer momento em:\n${portalLink}`
+      : '';
+    const portalHtml = portalLink
+      ? `<p style="margin-top: 16px;">Você também pode acessar seus documentos a qualquer momento:</p>
+         <p><a href="${portalLink}" style="display: inline-block; background: #1d4ed8; color: #fff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">Acessar meus documentos</a></p>`
+      : '';
+
     await this.transporter.sendMail({
       from: this.config.get<string>('SMTP_FROM'),
       to: email,
@@ -58,6 +67,7 @@ export class EmailService {
         `Segue em anexo a cópia dos documentos assinados digitalmente pela ${empresaNome}.`,
         '',
         'Guarde estes arquivos para consulta futura.',
+        portalText,
       ].join('\n'),
       html: `
         <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
@@ -65,6 +75,7 @@ export class EmailService {
           <p>Olá, ${candidatoNome}.</p>
           <p>Segue em anexo a cópia dos documentos assinados digitalmente pela <strong>${empresaNome}</strong>.</p>
           <p style="color: #6b7280; font-size: 14px;">Guarde estes arquivos para consulta futura.</p>
+          ${portalHtml}
         </div>
       `,
       attachments: attachments.map((attachment) => ({
@@ -76,13 +87,45 @@ export class EmailService {
     this.logger.log(`Documentos assinados enviados para ${email}`);
   }
 
+  async sendDocumentsReadyNotification(
+    email: string,
+    candidatoNome: string,
+    empresaNome: string,
+    signingLink: string,
+  ): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.config.get<string>('SMTP_FROM'),
+      to: email,
+      subject: 'Documentos prontos para assinatura — Admissão Digital',
+      text: [
+        `Olá, ${candidatoNome}.`,
+        '',
+        `Seus documentos de admissão na ${empresaNome} foram gerados e estão prontos para assinatura.`,
+        '',
+        'Acesse o link abaixo para visualizar e assinar seus documentos:',
+        signingLink,
+      ].join('\n'),
+      html: `
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
+          <h2>Admissão Digital</h2>
+          <p>Olá, ${candidatoNome}.</p>
+          <p>Seus documentos de admissão na <strong>${empresaNome}</strong> foram gerados e estão prontos para assinatura.</p>
+          <p>Acesse o link abaixo para visualizar e assinar seus documentos:</p>
+          <p><a href="${signingLink}" style="display: inline-block; background: #1d4ed8; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Assinar documentos</a></p>
+          <p style="color: #6b7280; font-size: 14px;">Este link é pessoal e intransferível.</p>
+        </div>
+      `,
+    });
+    this.logger.log(`Notificação de documentos prontos enviada para ${email}`);
+  }
+
   async sendGuardianSigningNotification(
     email: string,
     responsavelNome: string,
     candidatoNome: string,
     accessToken: string,
   ): Promise<void> {
-    const baseUrl = process.env.WEB_URL ?? 'https://admissao.coelhodiniz.com.br';
+    const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5010';
     const link = `${baseUrl}/responsavel/assinaturas/${accessToken}`;
 
     await this.transporter.sendMail({
