@@ -6,6 +6,7 @@ import SignupPage from '@/pages/auth/SignupPage';
 import OtpPage from '@/pages/auth/OtpPage';
 import CompleteProfilePage from '@/pages/auth/CompleteProfilePage';
 import RhLoginPage from '@/pages/auth/RhLoginPage';
+import SetPasswordPage from '@/pages/auth/SetPasswordPage';
 import CompanyAccessRequiredPage from '@/pages/auth/CompanyAccessRequiredPage';
 // Processos
 import HomePage from '@/pages/processos/HomePage';
@@ -148,6 +149,7 @@ export default function Router() {
             </PublicRoute>
           }
         />
+        <Route path="/rh/definir-senha" element={<SetPasswordPage />} />
         <Route
           path="/complete-profile"
           element={

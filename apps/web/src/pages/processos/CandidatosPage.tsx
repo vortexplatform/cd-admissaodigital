@@ -11,7 +11,7 @@ import {
   UserRoundPlus,
   X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Select from 'react-select';
 import AsyncSelect from 'react-select/async';
 import type { StylesConfig } from 'react-select';
@@ -275,15 +275,28 @@ function AdmissaoPrevistaInput({
 
 export default function CandidatosPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
-  const [activeTab, setActiveTab] = useState<TabKey>('aguardando');
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const param = searchParams.get('tab');
+    return tabs.some((t) => t.key === param) ? (param as TabKey) : 'aguardando';
+  });
   const [cidadesVaga, setCidadesVaga] = useState<CidadeVaga[]>([]);
-  const [cidadeVagaFilter, setCidadeVagaFilter] = useState<SelectOption | null>(null);
+  const [cidadeVagaFilter, setCidadeVagaFilter] = useState<SelectOption | null>(() => {
+    const v = searchParams.get('cidade');
+    return v ? { value: v, label: v } : null;
+  });
   const [filiais, setFiliais] = useState<Filial[]>([]);
-  const [filialFilter, setFilialFilter] = useState<SelectOption | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [page, setPage] = useState(1);
+  const [filialFilter, setFilialFilter] = useState<SelectOption | null>(() => {
+    const v = searchParams.get('filial');
+    return v ? { value: v, label: v } : null;
+  });
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('busca') ?? '');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(() => searchParams.get('busca') ?? '');
+  const [page, setPage] = useState(() => {
+    const p = Number(searchParams.get('pagina'));
+    return p > 0 ? p : 1;
+  });
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1, limit: pageSize });
   const [counts, setCounts] = useState<CandidatosCounts>(emptyCounts);
   const [linkModalCandidato, setLinkModalCandidato] = useState<Candidato | null>(null);
@@ -293,6 +306,17 @@ export default function CandidatosPage() {
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
   const requisicaoSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sincroniza estado → URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (activeTab !== 'aguardando') params.set('tab', activeTab);
+    if (debouncedSearchTerm) params.set('busca', debouncedSearchTerm);
+    if (cidadeVagaFilter?.value) params.set('cidade', cidadeVagaFilter.value);
+    if (filialFilter?.value) params.set('filial', filialFilter.value);
+    if (page > 1) params.set('pagina', String(page));
+    setSearchParams(params, { replace: true });
+  }, [activeTab, debouncedSearchTerm, cidadeVagaFilter?.value, filialFilter?.value, page, setSearchParams]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -304,8 +328,26 @@ export default function CandidatosPage() {
   }, [searchTerm]);
 
   useEffect(() => {
-    api.get<Filial[]>('/candidatos/filiais').then(({ data }) => setFiliais(data)).catch(() => setFiliais([]));
-    api.get<CidadeVaga[]>('/cidades-vaga').then(({ data }) => setCidadesVaga(data)).catch(() => setCidadesVaga([]));
+    api.get<Filial[]>('/candidatos/filiais').then(({ data }) => {
+      setFiliais(data);
+      // Atualiza o label do filtro de filial carregado da URL
+      if (filialFilter) {
+        const match = data.find((f) => String(f.numero) === filialFilter.value);
+        if (match) {
+          const label = match.nome ? `${String(match.numero).padStart(2, '0')} - ${match.nome}` : String(match.numero).padStart(2, '0');
+          setFilialFilter({ value: filialFilter.value, label });
+        }
+      }
+    }).catch(() => setFiliais([]));
+    api.get<CidadeVaga[]>('/cidades-vaga').then(({ data }) => {
+      setCidadesVaga(data);
+      // Atualiza o label do filtro de cidade carregado da URL
+      if (cidadeVagaFilter) {
+        const match = data.find((c) => String(c.id) === cidadeVagaFilter.value);
+        if (match) setCidadeVagaFilter({ value: cidadeVagaFilter.value, label: match.nome });
+      }
+    }).catch(() => setCidadesVaga([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

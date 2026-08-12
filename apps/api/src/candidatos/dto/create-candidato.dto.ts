@@ -39,9 +39,10 @@ export class CreateCandidatoDto {
   telefone?: string;
 
   @IsIn(['M', 'F'])
-  genero!: string;
+  @IsOptional()
+  genero?: string;
 
-  @IsIn(['ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO'])
+  @IsIn(['CANDIDATO', 'ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO'])
   @IsOptional()
   situacao?: string;
 
@@ -59,16 +60,19 @@ export class CreateCandidatoDto {
 
   // Admissão
   @IsIn(['PRIMEIRO_EMPREGO', 'REEMPREGO'])
-  tipoAdmissao!: string;
+  @IsOptional()
+  tipoAdmissao?: string;
 
   // Dados pessoais adicionais
   @IsString()
   @IsNotEmpty()
-  estadoCivil!: string;
+  @IsOptional()
+  estadoCivil?: string;
 
   @IsString()
   @IsNotEmpty()
-  grauInstrucao!: string;
+  @IsOptional()
+  grauInstrucao?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -77,22 +81,27 @@ export class CreateCandidatoDto {
   pis?: string;
 
   @IsInt()
-  raccor!: number;
+  @IsOptional()
+  raccor?: number;
 
   // Naturalidade
   @IsInt()
-  nacionalidade!: number;
+  @IsOptional()
+  nacionalidade?: number;
 
   @IsString()
   @IsNotEmpty()
-  paisNascimento!: string;
+  @IsOptional()
+  paisNascimento?: string;
 
   @IsString()
   @IsNotEmpty()
-  estadoNascimento!: string;
+  @IsOptional()
+  estadoNascimento?: string;
 
   @IsInt()
-  cidadeNascimentoCod!: number;
+  @IsOptional()
+  cidadeNascimentoCod?: number;
 
   @IsString()
   @IsNotEmpty()
@@ -102,19 +111,23 @@ export class CreateCandidatoDto {
   // Endereço
   @IsString()
   @IsNotEmpty()
-  pais!: string;
+  @IsOptional()
+  pais?: string;
 
   @IsString()
   @IsNotEmpty()
   @Matches(/^\d{8}$/, { message: 'CEP deve conter 8 dígitos' })
-  cep!: string;
+  @IsOptional()
+  cep?: string;
 
   @IsString()
   @IsNotEmpty()
-  estadoEndereco!: string;
+  @IsOptional()
+  estadoEndereco?: string;
 
   @IsInt()
-  cidadeCod!: number;
+  @IsOptional()
+  cidadeCod?: number;
 
   @IsString()
   @IsNotEmpty()
@@ -127,19 +140,23 @@ export class CreateCandidatoDto {
 
   @IsString()
   @IsNotEmpty()
-  bairroNome!: string;
+  @IsOptional()
+  bairroNome?: string;
 
   @IsString()
   @IsNotEmpty()
-  tipoLogradouro!: string;
+  @IsOptional()
+  tipoLogradouro?: string;
 
   @IsString()
   @IsNotEmpty()
-  endereco!: string;
+  @IsOptional()
+  endereco?: string;
 
   @IsString()
   @IsNotEmpty()
-  numero!: string;
+  @IsOptional()
+  numero?: string;
 
   @IsString()
   @IsNotEmpty()

@@ -104,12 +104,12 @@ export class UsersService {
       throw new BadRequestException('Apenas usuários RH ou ADMIN podem ser criados por esta tela.');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = dto.password ? await bcrypt.hash(dto.password, 12) : undefined;
 
     return this.prisma.user.create({
       data: {
         nome: dto.nome.trim(),
-        cpf: dto.cpf.trim(),
+        cpf: dto.cpf.replace(/\D/g, '').padStart(11, '0'),
         email,
         telefone,
         role: dto.role ?? Role.RH,

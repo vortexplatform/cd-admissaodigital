@@ -34,6 +34,7 @@ const assinaturaTemplates = {
     ['autorizacao-plano-saude', 'Autorização Desconto Plano de Saúde'],
     ['termo-prorrogacao-experiencia', 'Termo de Prorrogação do Contrato de Experiência'],
     ['termo-opcao-vale-transporte', 'Termo de Opção, Declaração e Autorização - Vale-Transporte'],
+    ['declaracao-encargos-ir', 'Declaração de Encargos p/ Imposto de Renda'],
   ],
   [SetorAssinatura.SESMT]: [],
 } satisfies Record<SetorAssinatura, [string, string][]>;
@@ -687,17 +688,19 @@ export class AssinaturasService {
     const candidatura = await this.prisma.candidatura.findUnique({
       where: { id: candidaturaId },
       select: {
-        candidato: { select: { cpf: true } },
+        candidato: { select: { cpf: true, dependentes: { select: { id: true } } } },
         requisicao: { select: { filial: true, prorrogacaoDias: true } },
       },
     });
     const cpf = candidatura?.candidato?.cpf ?? null;
     const filial = candidatura?.requisicao?.filial;
     const prorrogacaoDias = candidatura?.requisicao?.prorrogacaoDias;
+    const temDependentes = (candidatura?.candidato?.dependentes?.length ?? 0) > 0;
 
     const templates = assinaturaTemplates[setor].filter(([codigo]) => {
       if (codigo === 'autorizacao-plano-saude') return filial != null && filiaisAutorizacaoPlanoSaude.has(filial);
       if (codigo === 'termo-prorrogacao-experiencia') return !!prorrogacaoDias && prorrogacaoDias > 0;
+      if (codigo === 'declaracao-encargos-ir') return temDependentes;
       return true;
     });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -407,7 +407,12 @@ function AssinaturaCandidaturaCard({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-display text-xl font-semibold">
-              {candidatura.candidato.nome ?? candidatura.candidato.cpf}
+              <Link
+                to={`/candidatos/${candidatura.candidato.id}/editar`}
+                className="hover:underline hover:text-primary"
+              >
+                {candidatura.candidato.nome ?? candidatura.candidato.cpf}
+              </Link>
             </h2>
             {assinatura ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">

@@ -20,9 +20,10 @@ export class CreateAdminUserDto {
   @IsEnum(Role)
   role?: Role;
 
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  password!: string;
+  password?: string;
 
   @IsInt()
   empresaId!: number;

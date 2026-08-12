@@ -39,7 +39,7 @@ export class UpdateCandidatoDto {
   @IsOptional()
   genero?: string;
 
-  @IsIn(['ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO'])
+  @IsIn(['CANDIDATO', 'ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO'])
   @IsOptional()
   situacao?: string;
 

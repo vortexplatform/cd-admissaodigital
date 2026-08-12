@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Select, { type StylesConfig } from 'react-select';
 import AsyncSelect from 'react-select/async';
 import {
@@ -117,11 +117,25 @@ const fetchPaginatedRequisicoes = (
 
 export default function RequisicoesPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [requisicoes, setRequisicoes] = useState<Requisicao[]>([]);
-  const [filialFilter, setFilialFilter] = useState<SelectOption | null>(null);
-  const [cargoFilter, setCargoFilter] = useState<SelectOption | null>(null);
-  const [setorFilter, setSetorFilter] = useState<SelectOption | null>(null);
-  const [statusFilter, setStatusFilter] = useState<SelectOption | null>(null);
+  const [filialFilter, setFilialFilter] = useState<SelectOption | null>(() => {
+    const v = searchParams.get('filial');
+    return v ? { value: v, label: v } : null;
+  });
+  const [cargoFilter, setCargoFilter] = useState<SelectOption | null>(() => {
+    const v = searchParams.get('cargo');
+    return v ? { value: v, label: v } : null;
+  });
+  const [setorFilter, setSetorFilter] = useState<SelectOption | null>(() => {
+    const v = searchParams.get('setor');
+    return v ? { value: v, label: v } : null;
+  });
+  const [statusFilter, setStatusFilter] = useState<SelectOption | null>(() => {
+    const v = searchParams.get('status');
+    const match = statusList.find((s) => s === v);
+    return match ? { value: match, label: labels[match] } : null;
+  });
   const [linkModalRequisicao, setLinkModalRequisicao] = useState<Requisicao | null>(null);
   const [candidatosModalRequisicao, setCandidatosModalRequisicao] = useState<Requisicao | null>(null);
   const [selectedCandidato, setSelectedCandidato] = useState<CandidatoSearchOption | null>(null);
@@ -130,7 +144,10 @@ export default function RequisicoesPage() {
   const [removingCandidaturaId, setRemovingCandidaturaId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => {
+    const p = Number(searchParams.get('pagina'));
+    return p > 0 ? p : 1;
+  });
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1, limit: pageSize });
   const candidateSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -141,6 +158,17 @@ export default function RequisicoesPage() {
     status: statusFilter?.value ?? null,
   };
   const hasActiveFilters = Boolean(filialFilter || cargoFilter || setorFilter || statusFilter);
+
+  // Sincroniza estado → URL
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filialFilter?.value) params.set('filial', filialFilter.value);
+    if (cargoFilter?.value) params.set('cargo', cargoFilter.value);
+    if (setorFilter?.value) params.set('setor', setorFilter.value);
+    if (statusFilter?.value) params.set('status', statusFilter.value);
+    if (page > 1) params.set('pagina', String(page));
+    setSearchParams(params, { replace: true });
+  }, [filialFilter?.value, cargoFilter?.value, setorFilter?.value, statusFilter?.value, page, setSearchParams]);
 
   const filialOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.filialNome));
   const cargoOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.cargoNome));

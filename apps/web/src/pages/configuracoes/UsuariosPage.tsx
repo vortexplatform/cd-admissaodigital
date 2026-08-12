@@ -200,7 +200,7 @@ export default function UsuariosPage() {
           <CardHeader>
             <CardTitle>Novo usuário</CardTitle>
             <CardDescription>
-              O usuário entra depois via OTP pelo e-mail ou telefone.
+              O usuário definirá a senha no primeiro acesso via CPF.
             </CardDescription>
           </CardHeader>
           <CardContent>

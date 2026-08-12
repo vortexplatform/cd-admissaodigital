@@ -4,12 +4,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AcordoDomingosFeriadosService } from './relatorios/acordo-domingos-feriados.service';
 import { AutorizacaoPlanoSaudeService } from './relatorios/autorizacao-plano-saude.service';
 import { ContratoExperienciaService } from './relatorios/contrato-experiencia.service';
+import { DeclaracaoEncargosIrService } from './relatorios/declaracao-encargos-ir.service';
 import { DeclaracaoTreinamentoService } from './relatorios/declaracao-treinamento.service';
 import { TermoValeTransporteService } from './relatorios/termo-vale-transporte.service';
 import { TermoProrrogacaoExperienciaService } from './relatorios/termo-prorrogacao-experiencia.service';
 
 export type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
-  include: { candidato: { include: { valeTransportes: true } }; requisicao: { include: { empresa: true } } };
+  include: { candidato: { include: { valeTransportes: true; dependentes: true } }; requisicao: { include: { empresa: true } } };
 }>;
 
 @Injectable()
@@ -17,6 +18,7 @@ export class DocumentosTemplatesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly contrato: ContratoExperienciaService,
+    private readonly declaracaoEncargosIr: DeclaracaoEncargosIrService,
     private readonly declaracao: DeclaracaoTreinamentoService,
     private readonly acordoDomingosFeriados: AcordoDomingosFeriadosService,
     private readonly termoProrrogacao: TermoProrrogacaoExperienciaService,
@@ -27,7 +29,7 @@ export class DocumentosTemplatesService {
   async gerarPdf(codigo: string, candidaturaId: number): Promise<Buffer> {
     const candidatura = await this.prisma.candidatura.findUnique({
       where: { id: candidaturaId },
-      include: { candidato: { include: { valeTransportes: true } }, requisicao: { include: { empresa: true } } },
+      include: { candidato: { include: { valeTransportes: true, dependentes: true } }, requisicao: { include: { empresa: true } } },
     });
     if (!candidatura) throw new NotFoundException('Candidatura não encontrada.');
 
@@ -38,6 +40,8 @@ export class DocumentosTemplatesService {
     switch (codigo) {
       case ContratoExperienciaService.CODIGO:
         return this.contrato.gerarPdf(candidatura);
+      case DeclaracaoEncargosIrService.CODIGO:
+        return this.declaracaoEncargosIr.gerarPdf(candidatura);
       case DeclaracaoTreinamentoService.CODIGO:
         return this.declaracao.gerarPdf(candidatura);
       case AcordoDomingosFeriadosService.CODIGO:

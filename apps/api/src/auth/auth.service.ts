@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual, scrypt as scryptCallback } from 'crypto';
 import { promisify } from 'util';
 import * as bcrypt from 'bcrypt';
-import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OtpService } from './otp.service';
 import { EmailService } from './email.service';
@@ -54,22 +54,56 @@ export class AuthService {
     return { ...tokens, ...session, isNewUser };
   }
 
-  async loginWithPassword(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+  async loginWithPassword(cpf: string, password: string) {
+    const digits = cpf.replace(/\D/g, '').padStart(11, '0');
+    const user = await this.prisma.user.findUnique({ where: { cpf: digits } });
     if (!user) throw new UnauthorizedException('Credenciais inválidas.');
 
     if (user.role !== 'RH' && user.role !== 'ADMIN') {
       throw new ForbiddenException('Este acesso é exclusivo para usuários RH.');
     }
 
-    if (!user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (!user.passwordHash) {
+      const accessToken = this.jwt.sign(
+        { sub: user.id, scope: 'set-password' },
+        { expiresIn: '10m' },
+      );
+      return { requiresPasswordSetup: true as const, accessToken };
+    }
+
+    if (!(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
     const session = await this.users.findSessionById(user.id);
     if (!session) throw new NotFoundException('Usuário não encontrado.');
 
-    const tokens = await this.createUserTokens(user.id, user.email ?? String(user.id));
+    const tokens = await this.createUserTokens(user.id, user.cpf ?? String(user.id));
+    return { requiresPasswordSetup: false as const, ...tokens, ...session };
+  }
+
+  async setPassword(userId: number, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Usuário não encontrado.');
+
+    if (user.role !== 'RH' && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Este acesso é exclusivo para usuários RH.');
+    }
+
+    if (user.passwordHash) {
+      throw new BadRequestException('Senha já definida. Use a tela de login.');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    const session = await this.users.findSessionById(userId);
+    if (!session) throw new NotFoundException('Usuário não encontrado.');
+
+    const tokens = await this.createUserTokens(userId, user.cpf ?? String(userId));
     return { ...tokens, ...session };
   }
 

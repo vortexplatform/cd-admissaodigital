@@ -8,7 +8,7 @@ import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, BriefcaseBusiness, Edit3, Save, UserRoundPlus, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Control, Controller, FieldValues, Path, useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import ReactSelect from 'react-select';
@@ -300,47 +300,42 @@ const candidatoSchema = z
   nome: z.string().trim().min(1, 'Informe o nome'),
   email: z.string().trim().email('Informe um e-mail válido').optional().or(z.literal('')),
   telefone: z.string().trim().optional(),
-  genero: z.enum(['', 'M', 'F']).refine((value) => value !== '', 'Informe o gênero'),
-  situacao: z.enum(['ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO']),
+  genero: z.enum(['', 'M', 'F']),
+  situacao: z.enum(['CANDIDATO', 'ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO']),
   justificativaReprovacao: z.string().trim().optional(),
   cidadeVagaId: z.string().trim().min(1, 'Informe a cidade da vaga'),
 
   // Admissão
-  tipoAdmissao: z
-    .enum(['', 'PRIMEIRO_EMPREGO', 'REEMPREGO'])
-    .refine((value) => value !== '', 'Informe o tipo de admissão'),
+  tipoAdmissao: z.enum(['', 'PRIMEIRO_EMPREGO', 'REEMPREGO']),
 
   // Dados pessoais adicionais
-  estadoCivil: z.string().trim().min(1, 'Informe o estado civil'),
-  grauInstrucao: z.string().trim().min(1, 'Informe o grau de instrução'),
+  estadoCivil: z.string().trim().optional(),
+  grauInstrucao: z.string().trim().optional(),
   pis: z
     .string()
     .trim()
     .optional()
     .refine((v) => !v || v.replace(/\D/g, '').length === 11, 'Informe um PIS com 11 dígitos'),
-  raccor: z.string().trim().min(1, 'Informe a raça'),
+  raccor: z.string().trim().optional(),
 
   // Naturalidade
-  nacionalidade: z.string().trim().min(1, 'Informe a nacionalidade'),
-  paisNascimento: z.string().trim().min(1, 'Informe o país de nascimento'),
-  estadoNascimento: z.string().trim().min(1, 'Informe o estado de nascimento'),
-  cidadeNascimentoCod: z.string().trim().min(1, 'Informe a cidade de nascimento'),
+  nacionalidade: z.string().trim().optional(),
+  paisNascimento: z.string().trim().optional(),
+  estadoNascimento: z.string().trim().optional(),
+  cidadeNascimentoCod: z.string().trim().optional(),
   cidadeNascimentoNome: z.string().trim().optional(),
 
   // Endereço
-  pais: z.string().trim().min(1, 'Informe o país do endereço'),
-  cep: z
-    .string()
-    .trim()
-    .refine((v) => v.replace(/\D/g, '').length === 8, 'Informe um CEP com 8 dígitos'),
-  estadoEndereco: z.string().trim().min(1, 'Informe o estado do endereço'),
-  cidadeCod: z.string().trim().min(1, 'Informe a cidade do endereço'),
+  pais: z.string().trim().optional(),
+  cep: z.string().trim().optional(),
+  estadoEndereco: z.string().trim().optional(),
+  cidadeCod: z.string().trim().optional(),
   cidadeNome: z.string().trim().optional(),
   bairroCod: z.string().trim().optional(),
-  bairroNome: z.string().trim().min(1, 'Informe o bairro'),
-  tipoLogradouro: z.string().trim().min(1, 'Informe o tipo de logradouro'),
-  endereco: z.string().trim().min(1, 'Informe o logradouro'),
-  numero: z.string().trim().min(1, 'Informe o número'),
+  bairroNome: z.string().trim().optional(),
+  tipoLogradouro: z.string().trim().optional(),
+  endereco: z.string().trim().optional(),
+  numero: z.string().trim().optional(),
   complemento: z.string().trim().optional(),
 
   // Contatos
@@ -395,6 +390,34 @@ const candidatoSchema = z
       path: ['justificativaReprovacao'],
       message: 'Informe a justificativa',
     });
+  }
+
+  // Campos obrigatórios quando situação NÃO é CANDIDATO
+  if (values.situacao !== 'CANDIDATO') {
+    const requiredText = (field: string, path: string, msg: string) => {
+      if (!(values as Record<string, unknown>)[field]?.toString().trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: msg });
+      }
+    };
+    if (values.genero === '') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['genero'], message: 'Informe o gênero' });
+    if (values.tipoAdmissao === '') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tipoAdmissao'], message: 'Informe o tipo de admissão' });
+    requiredText('estadoCivil', 'estadoCivil', 'Informe o estado civil');
+    requiredText('grauInstrucao', 'grauInstrucao', 'Informe o grau de instrução');
+    requiredText('raccor', 'raccor', 'Informe a raça');
+    requiredText('nacionalidade', 'nacionalidade', 'Informe a nacionalidade');
+    requiredText('paisNascimento', 'paisNascimento', 'Informe o país de nascimento');
+    requiredText('estadoNascimento', 'estadoNascimento', 'Informe o estado de nascimento');
+    requiredText('cidadeNascimentoCod', 'cidadeNascimentoCod', 'Informe a cidade de nascimento');
+    requiredText('pais', 'pais', 'Informe o país do endereço');
+    if (!values.cep || values.cep.replace(/\D/g, '').length !== 8) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['cep'], message: 'Informe um CEP com 8 dígitos' });
+    }
+    requiredText('estadoEndereco', 'estadoEndereco', 'Informe o estado do endereço');
+    requiredText('cidadeCod', 'cidadeCod', 'Informe a cidade do endereço');
+    requiredText('bairroNome', 'bairroNome', 'Informe o bairro');
+    requiredText('tipoLogradouro', 'tipoLogradouro', 'Informe o tipo de logradouro');
+    requiredText('endereco', 'endereco', 'Informe o logradouro');
+    requiredText('numero', 'numero', 'Informe o número');
   }
 
   // Validação do responsável legal para menores de 18 anos
@@ -1159,8 +1182,38 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   });
 
   const situacaoSelecionada = watch('situacao');
+  const isCandidato = situacaoSelecionada === 'CANDIDATO';
   const exigeJustificativaReprovacao =
     situacaoSelecionada === 'ELIMINADO' || situacaoSelecionada === 'DESISTENTE';
+
+  const formValues = watch();
+  const podeGerarAdmissao = useMemo(() => {
+    if (situacaoSelecionada !== 'ATIVO_PROCESSO' && situacaoSelecionada !== 'ADMITIDO') return false;
+    const v = formValues;
+    return !!(
+      v.nome?.trim() &&
+      v.cpf?.replace(/\D/g, '').length === 11 &&
+      v.dataNascimento &&
+      v.cidadeVagaId &&
+      v.genero &&
+      v.tipoAdmissao &&
+      v.estadoCivil?.trim() &&
+      v.grauInstrucao?.trim() &&
+      v.raccor?.trim() &&
+      v.nacionalidade?.trim() &&
+      v.paisNascimento?.trim() &&
+      v.estadoNascimento?.trim() &&
+      v.cidadeNascimentoCod?.trim() &&
+      v.pais?.trim() &&
+      v.cep?.replace(/\D/g, '').length === 8 &&
+      v.estadoEndereco?.trim() &&
+      v.cidadeCod?.trim() &&
+      v.bairroNome?.trim() &&
+      v.tipoLogradouro?.trim() &&
+      v.endereco?.trim() &&
+      v.numero?.trim()
+    );
+  }, [formValues, situacaoSelecionada]);
   const dependenteIrSelecionado = watchDependente('dependenteIr');
 
   useEffect(() => {
@@ -1491,13 +1544,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     try {
       if (mode === 'edit') {
         await api.patch(`/candidatos/${id}`, buildPayload(values));
+        reloadCandidato();
       } else {
-        await api.post(
+        const { data: novoCandidato } = await api.post(
           '/candidatos',
           buildPayload(values, dependentesDraft, valeTransportesDraft, etapasDraft),
         );
+        navigate(`/candidatos/${novoCandidato.id}/editar`, { replace: true });
       }
-      navigate('/candidatos');
     } catch {
       setError('Não foi possível salvar o candidato. Verifique os dados e tente novamente.');
     } finally {
@@ -2075,7 +2129,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                           )}
                         </div>
 
-                        {candidatura.status === 'APROVADO' && !candidatura.admissao && (
+                        {candidatura.status === 'APROVADO' && !candidatura.admissao && podeGerarAdmissao && (
                           <div className="mt-3">
                             <Button
                               type="button"
@@ -2113,7 +2167,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
                         {candidatura.admissao !== null &&
                           isWithin7Days(candidatura.admissao) &&
-                          matriculaAtiva[candidatura.id] === null && (
+                          matriculaAtiva[candidatura.id] === null &&
+                          podeGerarAdmissao && (
                           <div className="mt-3">
                             <Button
                               type="button"
@@ -2215,7 +2270,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <SelectField
                       id="genero"
                       label="Gênero"
-                      required
+                      required={!isCandidato}
                       disabled={isViewMode}
                       error={errors.genero?.message}
                       {...register('genero')}
@@ -2228,7 +2283,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <SelectField
                       id="estadoCivil"
                       label="Estado civil"
-                      required
+                      required={!isCandidato}
                       disabled={isViewMode}
                       error={errors.estadoCivil?.message}
                       {...register('estadoCivil')}
@@ -2251,6 +2306,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       error={errors.situacao?.message}
                       {...register('situacao')}
                     >
+                      <option value="CANDIDATO">Candidato</option>
                       <option value="ATIVO_PROCESSO">Ativo no processo</option>
                       <option value="ELIMINADO">Eliminado</option>
                       <option value="DESISTENTE">Desistente</option>
@@ -2272,7 +2328,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <SelectField
                       id="grauInstrucao"
                       label="Grau de instrução"
-                      required
+                      required={!isCandidato}
                       disabled={isViewMode}
                       error={errors.grauInstrucao?.message}
                       {...register('grauInstrucao')}
@@ -2288,7 +2344,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="raccor"
                       label="Raça/Cor"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="raccor"
                       error={errors.raccor?.message}
@@ -2301,7 +2357,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <SelectField
                       id="tipoAdmissao"
                       label="Tipo de admissão"
-                      required
+                      required={!isCandidato}
                       disabled={isViewMode}
                       error={errors.tipoAdmissao?.message}
                       {...register('tipoAdmissao')}
@@ -2337,7 +2393,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="nacionalidade"
                       label="Nacionalidade"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="nacionalidade"
                       error={errors.nacionalidade?.message}
@@ -2351,7 +2407,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="paisNascimento"
                       label="País de nascimento"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="paisNascimento"
                       error={errors.paisNascimento?.message}
@@ -2365,7 +2421,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="estadoNascimento"
                       label="Estado de nascimento"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="estadoNascimento"
                       error={errors.estadoNascimento?.message}
@@ -2381,7 +2437,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       <ReactSelectField
                         id="cidadeNascimentoCod"
                         label="Cidade de nascimento"
-                        required
+                        required={!isCandidato}
                         control={control}
                         name="cidadeNascimentoCod"
                         error={errors.cidadeNascimentoCod?.message}
@@ -2504,7 +2560,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   <TextField
                     id="email"
                     label="E-mail"
-                    required
+                    required={!isCandidato}
                     disabled={isViewMode}
                     type="email"
                     placeholder="candidato@email.com"
@@ -2514,7 +2570,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
                   <div className="space-y-1">
                     <p className="text-sm font-medium">
-                      Telefone principal <span className="text-destructive">*</span>
+                      Telefone principal {!isCandidato && <span className="text-destructive">*</span>}
                     </p>
                     <div className="grid grid-cols-[4rem_5rem_1fr] gap-2">
                       <TextField
@@ -2527,7 +2583,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       <TextField
                         id="dddTelefone"
                         label="DDD"
-                        required
+                        required={!isCandidato}
                         disabled={isViewMode}
                         placeholder="11"
                         {...register('dddTelefone')}
@@ -2535,7 +2591,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       <TextField
                         id="numeroTelefone"
                         label="Número"
-                        required
+                        required={!isCandidato}
                         disabled={isViewMode}
                         placeholder="999999999"
                         {...register('numeroTelefone')}
@@ -2583,7 +2639,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="pais"
                       label="País"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="pais"
                       error={errors.pais?.message}
@@ -2595,7 +2651,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <MaskedTextField
                       id="cep"
                       label="CEP"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="cep"
                       mask={formatCep}
@@ -2609,7 +2665,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="estadoEndereco"
                       label="Estado"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="estadoEndereco"
                       error={errors.estadoEndereco?.message}
@@ -2625,7 +2681,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       <ReactSelectField
                         id="cidadeCod"
                         label="Cidade"
-                        required
+                        required={!isCandidato}
                         control={control}
                         name="cidadeCod"
                         error={errors.cidadeCod?.message}
@@ -2644,7 +2700,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="bairroCod"
                       label="Bairro"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="bairroCod"
                       error={errors.bairroNome?.message}
@@ -2662,7 +2718,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <ReactSelectField
                       id="tipoLogradouro"
                       label="Logradouro"
-                      required
+                      required={!isCandidato}
                       control={control}
                       name="tipoLogradouro"
                       isDisabled={isViewMode}
@@ -2673,7 +2729,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <TextField
                       id="endereco"
                       label="Endereço"
-                      required
+                      required={!isCandidato}
                       disabled={isViewMode}
                       placeholder="Nome da rua/av."
                       error={errors.endereco?.message}
@@ -2682,7 +2738,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <TextField
                       id="numero"
                       label="Número"
-                      required
+                      required={!isCandidato}
                       disabled={isViewMode}
                       placeholder="123"
                       error={errors.numero?.message}

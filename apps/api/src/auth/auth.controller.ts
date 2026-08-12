@@ -6,6 +6,7 @@ import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { IntegrationTokenDto } from './dto/integration-token.dto';
 import { LoginPasswordDto } from './dto/login-password.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 import {
   AUTH_COOKIE_NAME,
   REFRESH_COOKIE_NAME,
@@ -38,7 +39,26 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() dto: LoginPasswordDto, @Res({ passthrough: true }) response: Response) {
-    const { accessToken, refreshToken, ...session } = await this.auth.loginWithPassword(dto.email, dto.password);
+    const result = await this.auth.loginWithPassword(dto.cpf, dto.password);
+
+    if (result.requiresPasswordSetup) {
+      response.cookie(AUTH_COOKIE_NAME, result.accessToken, authCookieOptions());
+      return { requiresPasswordSetup: true };
+    }
+
+    const { accessToken, refreshToken, ...session } = result;
+    this.setSessionCookies(response, accessToken, refreshToken);
+    return session;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('set-password')
+  async setPassword(
+    @Body() dto: SetPasswordDto,
+    @Request() req: { user: { id: number } },
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const { accessToken, refreshToken, ...session } = await this.auth.setPassword(req.user.id, dto.password);
     this.setSessionCookies(response, accessToken, refreshToken);
     return session;
   }
