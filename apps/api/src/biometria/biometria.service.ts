@@ -1,6 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  BiometriaStatus,
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
   ResultadoBiometriaSolicitacao,
   Role,
   StatusBiometriaSolicitacao,
@@ -21,36 +25,6 @@ export class BiometriaService {
     private readonly assinaturas: AssinaturasService,
   ) {}
 
-  async saveTemplate(token: string, candidatoId: number, templateBase64: string) {
-    await this.authenticateDispositivo(token);
-    const candidato = await this.prisma.candidato.findUnique({ where: { id: candidatoId } });
-    if (!candidato) throw new NotFoundException('Candidato não encontrado.');
-
-    const template = Buffer.from(templateBase64, 'base64');
-    return this.prisma.biometriaTemplate.create({
-      data: { candidatoId, template },
-      select: { id: true, candidatoId: true, criadoEm: true },
-    });
-  }
-
-  async getTemplates(token: string, candidatoId: number) {
-    await this.authenticateDispositivo(token);
-    const candidato = await this.prisma.candidato.findUnique({ where: { id: candidatoId } });
-    if (!candidato) throw new NotFoundException('Candidato não encontrado.');
-
-    const templates = await this.prisma.biometriaTemplate.findMany({
-      where: { candidatoId },
-      orderBy: { criadoEm: 'asc' },
-    });
-
-    return templates.map((t) => ({
-      id: t.id,
-      candidatoId: t.candidatoId,
-      template: Buffer.from(t.template).toString('base64'),
-      criadoEm: t.criadoEm,
-    }));
-  }
-
   async listDispositivos(userId: number) {
     await this.ensureRh(userId);
     return this.prisma.biometriaDispositivo.findMany({
@@ -68,18 +42,6 @@ export class BiometriaService {
     return { dispositivo, token };
   }
 
-  async solicitarCadastro(userId: number, candidatoId: number) {
-    await this.ensureRh(userId);
-    const candidato = await this.prisma.candidato.findUnique({ where: { id: candidatoId } });
-    if (!candidato) throw new NotFoundException('Candidato não encontrado.');
-
-    return this.createSolicitacao({
-      tipo: TipoBiometriaSolicitacao.CADASTRO,
-      candidatoId,
-      solicitadaPorId: userId,
-    });
-  }
-
   async solicitarAssinatura(userId: number, envelopeId: number) {
     await this.ensureRh(userId);
     const envelope = await this.prisma.envelopeAssinatura.findUnique({
@@ -90,13 +52,13 @@ export class BiometriaService {
       },
     });
     if (!envelope) throw new NotFoundException('Envelope não encontrado.');
-    if (envelope.documentos.every((documento) => documento.status === StatusDocumentoAssinatura.ASSINADO)) {
+    if (
+      envelope.documentos.every(
+        (documento) => documento.status === StatusDocumentoAssinatura.ASSINADO,
+      )
+    ) {
       throw new BadRequestException('Envelope já está assinado.');
     }
-    if (envelope.candidatura.candidato.biometriaStatus !== BiometriaStatus.CADASTRADA) {
-      throw new BadRequestException('Cadastre a biometria do candidato antes de solicitar assinatura biométrica.');
-    }
-
     return this.createSolicitacao({
       tipo: TipoBiometriaSolicitacao.VERIFICACAO_ASSINATURA,
       candidatoId: envelope.candidatura.candidatoId,
@@ -120,16 +82,18 @@ export class BiometriaService {
     const dispositivo = await this.authenticateDispositivo(token);
     await this.expireOldSolicitacoes();
 
-    return this.prisma.biometriaSolicitacao.findMany({
-      where: { status: StatusBiometriaSolicitacao.PENDENTE, expiraEm: { gt: new Date() } },
-      include: {
-        candidato: true,
-        envelope: true,
-        candidatura: { include: { requisicao: { include: { empresa: true } } } },
-      },
-      orderBy: { createdAt: 'asc' },
-      take: 20,
-    }).finally(() => this.touchDispositivo(dispositivo.id));
+    return this.prisma.biometriaSolicitacao
+      .findMany({
+        where: { status: StatusBiometriaSolicitacao.PENDENTE, expiraEm: { gt: new Date() } },
+        include: {
+          candidato: true,
+          envelope: true,
+          candidatura: { include: { requisicao: { include: { empresa: true } } } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 20,
+      })
+      .finally(() => this.touchDispositivo(dispositivo.id));
   }
 
   async assumirSolicitacao(token: string, solicitacaoId: number) {
@@ -148,7 +112,8 @@ export class BiometriaService {
         assumidaEm: new Date(),
       },
     });
-    if (updated.count === 0) throw new BadRequestException('Solicitação não está disponível para atendimento.');
+    if (updated.count === 0)
+      throw new BadRequestException('Solicitação não está disponível para atendimento.');
 
     await this.touchDispositivo(dispositivo.id);
     return this.prisma.biometriaSolicitacao.findUnique({
@@ -157,14 +122,20 @@ export class BiometriaService {
     });
   }
 
-  async registrarResultado(token: string, solicitacaoId: number, dto: ResultadoBiometriaDto, evidence: RequestEvidence) {
+  async registrarResultado(
+    token: string,
+    solicitacaoId: number,
+    dto: ResultadoBiometriaDto,
+    evidence: RequestEvidence,
+  ) {
     const dispositivo = await this.authenticateDispositivo(token);
     const solicitacao = await this.prisma.biometriaSolicitacao.findUnique({
       where: { id: solicitacaoId },
       include: { candidato: true },
     });
     if (!solicitacao) throw new NotFoundException('Solicitação biométrica não encontrada.');
-    if (solicitacao.dispositivoId !== dispositivo.id) throw new ForbiddenException('Solicitação assumida por outro dispositivo.');
+    if (solicitacao.dispositivoId !== dispositivo.id)
+      throw new ForbiddenException('Solicitação assumida por outro dispositivo.');
     if (solicitacao.status !== StatusBiometriaSolicitacao.EM_ATENDIMENTO) {
       throw new BadRequestException('Solicitação não está em atendimento.');
     }
@@ -201,23 +172,16 @@ export class BiometriaService {
     if (cpfRetornado && cpfRetornado !== solicitacao.candidato.cpf.replace(/\D/g, '')) {
       await this.prisma.biometriaSolicitacao.update({
         where: { id: solicitacao.id },
-        data: { status: StatusBiometriaSolicitacao.REPROVADA, mensagem: 'CPF retornado não confere com o candidato.' },
+        data: {
+          status: StatusBiometriaSolicitacao.REPROVADA,
+          mensagem: 'CPF retornado não confere com o candidato.',
+        },
       });
       throw new BadRequestException('CPF retornado não confere com o candidato.');
     }
 
-    if (solicitacao.tipo === TipoBiometriaSolicitacao.CADASTRO) {
-      return this.prisma.candidato.update({
-        where: { id: solicitacao.candidatoId },
-        data: {
-          biometriaStatus: BiometriaStatus.CADASTRADA,
-          biometriaCadastradaEm: concluidaEm,
-          biometriaIdentificadorExterno: dto.identificadorExterno?.trim() || null,
-        },
-      }).then(() => updated);
-    }
-
-    if (!solicitacao.envelopeId) throw new BadRequestException('Solicitação sem envelope para assinatura.');
+    if (!solicitacao.envelopeId)
+      throw new BadRequestException('Solicitação sem envelope para assinatura.');
     await this.assinaturas.signEnvelopeByBiometria(solicitacao.envelopeId, solicitacao.id, {
       ip: evidence.ip,
       userAgent: evidence.userAgent,
@@ -246,13 +210,18 @@ export class BiometriaService {
 
   private async authenticateDispositivo(token: string) {
     if (!token) throw new ForbiddenException('Token de dispositivo não informado.');
-    const dispositivo = await this.prisma.biometriaDispositivo.findUnique({ where: { tokenHash: this.hash(token) } });
+    const dispositivo = await this.prisma.biometriaDispositivo.findUnique({
+      where: { tokenHash: this.hash(token) },
+    });
     if (!dispositivo?.ativo) throw new ForbiddenException('Dispositivo biométrico não autorizado.');
     return dispositivo;
   }
 
   private touchDispositivo(id: number) {
-    return this.prisma.biometriaDispositivo.update({ where: { id }, data: { ultimoPingEm: new Date() } });
+    return this.prisma.biometriaDispositivo.update({
+      where: { id },
+      data: { ultimoPingEm: new Date() },
+    });
   }
 
   private expireOldSolicitacoes() {
@@ -263,8 +232,10 @@ export class BiometriaService {
   }
 
   private statusFromResultado(resultado: ResultadoBiometriaSolicitacao) {
-    if (resultado === ResultadoBiometriaSolicitacao.APROVADO) return StatusBiometriaSolicitacao.CONCLUIDA;
-    if (resultado === ResultadoBiometriaSolicitacao.REPROVADO) return StatusBiometriaSolicitacao.REPROVADA;
+    if (resultado === ResultadoBiometriaSolicitacao.APROVADO)
+      return StatusBiometriaSolicitacao.CONCLUIDA;
+    if (resultado === ResultadoBiometriaSolicitacao.REPROVADO)
+      return StatusBiometriaSolicitacao.REPROVADA;
     return StatusBiometriaSolicitacao.FALHOU;
   }
 

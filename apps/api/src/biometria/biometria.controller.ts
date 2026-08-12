@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Headers, Param, ParseIntPipe, Post, Query, Request, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BiometriaService } from './biometria.service';
 import { CreateBiometriaDispositivoDto } from './dto/create-biometria-dispositivo.dto';
@@ -29,12 +40,6 @@ export class BiometriaController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post('candidatos/:id/cadastro')
-  solicitarCadastro(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
-    return this.biometria.solicitarCadastro(req.user.id, id);
-  }
-
-  @UseGuards(JwtAuthGuard)
   @Post('envelopes/:id/assinatura')
   solicitarAssinatura(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
     return this.biometria.solicitarAssinatura(req.user.id, id);
@@ -43,37 +48,32 @@ export class BiometriaController {
   @UseGuards(JwtAuthGuard)
   @Get('solicitacoes')
   listSolicitacoes(@Request() req: AuthRequest, @Query('candidatoId') candidatoId?: string) {
-    return this.biometria.listSolicitacoesRh(req.user.id, candidatoId ? Number(candidatoId) : undefined);
+    return this.biometria.listSolicitacoesRh(
+      req.user.id,
+      candidatoId ? Number(candidatoId) : undefined,
+    );
   }
 
   @Get('dispositivo/solicitacoes/pendentes')
-  listPendentes(@Headers('authorization') authorization?: string, @Headers('x-device-token') xDeviceToken?: string) {
-    return this.biometria.listPendentesForDispositivo(deviceTokenFromHeaders(authorization, xDeviceToken));
+  listPendentes(
+    @Headers('authorization') authorization?: string,
+    @Headers('x-device-token') xDeviceToken?: string,
+  ) {
+    return this.biometria.listPendentesForDispositivo(
+      deviceTokenFromHeaders(authorization, xDeviceToken),
+    );
   }
 
   @Post('dispositivo/solicitacoes/:id/assumir')
-  assumir(@Param('id', ParseIntPipe) id: number, @Headers('authorization') authorization?: string, @Headers('x-device-token') xDeviceToken?: string) {
-    return this.biometria.assumirSolicitacao(deviceTokenFromHeaders(authorization, xDeviceToken), id);
-  }
-
-  @Post('dispositivo/candidatos/:id/templates')
-  saveTemplate(
-    @Param('id', ParseIntPipe) candidatoId: number,
-    @Body('template') template: string,
+  assumir(
+    @Param('id', ParseIntPipe) id: number,
     @Headers('authorization') authorization?: string,
     @Headers('x-device-token') xDeviceToken?: string,
   ) {
-    if (!template) throw new BadRequestException('Campo "template" é obrigatório.');
-    return this.biometria.saveTemplate(deviceTokenFromHeaders(authorization, xDeviceToken), candidatoId, template);
-  }
-
-  @Get('dispositivo/candidatos/:id/templates')
-  getTemplates(
-    @Param('id', ParseIntPipe) candidatoId: number,
-    @Headers('authorization') authorization?: string,
-    @Headers('x-device-token') xDeviceToken?: string,
-  ) {
-    return this.biometria.getTemplates(deviceTokenFromHeaders(authorization, xDeviceToken), candidatoId);
+    return this.biometria.assumirSolicitacao(
+      deviceTokenFromHeaders(authorization, xDeviceToken),
+      id,
+    );
   }
 
   @Post('dispositivo/solicitacoes/:id/resultado')
@@ -85,9 +85,14 @@ export class BiometriaController {
     @Headers('x-device-token') xDeviceToken?: string,
     @Headers('user-agent') userAgent?: string,
   ) {
-    return this.biometria.registrarResultado(deviceTokenFromHeaders(authorization, xDeviceToken), id, dto, {
-      ip: req.ip,
-      userAgent,
-    });
+    return this.biometria.registrarResultado(
+      deviceTokenFromHeaders(authorization, xDeviceToken),
+      id,
+      dto,
+      {
+        ip: req.ip,
+        userAgent,
+      },
+    );
   }
 }

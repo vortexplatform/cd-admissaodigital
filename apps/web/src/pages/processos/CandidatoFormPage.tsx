@@ -7,10 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, BriefcaseBusiness, Edit3, Save, UserRoundPlus, X } from 'lucide-react';
+import { ArrowLeft, BriefcaseBusiness, Edit3, FileSignature, Save, UserRoundPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Control, Controller, FieldValues, Path, useForm } from 'react-hook-form';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import ReactSelect from 'react-select';
 import type { StylesConfig } from 'react-select';
 import AsyncSelect from 'react-select/async';
@@ -2038,103 +2038,102 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="space-y-2">
                     {candidato.candidaturas.map((candidatura) => (
                       <div
                         key={candidatura.id}
-                        className="flex flex-col gap-1 rounded-xl border bg-background p-4"
+                        className="flex flex-col gap-3 rounded-xl border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
                       >
-                        <p className="font-semibold leading-snug">
-                          {candidatura.requisicao.empresa?.nome ?? 'Empresa não vinculada'}
-                        </p>
-
-                        <span
-                          className={cn(
-                            'mt-0.5 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                            candidatura.status === 'EFETIVADO'
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                              : candidatura.status === 'APROVADO'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                : candidatura.status === 'REPROVADO' || candidatura.status === 'CANCELADO' || candidatura.status === 'DESISTIU'
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                                  : 'bg-muted text-muted-foreground',
-                          )}
-                        >
-                          {statusLabels[candidatura.status] ?? candidatura.status}
-                        </span>
-
-                        {mode === 'edit' && (
-                          <div className="mt-3 space-y-1.5">
-                            <p className="text-xs font-medium text-muted-foreground">Situação</p>
-                            <select
-                              className="h-8 w-full rounded-md border bg-background px-2 text-xs"
-                              value={statusEdit[candidatura.id] ?? candidatura.status}
-                              onChange={(e) =>
-                                setStatusEdit((prev) => ({ ...prev, [candidatura.id]: e.target.value }))
-                              }
-                            >
-                              {statusCandidaturaList.map((s) => (
-                                <option key={s} value={s}>
-                                  {statusLabels[s]}
-                                </option>
-                              ))}
-                            </select>
-                            {statusSaveError[candidatura.id] && (
-                              <p className="text-xs text-destructive">{statusSaveError[candidatura.id]}</p>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
+                          <p className="font-semibold leading-snug">
+                            {candidatura.requisicao.empresa?.nome ?? 'Empresa não vinculada'}
+                          </p>
+                          <span
+                            className={cn(
+                              'inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                              candidatura.status === 'EFETIVADO'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                : candidatura.status === 'APROVADO'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                  : candidatura.status === 'REPROVADO' || candidatura.status === 'CANCELADO' || candidatura.status === 'DESISTIU'
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                    : 'bg-muted text-muted-foreground',
                             )}
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="w-full"
-                              disabled={
-                                isSavingStatus[candidatura.id] ||
-                                (statusEdit[candidatura.id] ?? candidatura.status) === candidatura.status
-                              }
-                              onClick={() => handleUpdateStatus(candidatura.id)}
-                            >
-                              {isSavingStatus[candidatura.id] ? 'Salvando...' : 'Atualizar situação'}
-                            </Button>
-                          </div>
-                        )}
-
-                        <div className="mt-2 space-y-1">
+                          >
+                            {statusLabels[candidatura.status] ?? candidatura.status}
+                          </span>
                           {candidatura.requisicao.postoTrabalhoNome && (
-                            <p className="text-xs text-muted-foreground">
-                              <span className="font-medium">Posto:</span>{' '}
-                              {candidatura.requisicao.postoTrabalhoNome}
-                            </p>
+                            <span className="text-xs text-muted-foreground">
+                              <span className="font-medium">Posto:</span> {candidatura.requisicao.postoTrabalhoNome}
+                            </span>
                           )}
                           {(candidatura.requisicao.escala || candidatura.requisicao.descricaoEscala) && (
-                            <p className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               <span className="font-medium">Horário:</span>{' '}
-                              {[candidatura.requisicao.escala, candidatura.requisicao.descricaoEscala]
-                                .filter(Boolean)
-                                .join(' — ')}
-                            </p>
+                              {[candidatura.requisicao.escala, candidatura.requisicao.descricaoEscala].filter(Boolean).join(' — ')}
+                            </span>
                           )}
                           {candidatura.matricula && (
-                            <p className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               <span className="font-medium">Matrícula:</span>{' '}
                               <span className="font-semibold text-foreground">{candidatura.matricula}</span>
-                            </p>
+                            </span>
                           )}
                           {candidatura.admissao && (
-                            <p className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               <span className="font-medium">Admissão:</span>{' '}
                               <span className="font-semibold text-foreground">
                                 {toDateInputValue(candidatura.admissao).split('-').reverse().join('/')}
                               </span>
-                            </p>
+                            </span>
                           )}
                         </div>
 
-                        {candidatura.status === 'APROVADO' && !candidatura.admissao && podeGerarAdmissao && (
-                          <div className="mt-3">
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {mode === 'edit' && (
+                            <>
+                              <select
+                                className="h-8 rounded-md border bg-background px-2 text-xs"
+                                value={statusEdit[candidatura.id] ?? candidatura.status}
+                                onChange={(e) =>
+                                  setStatusEdit((prev) => ({ ...prev, [candidatura.id]: e.target.value }))
+                                }
+                              >
+                                {statusCandidaturaList.map((s) => (
+                                  <option key={s} value={s}>
+                                    {statusLabels[s]}
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  isSavingStatus[candidatura.id] ||
+                                  (statusEdit[candidatura.id] ?? candidatura.status) === candidatura.status
+                                }
+                                onClick={() => handleUpdateStatus(candidatura.id)}
+                              >
+                                {isSavingStatus[candidatura.id] ? 'Salvando...' : 'Atualizar'}
+                              </Button>
+                              {statusSaveError[candidatura.id] && (
+                                <p className="text-xs text-destructive">{statusSaveError[candidatura.id]}</p>
+                              )}
+                            </>
+                          )}
+
+                          <Button type="button" size="sm" variant="outline" asChild>
+                            <Link to={`/assinaturas/${candidato.id}`}>
+                              <FileSignature className="h-4 w-4" />
+                              Assinaturas
+                            </Link>
+                          </Button>
+
+                          {candidatura.status === 'APROVADO' && !candidatura.admissao && podeGerarAdmissao && (
                             <Button
                               type="button"
                               size="sm"
-                              className="w-full"
                               onClick={() => {
                                 setAdmissaoCandidaturaId(candidatura.id);
                                 setAdmissaoSuccess(false);
@@ -2144,36 +2143,33 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                             >
                               Gerar admissão
                             </Button>
-                          </div>
-                        )}
+                          )}
 
-                        {candidatura.status === 'EFETIVADO' && matriculaAtiva[candidatura.id] === null && (
-                          <div className="mt-3 space-y-1">
+                          {candidatura.status === 'EFETIVADO' && matriculaAtiva[candidatura.id] === null && (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="border-destructive text-destructive hover:bg-destructive/10"
+                                disabled={cancelandoId === candidatura.id}
+                                onClick={() => handleCancelarEfetivacao(candidatura.id)}
+                              >
+                                {cancelandoId === candidatura.id ? 'Cancelando...' : 'Cancelar efetivação'}
+                              </Button>
+                              {cancelError[candidatura.id] && (
+                                <p className="text-xs text-destructive">{cancelError[candidatura.id]}</p>
+                              )}
+                            </>
+                          )}
+
+                          {candidatura.admissao !== null &&
+                            isWithin7Days(candidatura.admissao) &&
+                            matriculaAtiva[candidatura.id] === null &&
+                            podeGerarAdmissao && (
                             <Button
                               type="button"
                               size="sm"
-                              variant="outline"
-                              className="w-full border-destructive text-destructive hover:bg-destructive/10"
-                              disabled={cancelandoId === candidatura.id}
-                              onClick={() => handleCancelarEfetivacao(candidatura.id)}
-                            >
-                              {cancelandoId === candidatura.id ? 'Cancelando...' : 'Cancelar efetivação'}
-                            </Button>
-                            {cancelError[candidatura.id] && (
-                              <p className="text-xs text-destructive">{cancelError[candidatura.id]}</p>
-                            )}
-                          </div>
-                        )}
-
-                        {candidatura.admissao !== null &&
-                          isWithin7Days(candidatura.admissao) &&
-                          matriculaAtiva[candidatura.id] === null &&
-                          podeGerarAdmissao && (
-                          <div className="mt-3">
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="w-full"
                               onClick={() => {
                                 setAdmissaoCandidaturaId(candidatura.id);
                                 setAdmissaoSuccess(false);
@@ -2183,8 +2179,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                             >
                               Gerar nova admissão
                             </Button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

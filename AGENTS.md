@@ -4,7 +4,7 @@
 
 - Workspace pnpm 9 + Turborepo; os scripts da raiz delegam com `turbo run ...`.
 - O `README.md` ainda é o starter do create-turbo e está desatualizado; prefira os scripts dos pacotes, o `turbo.json` e o `CLAUDE.md`.
-- Apps: `apps/api` é NestJS na porta 5011; `apps/web` é Vite + React na porta 5010.
+- Apps: `apps/api` é NestJS na porta 5011; `apps/web` é Vite + React na porta 5010; `apps/idface-agent` é a ponte Node local para o equipamento iDFace Control iD.
 - Pacotes compartilhados: `packages/eslint-config`, `packages/typescript-config`, um starter `packages/ui` sem uso, e `packages/cloudflared` (túnel de dev via `cloudflared`, token do `.env.development` da raiz).
 - `bruno/` contém uma coleção Bruno de HTTP para a API; `docs/codebase-graph.md` é gerado por `pnpm graphify` (rode novamente após mudanças estruturais; partes podem estar defasadas em relação ao código).
 
@@ -12,6 +12,7 @@
 
 - Raiz: `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm check-types`, `pnpm format`.
 - Foque em um app com filtros, ex.: `pnpm --filter api dev`, `pnpm --filter web build`, `pnpm --filter api test`.
+- Agente iDFace: `pnpm --filter idface-agent dev`, `pnpm --filter idface-agent build`, `pnpm --filter idface-agent test`. Configure-o com `apps/idface-agent/.env` a partir do `.env.example` local.
 - Testes da API: `pnpm --filter api test` roda os specs unitários em `apps/api/src`; `pnpm --filter api test:e2e` usa `apps/api/test/jest-e2e.json` (arquivos `*.e2e-spec.ts`).
 - Atalhos do Prisma existem no pacote `api`: `pnpm --filter api db:generate`, `pnpm --filter api db:migrate`, `pnpm --filter api db:studio`.
 - Docker full-stack: `pnpm dev:docker` (compose de dev + túnel cloudflared), `pnpm prod` (compose de prod). O `entrypoint.sh` do container da API roda `prisma migrate deploy` antes de iniciar.
@@ -25,6 +26,7 @@
 - O `migrate dev` local espera que o usuário do banco tenha `CREATEDB` para o shadow database do Prisma.
 - O PostgreSQL de produção deve aplicar a migration de preparação da busca de candidatos antes de importar 100k+ candidatos: habilitar `unaccent` e `pg_trgm`, criar `immutable_unaccent(text)` e manter o índice GIN trigram `candidato_nome_trgm_idx` para busca rápida por nome.
 - Integrações opcionais configuradas por env: AWS S3 (armazenamento de documentos), AWS SNS (SMS OTP), Google Cloud Vision (OCR no upload de documentos, via `GOOGLE_APPLICATION_CREDENTIALS_JSON`) e a API Senior (`SENIOR_API_*`) — todas chamadas apenas pela API, nunca pelo app web.
+- A integração presencial com iDFace usa um agente em uma máquina da mesma LAN do equipamento. Um sistema externo mantém as faces no iDFace; o agente apenas autentica candidatos pelos `access_logs` e exige que `user_id` seja o CPF sem máscara. Nunca exponha o iDFace à internet; altere as credenciais padrão antes da produção.
 
 ## Notas da API
 

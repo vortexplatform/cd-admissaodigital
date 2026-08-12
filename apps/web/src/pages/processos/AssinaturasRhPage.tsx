@@ -70,8 +70,9 @@ export default function AssinaturasRhPage() {
   const [gerandoId, setGerandoId] = useState<number | null>(null);
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
   const [confirmandoExclusaoId, setConfirmandoExclusaoId] = useState<number | null>(null);
-  const [cadastrandoBiometriaId, setCadastrandoBiometriaId] = useState<number | null>(null);
-  const [solicitandoBiometriaEnvelopeId, setSolicitandoBiometriaEnvelopeId] = useState<number | null>(null);
+  const [solicitandoBiometriaEnvelopeId, setSolicitandoBiometriaEnvelopeId] = useState<
+    number | null
+  >(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -82,7 +83,9 @@ export default function AssinaturasRhPage() {
       api.get<AssinaturasRhResponse>('/documentos/assinaturas/rh', { params }),
     ]);
     setDocumentos(
-      candidatoId ? documentosData.filter((item) => item.candidato.id === candidatoId) : documentosData,
+      candidatoId
+        ? documentosData.filter((item) => item.candidato.id === candidatoId)
+        : documentosData,
     );
     setAssinaturas(assinaturasData);
   }, [candidatoId, page]);
@@ -98,7 +101,9 @@ export default function AssinaturasRhPage() {
     const assinaturasData = assinaturas?.data ?? [];
     const documentosDaPagina = candidatoId
       ? documentos
-      : documentos.filter((candidatura) => assinaturasData.some((item) => item.id === candidatura.id));
+      : documentos.filter((candidatura) =>
+          assinaturasData.some((item) => item.id === candidatura.id),
+        );
     return documentosDaPagina
       .map((candidatura) => {
         const assinatura = assinaturasData.find((item) => item.id === candidatura.id) ?? null;
@@ -126,22 +131,14 @@ export default function AssinaturasRhPage() {
     () =>
       rows.reduce((count, row) => {
         if (!row.assinatura) return count;
-        return count + row.assinatura.envelopesAssinatura.filter((e) => e.status === 'CONCLUIDO').length;
+        return (
+          count + row.assinatura.envelopesAssinatura.filter((e) => e.status === 'CONCLUIDO').length
+        );
       }, 0),
     [rows],
   );
 
-  const devePolling = useMemo(
-    () =>
-      message.includes('Aguarde') ||
-      rows.some(
-        (row) =>
-          row.assinatura &&
-          row.candidatura.candidato.biometriaStatus === 'CADASTRADA' &&
-          getEnvelopeStats(row.assinatura.envelopesAssinatura).pending > 0,
-      ),
-    [message, rows],
-  );
+  const devePolling = message.includes('Aguarde');
 
   const prevEnvelopesConcluidosRef = useRef(envelopesConcluidos);
   useEffect(() => {
@@ -168,7 +165,9 @@ export default function AssinaturasRhPage() {
       await loadData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(typeof msg === 'string' ? msg : 'Não foi possível gerar documentos para assinatura.');
+      setError(
+        typeof msg === 'string' ? msg : 'Não foi possível gerar documentos para assinatura.',
+      );
     } finally {
       setGerandoId(null);
     }
@@ -184,26 +183,12 @@ export default function AssinaturasRhPage() {
       setMessage('Documentos de assinatura excluídos.');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(typeof msg === 'string' ? msg : 'Não foi possível excluir os documentos de assinatura.');
+      setError(
+        typeof msg === 'string' ? msg : 'Não foi possível excluir os documentos de assinatura.',
+      );
     } finally {
       setExcluindoId(null);
       setConfirmandoExclusaoId(null);
-    }
-  };
-
-  const solicitarCadastroBiometria = async (candidatoId: number) => {
-    setError('');
-    setMessage('');
-    setCadastrandoBiometriaId(candidatoId);
-    try {
-      await api.post(`/biometria/candidatos/${candidatoId}/cadastro`);
-      setMessage('Solicitação de cadastro biométrico criada. Aguarde o software local realizar a coleta.');
-      await loadData();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(typeof msg === 'string' ? msg : 'Não foi possível solicitar o cadastro biométrico.');
-    } finally {
-      setCadastrandoBiometriaId(null);
     }
   };
 
@@ -213,11 +198,15 @@ export default function AssinaturasRhPage() {
     setSolicitandoBiometriaEnvelopeId(envelopeId);
     try {
       await api.post(`/biometria/envelopes/${envelopeId}/assinatura`);
-      setMessage('Solicitação de assinatura biométrica criada. Aguarde o software local concluir a verificação.');
+      setMessage(
+        'Solicitação de assinatura biométrica criada. Aguarde o candidato se identificar no iDFace.',
+      );
       await loadData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(typeof msg === 'string' ? msg : 'Não foi possível solicitar a assinatura biométrica.');
+      setError(
+        typeof msg === 'string' ? msg : 'Não foi possível solicitar a assinatura biométrica.',
+      );
     } finally {
       setSolicitandoBiometriaEnvelopeId(null);
     }
@@ -250,7 +239,9 @@ export default function AssinaturasRhPage() {
       />
 
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
-      {message && <p className="mb-4 rounded-xl border bg-card px-4 py-3 text-sm text-primary">{message}</p>}
+      {message && (
+        <p className="mb-4 rounded-xl border bg-card px-4 py-3 text-sm text-primary">{message}</p>
+      )}
 
       {isLoading ? (
         <Card>
@@ -263,7 +254,9 @@ export default function AssinaturasRhPage() {
         <Card className="border-dashed text-center">
           <CardContent className="p-10 text-sm text-muted-foreground">
             <FileSignature className="mx-auto h-10 w-10 opacity-40" />
-            <p className="mt-3 font-semibold text-foreground">Nenhum candidato pronto para assinatura</p>
+            <p className="mt-3 font-semibold text-foreground">
+              Nenhum candidato pronto para assinatura
+            </p>
             <p className="mt-1">
               Quando todos os documentos obrigatórios forem aprovados, o candidato aparecerá aqui.
             </p>
@@ -278,18 +271,17 @@ export default function AssinaturasRhPage() {
               assinatura={row.assinatura}
               isGerando={gerandoId === row.candidatura.id}
               isExcluindo={excluindoId === row.candidatura.id}
-              isCadastrandoBiometria={cadastrandoBiometriaId === row.candidatura.candidato.id}
               solicitandoBiometriaEnvelopeId={solicitandoBiometriaEnvelopeId}
               onGerar={() => gerarAssinaturas(row.candidatura.id)}
               onExcluir={() => setConfirmandoExclusaoId(row.candidatura.id)}
-              onCadastrarBiometria={() => solicitarCadastroBiometria(row.candidatura.candidato.id)}
               onSolicitarBiometria={solicitarAssinaturaBiometrica}
             />
           ))}
           {!candidatoId && assinaturas && assinaturas.totalPages > 1 && (
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>
-                Página {assinaturas.page} de {assinaturas.totalPages} · {assinaturas.total} candidatos
+                Página {assinaturas.page} de {assinaturas.totalPages} · {assinaturas.total}{' '}
+                candidatos
               </span>
               <div className="flex gap-1">
                 <Button
@@ -337,7 +329,10 @@ function ConfirmDeleteModal({
   onConfirm: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+    >
       <div
         className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-xl"
         role="dialog"
@@ -349,9 +344,12 @@ function ConfirmDeleteModal({
             <Trash2 className="h-5 w-5" />
           </div>
           <div>
-            <h2 id="confirm-delete-title" className="font-semibold">Excluir documentos de assinatura?</h2>
+            <h2 id="confirm-delete-title" className="font-semibold">
+              Excluir documentos de assinatura?
+            </h2>
             <p className="mt-1 text-sm leading-5 text-muted-foreground">
-              Os documentos gerados e seus envelopes serão removidos. Essa ação só pode ser feita antes de qualquer assinatura.
+              Os documentos gerados e seus envelopes serão removidos. Essa ação só pode ser feita
+              antes de qualquer assinatura.
             </p>
           </div>
         </div>
@@ -379,27 +377,22 @@ function AssinaturaCandidaturaCard({
   assinatura,
   isGerando,
   isExcluindo,
-  isCadastrandoBiometria,
   solicitandoBiometriaEnvelopeId,
   onGerar,
   onExcluir,
-  onCadastrarBiometria,
   onSolicitarBiometria,
 }: {
   candidatura: DocumentosCandidatura;
   assinatura: AssinaturasCandidatura | null;
   isGerando: boolean;
   isExcluindo: boolean;
-  isCadastrandoBiometria: boolean;
   solicitandoBiometriaEnvelopeId: number | null;
   onGerar: () => void;
   onExcluir: () => void;
-  onCadastrarBiometria: () => void;
   onSolicitarBiometria: (envelopeId: number) => void;
 }) {
   const envelopes = assinatura?.envelopesAssinatura ?? [];
   const stats = getEnvelopeStats(envelopes);
-  const biometriaCadastrada = candidatura.candidato.biometriaStatus === 'CADASTRADA';
 
   return (
     <article className="overflow-hidden rounded-xl border bg-card">
@@ -425,65 +418,33 @@ function AssinaturaCandidaturaCard({
                 Pronto para gerar
               </span>
             )}
-            <span
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${
-                biometriaCadastrada
-                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                  : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-              }`}
-            >
-              <Fingerprint className="h-3.5 w-3.5" />
-              {biometriaCadastrada ? 'Biometria cadastrada' : 'Sem biometria'}
-            </span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{formatCandidaturaTitle(candidatura)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatCandidaturaTitle(candidatura)}
+          </p>
         </div>
 
         {assinatura ? (
           <div className="flex flex-wrap items-center gap-2">
-            {!biometriaCadastrada && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isCadastrandoBiometria}
-                onClick={onCadastrarBiometria}
-              >
-                {isCadastrandoBiometria ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Fingerprint className="h-4 w-4" />
-                )}
-                Cadastrar biometria
-              </Button>
-            )}
             <div className="rounded-xl border bg-background px-4 py-3 text-sm">
-              <span className="font-semibold">{stats.signed}/{stats.total}</span>{' '}
+              <span className="font-semibold">
+                {stats.signed}/{stats.total}
+              </span>{' '}
               <span className="text-muted-foreground">documentos assinados</span>
             </div>
             {stats.signed === 0 && (
               <Button type="button" variant="outline" disabled={isExcluindo} onClick={onExcluir}>
-                {isExcluindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {isExcluindo ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
                 Excluir documentos
               </Button>
             )}
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {!biometriaCadastrada && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isCadastrandoBiometria}
-                onClick={onCadastrarBiometria}
-              >
-                {isCadastrandoBiometria ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Fingerprint className="h-4 w-4" />
-                )}
-                Cadastrar biometria
-              </Button>
-            )}
             <Button type="button" disabled={isGerando} onClick={onGerar}>
               {isGerando ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -502,7 +463,6 @@ function AssinaturaCandidaturaCard({
             <EnvelopeCard
               key={envelope.id}
               envelope={envelope}
-              biometriaCadastrada={biometriaCadastrada}
               isSolicitandoBiometria={solicitandoBiometriaEnvelopeId === envelope.id}
               onSolicitarBiometria={() => onSolicitarBiometria(envelope.id)}
             />
@@ -515,12 +475,10 @@ function AssinaturaCandidaturaCard({
 
 function EnvelopeCard({
   envelope,
-  biometriaCadastrada,
   isSolicitandoBiometria,
   onSolicitarBiometria,
 }: {
   envelope: EnvelopeAssinatura;
-  biometriaCadastrada: boolean;
   isSolicitandoBiometria: boolean;
   onSolicitarBiometria: () => void;
 }) {
@@ -544,7 +502,7 @@ function EnvelopeCard({
           <Button
             type="button"
             size="sm"
-            disabled={!biometriaCadastrada || pending === 0 || isSolicitandoBiometria}
+            disabled={pending === 0 || isSolicitandoBiometria}
             onClick={onSolicitarBiometria}
           >
             {isSolicitandoBiometria ? (
@@ -597,7 +555,11 @@ function EnvelopeCard({
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <Button type="button" size="sm" variant="outline" asChild>
-                <a href={getDocumentoAssinaturaRhUrl(documento.id)} target="_blank" rel="noreferrer">
+                <a
+                  href={getDocumentoAssinaturaRhUrl(documento.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   <Eye className="h-4 w-4" /> Abrir PDF
                 </a>
               </Button>
