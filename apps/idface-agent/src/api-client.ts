@@ -2,6 +2,8 @@ export type CandidatoRef = {
   id: number;
   nome: string;
   cpf: string;
+  responsavelCpf?: string | null;
+  responsavelNome?: string | null;
 };
 
 export type BiometriaSolicitacao = {
@@ -12,7 +14,9 @@ export type BiometriaSolicitacao = {
   candidatoId: number;
   candidaturaId?: number | null;
   envelopeId?: number | null;
+  idfaceIp: string;
   candidato: CandidatoRef;
+  envelope?: { tipoSignatario: 'CANDIDATO' | 'RESPONSAVEL' } | null;
 };
 
 export type ResultadoBiometriaPayload = {
@@ -21,6 +25,7 @@ export type ResultadoBiometriaPayload = {
   score?: number;
   identificadorExterno?: string;
   mensagem?: string;
+  enderecoColeta?: string;
 };
 
 export class ApiError extends Error {
@@ -35,11 +40,10 @@ export class ApiError extends Error {
 
 type ApiClientOptions = {
   baseUrl: string;
-  deviceToken: string;
   timeoutMs: number;
 };
 
-/** Cliente da API de biometria (endpoints públicos de dispositivo, autenticados por token). */
+/** Cliente da API de biometria, direcionado ao iDFace configurado. */
 export class BiometriaApiClient {
   constructor(private readonly options: ApiClientOptions) {}
 
@@ -47,24 +51,26 @@ export class BiometriaApiClient {
     return this.request('GET', '/biometria/dispositivo/solicitacoes/pendentes');
   }
 
-  assumir(solicitacaoId: number): Promise<BiometriaSolicitacao> {
-    return this.request('POST', `/biometria/dispositivo/solicitacoes/${solicitacaoId}/assumir`);
+  assumir(solicitacaoId: number, idfaceIp: string): Promise<BiometriaSolicitacao> {
+    return this.request('POST', `/biometria/dispositivo/solicitacoes/${solicitacaoId}/assumir`, undefined, idfaceIp);
   }
 
-  reportResultado(solicitacaoId: number, payload: ResultadoBiometriaPayload): Promise<unknown> {
+  reportResultado(solicitacaoId: number, payload: ResultadoBiometriaPayload, idfaceIp: string): Promise<unknown> {
     return this.request(
       'POST',
       `/biometria/dispositivo/solicitacoes/${solicitacaoId}/resultado`,
       payload,
+      idfaceIp,
     );
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const response = await fetch(`${this.options.baseUrl}${path}`, {
+  private async request<T>(method: string, path: string, body?: unknown, idfaceIp?: string): Promise<T> {
+    const url = new URL(path, this.options.baseUrl);
+    if (idfaceIp) url.searchParams.set('idfaceIp', idfaceIp);
+    const response = await fetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'x-device-token': this.options.deviceToken,
         'User-Agent': 'idface-agent/0.1',
       },
       body: body === undefined ? undefined : JSON.stringify(body),

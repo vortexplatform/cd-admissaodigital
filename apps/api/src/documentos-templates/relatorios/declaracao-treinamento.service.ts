@@ -9,6 +9,7 @@ import {
   drawHeader,
   drawParagraphs,
   embedLogo,
+  getResponsavelLegalParaAssinatura,
   wrapText,
 } from '../pdf-render.utils';
 
@@ -67,6 +68,11 @@ export class DeclaracaoTreinamentoService {
       candidatoNome,
       empresaCidade,
       dataAdmissao,
+      getResponsavelLegalParaAssinatura(
+        candidatura.candidato.dataNascimento,
+        candidatura.candidato.responsavelNome,
+        dataAdmissao,
+      ),
     );
 
     return Buffer.from(await pdf.save());
@@ -81,6 +87,7 @@ export class DeclaracaoTreinamentoService {
     candidatoNome: string,
     empresaCidade: string,
     dataAdmissao: Date,
+    responsavelNome?: string,
   ): void {
     let y = drawHeader(page, logo, DeclaracaoTreinamentoService.NOME, bold);
 
@@ -143,6 +150,6 @@ export class DeclaracaoTreinamentoService {
     });
     y -= 20;
 
-    drawAssinaturasEletronicas(pdf, page, regular, bold, y, EMPRESA_NOME, candidatoNome);
+    drawAssinaturasEletronicas(pdf, page, regular, bold, y, EMPRESA_NOME, candidatoNome, responsavelNome);
   }
 }

@@ -651,7 +651,12 @@ export default function AssinaturasPendentesPage() {
                       >
                         <td className="px-4 py-3">
                           <p className="font-medium">
-                            {row.candidato.nome ?? row.candidato.cpf}
+                            <Link
+                              to={`/candidatos/${row.candidato.id}/editar`}
+                              className="hover:underline hover:text-primary"
+                            >
+                              {row.candidato.nome ?? row.candidato.cpf}
+                            </Link>
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {formatCandidaturaListItem(row)}

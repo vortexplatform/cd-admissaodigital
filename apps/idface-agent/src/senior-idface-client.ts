@@ -6,6 +6,7 @@ export type IdfaceDevice = {
   desrlg: string;
   coddsp: number;
   ip: string;
+  endereco?: string;
 };
 
 type SeniorIdfaceClientOptions = {
@@ -48,7 +49,8 @@ const isIdfaceDevice = (value: unknown): value is IdfaceDevice => {
     typeof device.codplt === 'number' &&
     typeof device.codrlg === 'number' &&
     typeof device.desrlg === 'string' &&
-    typeof device.coddsp === 'number' &&
-    typeof device.ip === 'string'
+      typeof device.coddsp === 'number' &&
+      typeof device.ip === 'string' &&
+      (device.endereco === undefined || typeof device.endereco === 'string')
   );
 };

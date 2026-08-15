@@ -9,6 +9,7 @@ const solicitacao: BiometriaSolicitacao = {
   status: 'EM_ATENDIMENTO',
   expiraEm: '2030-01-01T00:00:00.000Z',
   candidatoId: 42,
+  idfaceIp: '192.168.31.72',
   candidato: { id: 42, nome: 'Maria Silva', cpf: '123.456.789-09' },
 };
 
@@ -21,6 +22,7 @@ describe('handleVerificacao', () => {
     const idface = {
       baseUrl: 'http://192.168.31.72',
       getCurrentTimestamp: async () => 100,
+      getUserById: async () => ({ id: 12345678909, registration: '12345678909', name: 'Maria Silva' }),
       listAccessLogsSince: async () => [
         { id: 11, time: 1, event: 7, user_id: 12345678909, confidence: 850 },
       ],
@@ -55,6 +57,7 @@ describe('handleVerificacao', () => {
     const idface = {
       baseUrl: 'http://192.168.31.72',
       getCurrentTimestamp: async () => 100,
+      getUserById: async () => ({ id: 12345678909, registration: '12345678909', name: 'Maria Silva' }),
       listAccessLogsSince: async () => [
         { id: 11, time: 1, event: 7, user_id: 98, confidence: 850 },
       ],

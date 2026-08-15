@@ -1,15 +1,15 @@
-import type { BiometriaApiClient, BiometriaSolicitacao } from '../api-client';
+import type { BiometriaSolicitacao, ResultadoBiometriaPayload } from '../api-client';
 import { IDFACE_EVENT_ACESSO_CONCEDIDO, type IdfaceClient } from '../idface-client';
 import type { Logger } from '../logger';
 import { onlyDigits, sleep } from '../utils';
 
 type IdfaceForVerification = Pick<
   IdfaceClient,
-  'baseUrl' | 'getCurrentTimestamp' | 'listAccessLogsSince'
+  'baseUrl' | 'getCurrentTimestamp' | 'getUserById' | 'listAccessLogsSince'
 >;
 
 type VerificacaoDependencies = {
-  api: Pick<BiometriaApiClient, 'reportResultado'>;
+  api: { reportResultado: (solicitacaoId: number, payload: ResultadoBiometriaPayload) => Promise<unknown> };
   idfaces: IdfaceForVerification[];
   logger: Logger;
   minConfidence: number;
@@ -31,8 +31,33 @@ export async function handleVerificacao(
     sleepFn = sleep,
   }: VerificacaoDependencies,
 ) {
-  const cpfEsperado = onlyDigits(solicitacao.candidato.cpf);
+  const isResponsavel = solicitacao.envelope?.tipoSignatario === 'RESPONSAVEL';
+  const cpfBruto = isResponsavel
+    ? solicitacao.candidato.responsavelCpf
+    : solicitacao.candidato.cpf;
+
+  if (!cpfBruto) {
+    await api.reportResultado(solicitacao.id, {
+      resultado: 'FALHOU',
+      mensagem: isResponsavel
+        ? 'CPF do responsável legal não cadastrado no sistema.'
+        : 'CPF do candidato não cadastrado no sistema.',
+    });
+    return;
+  }
+
+  const cpfEsperado = onlyDigits(cpfBruto);
   const expiraEm = new Date(solicitacao.expiraEm).getTime();
+  const candidatoCadastrado = await findRegisteredCandidate(idfaces, Number(cpfEsperado));
+  if (!candidatoCadastrado) {
+    await api.reportResultado(solicitacao.id, {
+      resultado: 'FALHOU',
+      mensagem: isResponsavel
+        ? 'Responsável legal não está cadastrado no iDFace selecionado.'
+        : 'Colaborador não está cadastrado no iDFace selecionado.',
+    });
+    return;
+  }
   const cursors = await createCursors(idfaces, logger);
   if (cursors.size === 0) throw new Error('Nenhum iDFace disponível para autenticação.');
 
@@ -47,6 +72,14 @@ export async function handleVerificacao(
     const identificacao = await findIdentification(cursors, logger);
     if (identificacao) {
       const { idface, log } = identificacao;
+      if (log.event !== IDFACE_EVENT_ACESSO_CONCEDIDO || !log.user_id) {
+        await api.reportResultado(solicitacao.id, {
+          resultado: 'FALHOU',
+          identificadorExterno: `idface:${idface.baseUrl}:log:${log.id}`,
+          mensagem: 'O iDFace não identificou um colaborador cadastrado durante a coleta facial.',
+        });
+        return;
+      }
       const cpfIdentificado = cpfFromIdfaceUserId(log.user_id);
       const confidence = log.confidence ?? 0;
       const identificadorExterno = `idface:${idface.baseUrl}:user:${log.user_id}:log:${log.id}`;
@@ -71,7 +104,9 @@ export async function handleVerificacao(
           cpfRetornado: cpfIdentificado || undefined,
           score: Math.round(confidence / 10),
           identificadorExterno,
-          mensagem: 'A pessoa identificada no iDFace não corresponde ao candidato da solicitação.',
+          mensagem: isResponsavel
+            ? 'A pessoa identificada no iDFace não corresponde ao responsável legal da solicitação.'
+            : 'A pessoa identificada no iDFace não corresponde ao candidato da solicitação.',
         });
         return;
       }
@@ -90,6 +125,11 @@ export async function handleVerificacao(
     resultado: 'FALHOU',
     mensagem: 'Tempo esgotado sem identificação facial no iDFace.',
   });
+}
+
+async function findRegisteredCandidate(idfaces: IdfaceForVerification[], userId: number) {
+  const users = await Promise.allSettled(idfaces.map((idface) => idface.getUserById(userId)));
+  return users.some((result) => result.status === 'fulfilled' && result.value !== undefined);
 }
 
 /** O iDFace armazena o CPF como id numérico e pode remover o zero à esquerda. */
@@ -144,7 +184,7 @@ async function findIdentification(
     for (const log of logs) {
       if (log.id <= cursor.lastLogId) continue;
       cursor.lastLogId = log.id;
-      if (log.event === IDFACE_EVENT_ACESSO_CONCEDIDO && log.user_id) return { idface, log };
+      return { idface, log };
     }
   }
 }

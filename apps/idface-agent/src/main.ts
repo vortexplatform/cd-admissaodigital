@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import { BiometriaApiClient } from './api-client';
 import { IdfaceAgent } from './agent';
 import { loadConfig } from './config';
-import { IdfaceClient } from './idface-client';
 import { createLogger } from './logger';
 import { SeniorIdfaceClient } from './senior-idface-client';
 
@@ -19,17 +18,12 @@ async function bootstrap() {
     seniorApiUrl: config.senior.baseUrl,
     modrlg: config.senior.modrlg,
   });
-  const senior = new SeniorIdfaceClient({
-    ...config.senior,
-    timeoutMs: config.httpTimeoutMs,
-    logger,
-  });
   const api = new BiometriaApiClient({
     baseUrl: config.apiBaseUrl,
-    deviceToken: config.biometriaDeviceToken,
     timeoutMs: config.httpTimeoutMs,
   });
-  const agent = new IdfaceAgent({ api, config, senior, logger });
+  const senior = new SeniorIdfaceClient({ ...config.senior, timeoutMs: config.httpTimeoutMs, logger });
+  const agent = new IdfaceAgent({ api, config, logger, senior });
 
   if (config.idface.login === 'admin' && config.idface.password === 'admin') {
     logger.warn(
@@ -39,21 +33,7 @@ async function bootstrap() {
 
   try {
     const devices = await senior.listDevices();
-    if (devices.length === 0)
-      throw new Error('A Senior não retornou nenhum iDFace para modrlg=17.');
-    const firstDevice = devices[0];
-    if (!firstDevice) throw new Error('Nenhum iDFace disponível para validação inicial.');
-    const idface = new IdfaceClient({
-      ...config.idface,
-      baseUrl: `http://${firstDevice.ip}`,
-      timeoutMs: config.httpTimeoutMs,
-      logger,
-    });
-    await idface.login();
-    logger.info('iDFaces descobertos pela Senior.', {
-      dispositivos: devices.length,
-      ips: devices.map((device) => device.ip),
-    });
+    logger.info('iDFaces disponíveis para o agente.', { quantidade: devices.length });
   } catch (error) {
     logger.warn('Não foi possível conectar ao iDFace no boot; o agente continuará tentando.', {
       error: error instanceof Error ? error.message : String(error),

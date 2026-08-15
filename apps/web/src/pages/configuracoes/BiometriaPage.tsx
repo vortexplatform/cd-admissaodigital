@@ -10,6 +10,7 @@ import api from '@/lib/api';
 interface Dispositivo {
   id: number;
   nome: string;
+  idfaceIp: string | null;
   ativo: boolean;
   ultimoPingEm: string | null;
   createdAt: string;
@@ -27,6 +28,7 @@ export default function BiometriaPage() {
   const [dispositivos, setDispositivos] = useState<Dispositivo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [nome, setNome] = useState('');
+  const [idfaceIp, setIdfaceIp] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [tokenGerado, setTokenGerado] = useState<{ nome: string; token: string } | null>(null);
@@ -53,9 +55,13 @@ export default function BiometriaPage() {
     setIsSaving(true);
     setError('');
     try {
-      const { data } = await api.post<{ dispositivo: Dispositivo; token: string }>('/biometria/dispositivos', { nome: nome.trim() });
+      const { data } = await api.post<{ dispositivo: Dispositivo; token: string }>('/biometria/dispositivos', {
+        nome: nome.trim(),
+        idfaceIp: idfaceIp.trim(),
+      });
       setTokenGerado({ nome: data.dispositivo.nome, token: data.token });
       setNome('');
+      setIdfaceIp('');
       await loadDispositivos();
     } catch {
       setError('Não foi possível criar o dispositivo. Tente novamente.');
@@ -107,9 +113,10 @@ export default function BiometriaPage() {
                     <div className="flex items-center gap-3">
                       <MonitorSmartphone className="h-5 w-5 shrink-0 text-muted-foreground" />
                       <div>
-                        <p className="font-medium leading-tight">{d.nome}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Criado em {formatDate(d.createdAt)}
+                          <p className="font-medium leading-tight">{d.nome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            iDFace {d.idfaceIp ?? 'não configurado'} ·
+                            Criado em {formatDate(d.createdAt)}
                           {d.ultimoPingEm && ` · último ping ${formatDate(d.ultimoPingEm)}`}
                         </p>
                       </div>
@@ -160,7 +167,17 @@ export default function BiometriaPage() {
                   disabled={isSaving}
                 />
               </div>
-              <Button onClick={criar} disabled={isSaving || !nome.trim()} className="w-full">
+              <div className="space-y-2">
+                <Label htmlFor="idface-ip">IP do iDFace</Label>
+                <Input
+                  id="idface-ip"
+                  value={idfaceIp}
+                  onChange={(e) => setIdfaceIp(e.target.value)}
+                  placeholder="Ex: 192.168.1.100"
+                  disabled={isSaving}
+                />
+              </div>
+              <Button onClick={criar} disabled={isSaving || !nome.trim() || !idfaceIp.trim()} className="w-full">
                 <Plus className="h-4 w-4" />
                 {isSaving ? 'Criando dispositivo...' : 'Criar dispositivo'}
               </Button>

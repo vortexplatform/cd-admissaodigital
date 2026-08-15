@@ -11,6 +11,7 @@ import {
   drawHeader,
   drawParagraphs,
   embedLogo,
+  getResponsavelLegalParaAssinatura,
 } from '../pdf-render.utils';
 
 type CandidaturaAcordo = Prisma.CandidaturaGetPayload<{
@@ -93,6 +94,11 @@ export class AcordoDomingosFeriadosService {
       candidatoCpf,
       candidatoEndereco,
       dataAdmissao,
+      responsavelNome: getResponsavelLegalParaAssinatura(
+        candidatura.candidato.dataNascimento,
+        candidatura.candidato.responsavelNome,
+        dataAdmissao,
+      ),
     });
 
     return Buffer.from(await pdf.save());
@@ -148,9 +154,10 @@ export class AcordoDomingosFeriadosService {
       candidatoCpf: string;
       candidatoEndereco: string | null;
       dataAdmissao: Date;
+      responsavelNome?: string;
     },
   ): void {
-    let y = drawHeader(page, logo, AcordoDomingosFeriadosService.NOME, bold);
+    const y = drawHeader(page, logo, AcordoDomingosFeriadosService.NOME, bold);
 
     const enderecoEmpregado = data.candidatoEndereco
       ? ` residente na ${data.candidatoEndereco}`
@@ -191,6 +198,7 @@ export class AcordoDomingosFeriadosService {
       lastY - 30,
       data.empresaNome,
       data.candidatoNome,
+      data.responsavelNome,
     );
     drawFooter(page);
   }

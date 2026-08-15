@@ -21,4 +21,8 @@ export class ResultadoBiometriaDto {
   @IsString()
   @IsOptional()
   mensagem?: string;
+
+  @IsString()
+  @IsOptional()
+  enderecoColeta?: string;
 }

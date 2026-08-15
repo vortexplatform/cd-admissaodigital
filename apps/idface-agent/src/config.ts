@@ -12,7 +12,6 @@ const boolFromEnv = (defaultValue: boolean) =>
 
 const envSchema = z.object({
   API_BASE_URL: z.url(),
-  BIOMETRIA_DEVICE_TOKEN: z.string().min(1, 'BIOMETRIA_DEVICE_TOKEN é obrigatório'),
   SENIOR_API_URL: z.url(),
   IDFACE_MODRLG: z.coerce.number().int().positive().default(17),
   IDFACE_LOGIN: z.string().default('admin'),
@@ -39,7 +38,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const config = parsed.data;
   return {
     apiBaseUrl: config.API_BASE_URL.replace(/\/+$/, ''),
-    biometriaDeviceToken: config.BIOMETRIA_DEVICE_TOKEN,
     senior: {
       baseUrl: config.SENIOR_API_URL.replace(/\/+$/, ''),
       modrlg: config.IDFACE_MODRLG,

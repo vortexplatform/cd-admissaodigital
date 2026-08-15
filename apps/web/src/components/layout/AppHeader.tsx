@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LogOut, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import EmpresaSelector from '@/components/EmpresaSelector';
+import BiometriaSelector from '@/components/BiometriaSelector';
 import { Logo } from '@/components/Logo';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,10 @@ export default function AppHeader({
   };
 
   const envBadge = showEmpresaSelector ? (
-    <EmpresaSelector />
+    <>
+      <BiometriaSelector />
+      <EmpresaSelector />
+    </>
   ) : (
     <div className="rounded-md border bg-card px-3 py-2 text-body-sm">
       <p className="font-medium leading-none">{badgeLabel ?? 'Acesso'}</p>

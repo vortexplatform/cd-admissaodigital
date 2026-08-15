@@ -1,25 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  CircleAlert,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Download,
   Eye,
+  ExternalLink,
   FileSignature,
   Fingerprint,
   Loader2,
   PenLine,
+  Send,
   ShieldCheck,
   Trash2,
+  UserCheck,
 } from 'lucide-react';
 import PageHeader from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useBiometria } from '@/context/BiometriaContext';
 import api from '@/lib/api';
 import {
   type AssinaturasCandidatura,
+  type DocumentoAssinatura,
   type DocumentosCandidatura,
   type EnvelopeAssinatura,
   formatCandidaturaTitle,
@@ -31,8 +37,9 @@ const documentosProntosParaAssinatura = (candidatura: DocumentosCandidatura) => 
 };
 
 const getEnvelopeStats = (envelopes: EnvelopeAssinatura[]) => {
-  const total = envelopes.reduce((sum, envelope) => sum + envelope.documentos.length, 0);
-  const signed = envelopes.reduce(
+  const candidatoEnvelopes = envelopes.filter((e) => e.tipoSignatario === 'CANDIDATO');
+  const total = candidatoEnvelopes.reduce((sum, envelope) => sum + envelope.documentos.length, 0);
+  const signed = candidatoEnvelopes.reduce(
     (sum, envelope) =>
       sum + envelope.documentos.filter((documento) => documento.status === 'ASSINADO').length,
     0,
@@ -49,13 +56,15 @@ interface AssinaturasRhResponse {
   totalPages: number;
 }
 
-const LIMIT = 20;
+interface BiometriaSolicitacao {
+  id: number;
+  status: 'PENDENTE' | 'EM_ATENDIMENTO' | 'CONCLUIDA' | 'REPROVADA' | 'FALHOU' | 'EXPIRADA';
+  envelopeId: number | null;
+  dispositivoId: number | null;
+  mensagem: string | null;
+}
 
-const envelopeTitle = (envelope: EnvelopeAssinatura) => {
-  const setor = envelope.setor === 'ADM_PESSOAL' ? 'Adm Pessoal' : 'SESMT';
-  if (envelope.tipoSignatario === 'RESPONSAVEL') return `${setor} — Responsável Legal`;
-  return setor;
-};
+const LIMIT = 20;
 
 export default function AssinaturasRhPage() {
   const { candidatoId: candidatoIdParam } = useParams<{ candidatoId: string }>();
@@ -68,13 +77,17 @@ export default function AssinaturasRhPage() {
   const [assinaturas, setAssinaturas] = useState<AssinaturasRhResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [gerandoId, setGerandoId] = useState<number | null>(null);
+  const [enviandoId, setEnviandoId] = useState<number | null>(null);
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
   const [confirmandoExclusaoId, setConfirmandoExclusaoId] = useState<number | null>(null);
   const [solicitandoBiometriaEnvelopeId, setSolicitandoBiometriaEnvelopeId] = useState<
     number | null
   >(null);
+  const [solicitacaoEmAndamento, setSolicitacaoEmAndamento] = useState<BiometriaSolicitacao | null>(null);
+  const [tentativaRecusada, setTentativaRecusada] = useState<BiometriaSolicitacao | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const { dispositivoAtivo } = useBiometria();
 
   const loadData = useCallback(async () => {
     const params = candidatoId ? { candidatoId } : { page, limit: LIMIT };
@@ -88,6 +101,7 @@ export default function AssinaturasRhPage() {
         : documentosData,
     );
     setAssinaturas(assinaturasData);
+
   }, [candidatoId, page]);
 
   useEffect(() => {
@@ -127,34 +141,48 @@ export default function AssinaturasRhPage() {
     return stats.total > 0 && stats.pending === 0;
   }).length;
 
-  const envelopesConcluidos = useMemo(
-    () =>
-      rows.reduce((count, row) => {
-        if (!row.assinatura) return count;
-        return (
-          count + row.assinatura.envelopesAssinatura.filter((e) => e.status === 'CONCLUIDO').length
+  useEffect(() => {
+    if (!solicitacaoEmAndamento) return;
+
+    const checkSolicitacao = async () => {
+      try {
+        const { data } = await api.get<BiometriaSolicitacao>(
+          `/biometria/solicitacoes/${solicitacaoEmAndamento.id}`,
         );
-      }, 0),
-    [rows],
-  );
+        if (data.status === 'REPROVADA') {
+          setTentativaRecusada(data);
+          setSolicitacaoEmAndamento(null);
+          setSolicitandoBiometriaEnvelopeId(null);
+          return;
+        }
+        if (data.status === 'FALHOU' || data.status === 'EXPIRADA') {
+          setError(data.mensagem ?? 'Não foi possível concluir a biometria. Solicite uma nova tentativa.');
+          setSolicitacaoEmAndamento(null);
+          setSolicitandoBiometriaEnvelopeId(null);
+          return;
+        }
+        if (data.status === 'CONCLUIDA') {
+          setMessage('Assinatura biométrica concluída com sucesso.');
+          setSolicitacaoEmAndamento(null);
+          setSolicitandoBiometriaEnvelopeId(null);
+          await loadData();
+        }
+      } catch {
+        setError('Não foi possível acompanhar a solicitação biométrica.');
+        setSolicitacaoEmAndamento(null);
+      }
+    };
 
-  const devePolling = message.includes('Aguarde');
-
-  const prevEnvelopesConcluidosRef = useRef(envelopesConcluidos);
-  useEffect(() => {
-    if (!isLoading && prevEnvelopesConcluidosRef.current < envelopesConcluidos) {
-      setMessage('Assinatura biométrica concluída com sucesso.');
-    }
-    prevEnvelopesConcluidosRef.current = envelopesConcluidos;
-  }, [envelopesConcluidos, isLoading]);
-
-  useEffect(() => {
-    if (!devePolling) return;
-    const interval = setInterval(() => {
-      loadData().catch(() => {});
-    }, 5000);
+    void checkSolicitacao();
+    const interval = setInterval(() => void checkSolicitacao(), 5000);
     return () => clearInterval(interval);
-  }, [devePolling, loadData]);
+  }, [loadData, solicitacaoEmAndamento]);
+
+  useEffect(() => {
+    if (solicitandoBiometriaEnvelopeId === null) return;
+    const timeout = setTimeout(() => setSolicitandoBiometriaEnvelopeId(null), 60_000);
+    return () => clearTimeout(timeout);
+  }, [solicitandoBiometriaEnvelopeId]);
 
   const gerarAssinaturas = async (candidaturaId: number) => {
     setError('');
@@ -170,6 +198,23 @@ export default function AssinaturasRhPage() {
       );
     } finally {
       setGerandoId(null);
+    }
+  };
+
+  const enviarAssinaturas = async (candidaturaId: number) => {
+    setError('');
+    setMessage('');
+    setEnviandoId(candidaturaId);
+    try {
+      const { data } = await api.post<{ message: string }>(
+        `/documentos/assinaturas/rh/candidaturas/${candidaturaId}/enviar`,
+      );
+      setMessage(data.message);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(typeof msg === 'string' ? msg : 'Não foi possível enviar os documentos ao candidato.');
+    } finally {
+      setEnviandoId(null);
     }
   };
 
@@ -192,14 +237,22 @@ export default function AssinaturasRhPage() {
     }
   };
 
-  const solicitarAssinaturaBiometrica = async (envelopeId: number) => {
+  const solicitarAssinaturaBiometrica = async (envelopeId: number, idfaceIp?: string) => {
     setError('');
     setMessage('');
+    const selectedIdfaceIp = idfaceIp ?? dispositivoAtivo?.ip;
+    if (!selectedIdfaceIp) {
+      setError('Selecione o iDFace que será usado para a assinatura.');
+      return;
+    }
     setSolicitandoBiometriaEnvelopeId(envelopeId);
     try {
-      await api.post(`/biometria/envelopes/${envelopeId}/assinatura`);
+      const { data } = await api.post<BiometriaSolicitacao>(`/biometria/envelopes/${envelopeId}/assinatura`, {
+        idfaceIp: selectedIdfaceIp,
+      });
+      setSolicitacaoEmAndamento(data);
       setMessage(
-        'Solicitação de assinatura biométrica criada. Aguarde o candidato se identificar no iDFace.',
+        'Solicitação de assinatura biométrica criada. Aguarde o colaborador se identificar no iDFace.',
       );
       await loadData();
     } catch (err: unknown) {
@@ -207,12 +260,54 @@ export default function AssinaturasRhPage() {
       setError(
         typeof msg === 'string' ? msg : 'Não foi possível solicitar a assinatura biométrica.',
       );
-    } finally {
       setSolicitandoBiometriaEnvelopeId(null);
     }
   };
 
+  const solicitarBiometriaResponsavel = async (envelopeId: number, idfaceIp?: string) => {
+    setError('');
+    setMessage('');
+    const selectedIdfaceIp = idfaceIp ?? dispositivoAtivo?.ip;
+    if (!selectedIdfaceIp) {
+      setError('Selecione o iDFace que será usado para a assinatura.');
+      return;
+    }
+    setSolicitandoBiometriaEnvelopeId(envelopeId);
+    try {
+      const { data } = await api.post<BiometriaSolicitacao>(`/biometria/envelopes/${envelopeId}/assinatura-responsavel`, {
+        idfaceIp: selectedIdfaceIp,
+      });
+      setSolicitacaoEmAndamento(data);
+      setMessage(
+        'Solicitação de assinatura biométrica do responsável legal criada. Aguarde o responsável se identificar no iDFace.',
+      );
+      await loadData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(
+        typeof msg === 'string' ? msg : 'Não foi possível solicitar a biometria do responsável legal.',
+      );
+      setSolicitandoBiometriaEnvelopeId(null);
+    }
+  };
+
+  const retryBiometria = async () => {
+    if (!tentativaRecusada?.envelopeId || !dispositivoAtivo) return;
+    const { envelopeId } = tentativaRecusada;
+    setTentativaRecusada(null);
+
+    // Detecta se é envelope RESPONSAVEL para usar a rota correta
+    const allEnvelopes = rows.flatMap((r) => r.assinatura?.envelopesAssinatura ?? []);
+    const envelope = allEnvelopes.find((e) => e.id === envelopeId);
+    if (envelope?.tipoSignatario === 'RESPONSAVEL') {
+      await solicitarBiometriaResponsavel(envelopeId, dispositivoAtivo.ip);
+    } else {
+      await solicitarAssinaturaBiometrica(envelopeId, dispositivoAtivo.ip);
+    }
+  };
+
   const candidatoNome = rows[0]?.candidatura.candidato.nome ?? rows[0]?.candidatura.candidato.cpf;
+  const portalAccessToken = rows[0]?.assinatura?.portalAccessToken;
 
   return (
     <>
@@ -226,6 +321,18 @@ export default function AssinaturasRhPage() {
               <ArrowLeft className="h-4 w-4" />
               Voltar
             </Button>
+            {portalAccessToken && (
+              <Button variant="outline" size="sm" asChild>
+                <a
+                  href={`/candidato/documentos/${portalAccessToken}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Documentos admissionais
+                </a>
+              </Button>
+            )}
             <div className="grid grid-cols-2 gap-2 text-sm sm:flex">
               <span className="rounded-full border bg-card px-3 py-2 font-semibold text-muted-foreground">
                 Pendentes · {pendentes}
@@ -270,11 +377,15 @@ export default function AssinaturasRhPage() {
               candidatura={row.candidatura}
               assinatura={row.assinatura}
               isGerando={gerandoId === row.candidatura.id}
+              isEnviando={enviandoId === row.candidatura.id}
               isExcluindo={excluindoId === row.candidatura.id}
               solicitandoBiometriaEnvelopeId={solicitandoBiometriaEnvelopeId}
+              hasDispositivoAtivo={Boolean(dispositivoAtivo)}
               onGerar={() => gerarAssinaturas(row.candidatura.id)}
+              onEnviar={() => enviarAssinaturas(row.candidatura.id)}
               onExcluir={() => setConfirmandoExclusaoId(row.candidatura.id)}
               onSolicitarBiometria={solicitarAssinaturaBiometrica}
+              onSolicitarBiometriaResponsavel={solicitarBiometriaResponsavel}
             />
           ))}
           {!candidatoId && assinaturas && assinaturas.totalPages > 1 && (
@@ -315,7 +426,49 @@ export default function AssinaturasRhPage() {
           onConfirm={() => excluirAssinaturas(confirmandoExclusaoId)}
         />
       )}
+      {tentativaRecusada && (
+        <BiometriaNaoCorrespondenteModal
+          isSubmitting={solicitandoBiometriaEnvelopeId === tentativaRecusada.envelopeId}
+          onClose={() => setTentativaRecusada(null)}
+          onRetry={() => void retryBiometria()}
+        />
+      )}
     </>
+  );
+}
+
+function BiometriaNaoCorrespondenteModal({
+  isSubmitting,
+  onClose,
+  onRetry,
+}: {
+  isSubmitting: boolean;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
+      <div className="w-full max-w-md rounded-xl border border-destructive/30 bg-card p-6" role="dialog" aria-modal="true" aria-labelledby="biometria-reprovada-title">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+            <CircleAlert className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 id="biometria-reprovada-title" className="font-semibold">A facial não corresponde</h2>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">
+              Peça para a pessoa se posicionar novamente diante do iDFace e tente outra vez.
+            </p>
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button type="button" variant="outline" disabled={isSubmitting} onClick={onClose}>Fechar</Button>
+          <Button type="button" disabled={isSubmitting} onClick={onRetry}>
+            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -376,23 +529,34 @@ function AssinaturaCandidaturaCard({
   candidatura,
   assinatura,
   isGerando,
+  isEnviando,
   isExcluindo,
   solicitandoBiometriaEnvelopeId,
+  hasDispositivoAtivo,
   onGerar,
+  onEnviar,
   onExcluir,
   onSolicitarBiometria,
+  onSolicitarBiometriaResponsavel,
 }: {
   candidatura: DocumentosCandidatura;
   assinatura: AssinaturasCandidatura | null;
   isGerando: boolean;
+  isEnviando: boolean;
   isExcluindo: boolean;
   solicitandoBiometriaEnvelopeId: number | null;
+  hasDispositivoAtivo: boolean;
   onGerar: () => void;
+  onEnviar: () => void;
   onExcluir: () => void;
-  onSolicitarBiometria: (envelopeId: number) => void;
+  onSolicitarBiometria: (envelopeId: number, idfaceIp?: string) => void;
+  onSolicitarBiometriaResponsavel: (envelopeId: number, idfaceIp?: string) => void;
 }) {
-  const envelopes = assinatura?.envelopesAssinatura ?? [];
-  const stats = getEnvelopeStats(envelopes);
+  const allEnvelopes = assinatura?.envelopesAssinatura ?? [];
+  const candidatoEnvelopes = allEnvelopes.filter((e) => e.tipoSignatario === 'CANDIDATO');
+  const responsavelEnvelopes = allEnvelopes.filter((e) => e.tipoSignatario === 'RESPONSAVEL');
+  const isMenor = responsavelEnvelopes.length > 0;
+  const stats = getEnvelopeStats(allEnvelopes);
 
   return (
     <article className="overflow-hidden rounded-xl border bg-card">
@@ -418,6 +582,12 @@ function AssinaturaCandidaturaCard({
                 Pronto para gerar
               </span>
             )}
+            {isMenor && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                <UserCheck className="h-3.5 w-3.5" />
+                Menor de 18
+              </span>
+            )}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {formatCandidaturaTitle(candidatura)}
@@ -432,6 +602,10 @@ function AssinaturaCandidaturaCard({
               </span>{' '}
               <span className="text-muted-foreground">documentos assinados</span>
             </div>
+            <Button type="button" variant="outline" disabled={isEnviando} onClick={onEnviar}>
+              {isEnviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Enviar ao candidato
+            </Button>
             {stats.signed === 0 && (
               <Button type="button" variant="outline" disabled={isExcluindo} onClick={onExcluir}>
                 {isExcluindo ? (
@@ -459,14 +633,27 @@ function AssinaturaCandidaturaCard({
 
       {assinatura && (
         <div className="grid gap-4 p-5 xl:grid-cols-2">
-          {envelopes.map((envelope) => (
-            <EnvelopeCard
-              key={envelope.id}
-              envelope={envelope}
-              isSolicitandoBiometria={solicitandoBiometriaEnvelopeId === envelope.id}
-              onSolicitarBiometria={() => onSolicitarBiometria(envelope.id)}
-            />
-          ))}
+          {candidatoEnvelopes.map((envelope) => {
+            const responsavelEnvelope = responsavelEnvelopes.find((r) => r.setor === envelope.setor);
+            return (
+              <EnvelopeCard
+                key={envelope.id}
+                envelope={envelope}
+                responsavelEnvelope={responsavelEnvelope ?? null}
+                isSolicitandoBiometria={
+                  solicitandoBiometriaEnvelopeId === envelope.id ||
+                  solicitandoBiometriaEnvelopeId === responsavelEnvelope?.id
+                }
+                hasDispositivoAtivo={hasDispositivoAtivo}
+                onSolicitarBiometria={() => onSolicitarBiometria(envelope.id)}
+                onSolicitarBiometriaResponsavel={
+                  responsavelEnvelope
+                    ? () => onSolicitarBiometriaResponsavel(responsavelEnvelope.id)
+                    : undefined
+                }
+              />
+            );
+          })}
         </div>
       )}
     </article>
@@ -475,105 +662,155 @@ function AssinaturaCandidaturaCard({
 
 function EnvelopeCard({
   envelope,
+  responsavelEnvelope,
   isSolicitandoBiometria,
+  hasDispositivoAtivo,
   onSolicitarBiometria,
+  onSolicitarBiometriaResponsavel,
 }: {
   envelope: EnvelopeAssinatura;
+  responsavelEnvelope: EnvelopeAssinatura | null;
   isSolicitandoBiometria: boolean;
+  hasDispositivoAtivo: boolean;
   onSolicitarBiometria: () => void;
+  onSolicitarBiometriaResponsavel?: () => void;
 }) {
-  const signed = envelope.documentos.filter((documento) => documento.status === 'ASSINADO').length;
-  const pending = envelope.documentos.length - signed;
+  const isMenor = responsavelEnvelope != null;
+  const candidatoSigned = envelope.documentos.filter((d) => d.status === 'ASSINADO').length;
+  const candidatoPending = envelope.documentos.length - candidatoSigned;
+  const candidatoComplete = candidatoPending === 0 && envelope.documentos.length > 0;
+
+  const responsavelSigned = envelope.documentos.filter((d) => d.responsavelAssinadoEm != null).length;
+  const responsavelComplete = isMenor && responsavelSigned === envelope.documentos.length;
+  const allComplete = candidatoComplete && (!isMenor || responsavelComplete);
+
+  const setorLabel = envelope.setor === 'ADM_PESSOAL' ? 'Adm Pessoal' : 'SESMT';
 
   return (
     <div className="rounded-xl border bg-background p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <p className="font-semibold">{envelopeTitle(envelope)}</p>
+          <p className="font-semibold">{setorLabel}</p>
           <p className="text-xs text-muted-foreground">
-            {signed}/{envelope.documentos.length} assinados
+            {candidatoSigned}/{envelope.documentos.length} assinados
+            {isMenor && ` · Responsável: ${responsavelSigned}/${envelope.documentos.length}`}
           </p>
         </div>
-        {envelope.status === 'CONCLUIDO' ? (
+        {allComplete ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
             <ShieldCheck className="h-3 w-3" /> Concluído
           </span>
         ) : (
-          <Button
-            type="button"
-            size="sm"
-            disabled={pending === 0 || isSolicitandoBiometria}
-            onClick={onSolicitarBiometria}
-          >
-            {isSolicitandoBiometria ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Fingerprint className="h-4 w-4" />
+          <div className="flex flex-col items-end gap-2">
+            {!candidatoComplete && (
+              <Button
+                type="button"
+                size="sm"
+                className="text-white hover:text-white"
+                disabled={isSolicitandoBiometria || !hasDispositivoAtivo}
+                onClick={onSolicitarBiometria}
+              >
+                {isSolicitandoBiometria ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fingerprint className="h-4 w-4" />}
+                Biometria do colaborador
+              </Button>
             )}
-            Solicitar biometria
-          </Button>
+            {candidatoComplete && isMenor && !responsavelComplete && onSolicitarBiometriaResponsavel && (
+              <Button
+                type="button"
+                size="sm"
+                className="border-amber-300 bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
+                disabled={isSolicitandoBiometria || !hasDispositivoAtivo}
+                onClick={onSolicitarBiometriaResponsavel}
+              >
+                {isSolicitandoBiometria ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+                Biometria do responsável legal
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
       <div className="space-y-2">
         {envelope.documentos.map((documento) => (
-          <div key={documento.id} className="rounded-lg border p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{documento.nome}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  Hash: {documento.hashAssinado ?? documento.hashOriginal}
-                </p>
-                {documento.codigoVerificacao && (
-                  <p className="text-xs text-muted-foreground">
-                    Verificação:{' '}
-                    <a
-                      href={`/verificar/${documento.codigoVerificacao}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono underline hover:text-foreground"
-                    >
-                      {documento.codigoVerificacao}
-                    </a>
-                  </p>
-                )}
-                {documento.metodoAssinatura && (
-                  <p className="text-xs text-muted-foreground">
-                    Método: {documento.metodoAssinatura === 'BIOMETRIA' ? 'Biometria' : 'OTP'}
-                  </p>
-                )}
-              </div>
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                  documento.status === 'ASSINADO'
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-secondary text-muted-foreground'
-                }`}
-              >
-                {documento.status === 'ASSINADO' ? 'Assinado' : 'Pendente'}
-              </span>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" asChild>
-                <a
-                  href={getDocumentoAssinaturaRhUrl(documento.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Eye className="h-4 w-4" /> Abrir PDF
-                </a>
-              </Button>
-              <Button type="button" size="sm" variant="outline" asChild>
-                <a
-                  href={getDocumentoAssinaturaRhUrl(documento.id)}
-                  download={`documento-assinatura-${documento.id}.pdf`}
-                >
-                  <Download className="h-4 w-4" /> Baixar
-                </a>
-              </Button>
-            </div>
-          </div>
+          <DocumentoCard key={documento.id} documento={documento} isMenor={isMenor} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function DocumentoCard({ documento, isMenor }: { documento: DocumentoAssinatura; isMenor: boolean }) {
+  const candidatoAssinado = documento.status === 'ASSINADO';
+  const responsavelAssinado = documento.responsavelAssinadoEm != null;
+
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{documento.nome}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            Hash: {documento.responsavelHashAssinado ?? documento.hashAssinado ?? documento.hashOriginal}
+          </p>
+          {documento.codigoVerificacao && (
+            <p className="text-xs text-muted-foreground">
+              Verificação:{' '}
+              <a
+                href={`/verificar/${documento.codigoVerificacao}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono underline hover:text-foreground"
+              >
+                {documento.codigoVerificacao}
+              </a>
+            </p>
+          )}
+          {documento.metodoAssinatura && (
+            <p className="text-xs text-muted-foreground">
+              Método: {documento.metodoAssinatura === 'BIOMETRIA' ? 'Biometria' : 'OTP'}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              candidatoAssinado
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                : 'bg-secondary text-muted-foreground'
+            }`}
+          >
+            {candidatoAssinado ? 'Colaborador ✓' : 'Pendente'}
+          </span>
+          {isMenor && candidatoAssinado && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                responsavelAssinado
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                  : 'bg-secondary text-muted-foreground'
+              }`}
+            >
+              {responsavelAssinado ? 'Responsável ✓' : 'Resp. pendente'}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" asChild>
+          <a
+            href={getDocumentoAssinaturaRhUrl(documento.id)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Eye className="h-4 w-4" /> Abrir PDF
+          </a>
+        </Button>
+        <Button type="button" size="sm" variant="outline" asChild>
+          <a
+            href={getDocumentoAssinaturaRhUrl(documento.id)}
+            download={`documento-assinatura-${documento.id}.pdf`}
+          >
+            <Download className="h-4 w-4" /> Baixar
+          </a>
+        </Button>
       </div>
     </div>
   );

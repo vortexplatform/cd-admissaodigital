@@ -113,6 +113,11 @@ export class DocumentosController {
     return this.assinaturas.gerarParaRh(req.user.id, id);
   }
 
+  @Post('assinaturas/rh/candidaturas/:id/enviar')
+  enviarAssinaturasRh(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
+    return this.assinaturas.enviarParaCandidato(req.user.id, id);
+  }
+
   @Delete('assinaturas/rh/candidaturas/:id')
   excluirAssinaturasRh(@Request() req: AuthRequest, @Param('id', ParseIntPipe) id: number) {
     return this.assinaturas.excluirParaRh(req.user.id, id);

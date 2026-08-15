@@ -13,6 +13,7 @@ interface ResponsavelData {
   candidato: { nome: string | null; cpf: string };
   empresa: { nome: string } | null;
   envelopes: EnvelopeAssinatura[];
+  responsavelEnvelopes: EnvelopeAssinatura[];
 }
 
 export default function ResponsavelAssinaturasPage() {
@@ -54,7 +55,7 @@ export default function ResponsavelAssinaturasPage() {
   const envelopes = data?.envelopes ?? [];
   const totalDocs = envelopes.reduce((sum, env) => sum + env.documentos.length, 0);
   const signedDocs = envelopes.reduce(
-    (sum, env) => sum + env.documentos.filter((d) => d.status === 'ASSINADO').length,
+    (sum, env) => sum + env.documentos.filter((d) => d.responsavelAssinadoEm != null).length,
     0,
   );
 
@@ -143,7 +144,7 @@ export default function ResponsavelAssinaturasPage() {
     );
   }
 
-  const allComplete = envelopes.every((env) => env.status === 'CONCLUIDO');
+  const allComplete = totalDocs > 0 && signedDocs === totalDocs;
   const candidatoNome = data.candidato.nome ?? 'Candidato';
 
   return (
@@ -205,10 +206,10 @@ export default function ResponsavelAssinaturasPage() {
                   {envelope.setor === 'ADM_PESSOAL' ? 'Adm Pessoal' : 'SESMT'}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  {envelope.documentos.filter((d) => d.status === 'ASSINADO').length}/{envelope.documentos.length} assinados
+                  {envelope.documentos.filter((d) => d.responsavelAssinadoEm != null).length}/{envelope.documentos.length} assinados
                 </p>
               </div>
-              {envelope.status === 'CONCLUIDO' && (
+              {envelope.documentos.every((d) => d.responsavelAssinadoEm != null) && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
                   <ShieldCheck className="h-3.5 w-3.5" /> Concluído
                 </span>
@@ -221,17 +222,23 @@ export default function ResponsavelAssinaturasPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold leading-snug">{doc.nome}</p>
-                      {doc.status === 'ASSINADO' && (
+                      {doc.responsavelAssinadoEm != null && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="h-3 w-3" /> Assinado
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">Hash: {doc.hashAssinado ?? doc.hashOriginal}</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">Hash: {doc.responsavelHashAssinado ?? doc.hashAssinado ?? doc.hashOriginal}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {doc.status !== 'ASSINADO' && (
-                      <Button type="button" size="sm" disabled={signingId === doc.id} onClick={() => setPreviewState({ envelope, doc })}>
+                    {doc.responsavelAssinadoEm == null && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="text-white hover:text-white"
+                        disabled={signingId === doc.id}
+                        onClick={() => setPreviewState({ envelope, doc })}
+                      >
                         {signingId === doc.id ? (
                           <><Loader2 className="h-4 w-4 animate-spin" />Assinando...</>
                         ) : (
@@ -239,7 +246,7 @@ export default function ResponsavelAssinaturasPage() {
                         )}
                       </Button>
                     )}
-                    {doc.status === 'ASSINADO' && (
+                    {doc.responsavelAssinadoEm != null && (
                       <Button type="button" size="sm" variant="outline" onClick={() => setPreviewState({ envelope, doc })}>
                         <Eye className="h-4 w-4" /> Visualizar PDF
                       </Button>
@@ -323,7 +330,7 @@ function ResponsavelPreviewModal({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoaded, setPdfLoaded] = useState(false);
   const [pdfError, setPdfError] = useState('');
-  const isSigned = doc.status === 'ASSINADO';
+  const isSigned = doc.responsavelAssinadoEm != null;
 
   useEffect(() => {
     let cancelled = false;
@@ -423,7 +430,12 @@ function ResponsavelPreviewModal({
             <CheckCircle2 className="h-4 w-4" /> Concluir
           </Button>
         ) : (
-          <Button type="button" disabled={!pdfLoaded || isSigning} onClick={onSign}>
+          <Button
+            type="button"
+            className="text-white hover:text-white"
+            disabled={!pdfLoaded || isSigning}
+            onClick={onSign}
+          >
             {isSigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
             Assinar como responsável
           </Button>

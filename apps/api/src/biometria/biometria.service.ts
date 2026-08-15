@@ -9,11 +9,14 @@ import {
   Role,
   StatusBiometriaSolicitacao,
   StatusDocumentoAssinatura,
+  StatusEnvelopeAssinatura,
   TipoBiometriaSolicitacao,
+  TipoSignatario,
 } from '@prisma/client';
-import { randomBytes, createHash } from 'crypto';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssinaturasService } from '../documentos/assinaturas.service';
+import { SeniorApiService } from '../general/senior-api.service';
 import { ResultadoBiometriaDto } from './dto/resultado-biometria.dto';
 
 type RequestEvidence = { ip?: string; userAgent?: string };
@@ -23,26 +26,10 @@ export class BiometriaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly assinaturas: AssinaturasService,
+    private readonly seniorApi: SeniorApiService,
   ) {}
 
-  async listDispositivos(userId: number) {
-    await this.ensureRh(userId);
-    return this.prisma.biometriaDispositivo.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async createDispositivo(userId: number, nome: string) {
-    await this.ensureRh(userId);
-    const token = `bio_${randomBytes(32).toString('hex')}`;
-    const dispositivo = await this.prisma.biometriaDispositivo.create({
-      data: { nome: nome.trim(), tokenHash: this.hash(token) },
-    });
-
-    return { dispositivo, token };
-  }
-
-  async solicitarAssinatura(userId: number, envelopeId: number) {
+  async solicitarAssinatura(userId: number, envelopeId: number, idfaceIp: string) {
     await this.ensureRh(userId);
     const envelope = await this.prisma.envelopeAssinatura.findUnique({
       where: { id: envelopeId },
@@ -59,13 +46,67 @@ export class BiometriaService {
     ) {
       throw new BadRequestException('Envelope já está assinado.');
     }
+    await this.ensureIdfaceDisponivel(idfaceIp);
     return this.createSolicitacao({
       tipo: TipoBiometriaSolicitacao.VERIFICACAO_ASSINATURA,
       candidatoId: envelope.candidatura.candidatoId,
       candidaturaId: envelope.candidaturaId,
       envelopeId,
       solicitadaPorId: userId,
+      idfaceIp,
     });
+  }
+
+  async solicitarAssinaturaResponsavel(userId: number, envelopeId: number, idfaceIp: string) {
+    await this.ensureRh(userId);
+    const envelope = await this.prisma.envelopeAssinatura.findUnique({
+      where: { id: envelopeId },
+      include: { candidatura: { include: { candidato: true } } },
+    });
+    if (!envelope) throw new NotFoundException('Envelope não encontrado.');
+    if (envelope.tipoSignatario !== TipoSignatario.RESPONSAVEL) {
+      throw new BadRequestException('Envelope não é do responsável legal.');
+    }
+
+    // Garante que todos os envelopes do candidato foram concluídos
+    const pendingCandidato = await this.prisma.envelopeAssinatura.count({
+      where: {
+        candidaturaId: envelope.candidaturaId,
+        tipoSignatario: TipoSignatario.CANDIDATO,
+        status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+      },
+    });
+    if (pendingCandidato > 0) {
+      throw new BadRequestException('O candidato ainda não assinou todos os documentos.');
+    }
+
+    // Verifica se já tem todos os documentos assinados pelo responsável
+    const pendingDocs = await this.prisma.documentoAssinatura.count({
+      where: {
+        envelope: { candidaturaId: envelope.candidaturaId, tipoSignatario: TipoSignatario.CANDIDATO },
+        responsavelAssinadoEm: null,
+      },
+    });
+    if (pendingDocs === 0) {
+      throw new BadRequestException('Todos os documentos já foram assinados pelo responsável legal.');
+    }
+
+    await this.ensureIdfaceDisponivel(idfaceIp);
+    return this.createSolicitacao({
+      tipo: TipoBiometriaSolicitacao.VERIFICACAO_ASSINATURA,
+      candidatoId: envelope.candidatura.candidatoId,
+      candidaturaId: envelope.candidaturaId,
+      envelopeId,
+      solicitadaPorId: userId,
+      idfaceIp,
+    });
+  }
+
+  async listIdfaces(userId: number) {
+    await this.ensureRh(userId);
+    return this.seniorApi.get<
+      { codplt: number; codrlg: number; desrlg: string; coddsp: number; ip: string }[]
+    >('/controlid-idface/dispositivos?modrlg=17');
   }
 
   async listSolicitacoesRh(userId: number, candidatoId?: number) {
@@ -78,44 +119,54 @@ export class BiometriaService {
     });
   }
 
-  async listPendentesForDispositivo(token: string) {
-    const dispositivo = await this.authenticateDispositivo(token);
-    await this.expireOldSolicitacoes();
-
-    return this.prisma.biometriaSolicitacao
-      .findMany({
-        where: { status: StatusBiometriaSolicitacao.PENDENTE, expiraEm: { gt: new Date() } },
-        include: {
-          candidato: true,
-          envelope: true,
-          candidatura: { include: { requisicao: { include: { empresa: true } } } },
-        },
-        orderBy: { createdAt: 'asc' },
-        take: 20,
-      })
-      .finally(() => this.touchDispositivo(dispositivo.id));
+  async getSolicitacaoRh(userId: number, solicitacaoId: number) {
+    await this.ensureRh(userId);
+    const solicitacao = await this.prisma.biometriaSolicitacao.findUnique({
+      where: { id: solicitacaoId },
+      include: { dispositivo: true },
+    });
+    if (!solicitacao) throw new NotFoundException('Solicitação biométrica não encontrada.');
+    return solicitacao;
   }
 
-  async assumirSolicitacao(token: string, solicitacaoId: number) {
-    const dispositivo = await this.authenticateDispositivo(token);
+  async listPendentes() {
+    await this.expireOldSolicitacoes();
+
+    return this.prisma.biometriaSolicitacao.findMany({
+      where: {
+        status: StatusBiometriaSolicitacao.PENDENTE,
+        idfaceIp: { not: null },
+        expiraEm: { gt: new Date() },
+      },
+      include: {
+        candidato: true,
+        envelope: true,
+        candidatura: { include: { requisicao: { include: { empresa: true } } } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+    });
+  }
+
+  async assumirSolicitacao(idfaceIp: string, solicitacaoId: number) {
+    await this.ensureIdfaceDisponivel(idfaceIp);
     await this.expireOldSolicitacoes();
 
     const updated = await this.prisma.biometriaSolicitacao.updateMany({
       where: {
         id: solicitacaoId,
         status: StatusBiometriaSolicitacao.PENDENTE,
+        idfaceIp,
         expiraEm: { gt: new Date() },
       },
       data: {
         status: StatusBiometriaSolicitacao.EM_ATENDIMENTO,
-        dispositivoId: dispositivo.id,
         assumidaEm: new Date(),
       },
     });
     if (updated.count === 0)
       throw new BadRequestException('Solicitação não está disponível para atendimento.');
 
-    await this.touchDispositivo(dispositivo.id);
     return this.prisma.biometriaSolicitacao.findUnique({
       where: { id: solicitacaoId },
       include: { candidato: true, envelope: true },
@@ -123,19 +174,18 @@ export class BiometriaService {
   }
 
   async registrarResultado(
-    token: string,
+    idfaceIp: string,
     solicitacaoId: number,
     dto: ResultadoBiometriaDto,
     evidence: RequestEvidence,
   ) {
-    const dispositivo = await this.authenticateDispositivo(token);
+    await this.ensureIdfaceDisponivel(idfaceIp);
     const solicitacao = await this.prisma.biometriaSolicitacao.findUnique({
       where: { id: solicitacaoId },
       include: { candidato: true },
     });
     if (!solicitacao) throw new NotFoundException('Solicitação biométrica não encontrada.');
-    if (solicitacao.dispositivoId !== dispositivo.id)
-      throw new ForbiddenException('Solicitação assumida por outro dispositivo.');
+    if (solicitacao.idfaceIp !== idfaceIp) throw new ForbiddenException('Solicitação destinada a outro iDFace.');
     if (solicitacao.status !== StatusBiometriaSolicitacao.EM_ATENDIMENTO) {
       throw new BadRequestException('Solicitação não está em atendimento.');
     }
@@ -161,6 +211,7 @@ export class BiometriaService {
         score: dto.score,
         identificadorExterno: dto.identificadorExterno?.trim() || null,
         mensagem: dto.mensagem?.trim() || null,
+        enderecoColeta: dto.enderecoColeta?.trim() || null,
         ipResultado: evidence.ip,
         userAgentResultado: evidence.userAgent,
         payloadHash,
@@ -169,23 +220,43 @@ export class BiometriaService {
     });
 
     if (dto.resultado !== ResultadoBiometriaSolicitacao.APROVADO) return updated;
-    if (cpfRetornado && cpfRetornado !== solicitacao.candidato.cpf.replace(/\D/g, '')) {
+
+    if (!solicitacao.envelopeId)
+      throw new BadRequestException('Solicitação sem envelope para assinatura.');
+
+    // Verifica se é um envelope RESPONSAVEL para validar CPF do responsável legal
+    const envelope = await this.prisma.envelopeAssinatura.findUnique({
+      where: { id: solicitacao.envelopeId },
+      include: { candidatura: { include: { candidato: true } } },
+    });
+    const isResponsavel = envelope?.tipoSignatario === TipoSignatario.RESPONSAVEL;
+    const expectedCpf = isResponsavel
+      ? envelope?.candidatura.candidato.responsavelCpf?.replace(/\D/g, '')
+      : solicitacao.candidato.cpf.replace(/\D/g, '');
+    const cpfLabel = isResponsavel ? 'o responsável legal' : 'o candidato';
+
+    if (cpfRetornado && expectedCpf && cpfRetornado !== expectedCpf) {
       await this.prisma.biometriaSolicitacao.update({
         where: { id: solicitacao.id },
         data: {
           status: StatusBiometriaSolicitacao.REPROVADA,
-          mensagem: 'CPF retornado não confere com o candidato.',
+          mensagem: `CPF retornado não confere com ${cpfLabel}.`,
         },
       });
-      throw new BadRequestException('CPF retornado não confere com o candidato.');
+      throw new BadRequestException(`CPF retornado não confere com ${cpfLabel}.`);
     }
 
-    if (!solicitacao.envelopeId)
-      throw new BadRequestException('Solicitação sem envelope para assinatura.');
-    await this.assinaturas.signEnvelopeByBiometria(solicitacao.envelopeId, solicitacao.id, {
-      ip: evidence.ip,
-      userAgent: evidence.userAgent,
-    });
+    if (isResponsavel) {
+      await this.assinaturas.signResponsavelByBiometria(envelope!.candidaturaId, solicitacao.id, {
+        ip: evidence.ip,
+        userAgent: evidence.userAgent,
+      });
+    } else {
+      await this.assinaturas.signEnvelopeByBiometria(solicitacao.envelopeId, solicitacao.id, {
+        ip: evidence.ip,
+        userAgent: evidence.userAgent,
+      });
+    }
     return updated;
   }
 
@@ -195,6 +266,7 @@ export class BiometriaService {
     candidaturaId?: number;
     envelopeId?: number;
     solicitadaPorId: number;
+    idfaceIp: string;
   }) {
     return this.prisma.biometriaSolicitacao.create({
       data: { ...data, expiraEm: new Date(Date.now() + 15 * 60 * 1000) },
@@ -208,20 +280,12 @@ export class BiometriaService {
     }
   }
 
-  private async authenticateDispositivo(token: string) {
-    if (!token) throw new ForbiddenException('Token de dispositivo não informado.');
-    const dispositivo = await this.prisma.biometriaDispositivo.findUnique({
-      where: { tokenHash: this.hash(token) },
-    });
-    if (!dispositivo?.ativo) throw new ForbiddenException('Dispositivo biométrico não autorizado.');
-    return dispositivo;
-  }
-
-  private touchDispositivo(id: number) {
-    return this.prisma.biometriaDispositivo.update({
-      where: { id },
-      data: { ultimoPingEm: new Date() },
-    });
+  private async ensureIdfaceDisponivel(idfaceIp: string) {
+    if (!idfaceIp) throw new ForbiddenException('IP do iDFace não informado.');
+    const idfaces = await this.seniorApi.get<{ ip: string }[]>('/controlid-idface/dispositivos?modrlg=17');
+    if (!idfaces.some((idface) => idface.ip === idfaceIp)) {
+      throw new ForbiddenException('iDFace não autorizado.');
+    }
   }
 
   private expireOldSolicitacoes() {

@@ -231,28 +231,6 @@ export default function VerificacaoPage() {
                   <Row label="Data/hora assinatura (UTC)" value={resultado.empresa.assinouEm} mono />
                 </Section>
 
-                {(resultado.empresa.responsavel.nome || resultado.empresa.responsavel.cargo) && (
-                  <Section titulo="Responsável pela Assinatura da Empresa">
-                    {resultado.empresa.responsavel.nome && (
-                      <Row label="Nome" value={resultado.empresa.responsavel.nome} />
-                    )}
-                    {resultado.empresa.responsavel.cargo && (
-                      <Row label="Cargo/função" value={resultado.empresa.responsavel.cargo} />
-                    )}
-                    {resultado.empresa.responsavel.email && (
-                      <Row label="E-mail" value={resultado.empresa.responsavel.email} />
-                    )}
-                    {resultado.empresa.responsavel.ip && (
-                      <Row label="IP" value={resultado.empresa.responsavel.ip} mono />
-                    )}
-                    {resultado.empresa.responsavel.userAgent && (
-                      <Row label="Dispositivo/Navegador" value={resultado.empresa.responsavel.userAgent} small />
-                    )}
-                    <div style={{ fontSize: 12, color: '#777', marginTop: 4, fontStyle: 'italic' }}>
-                      Representante autorizado conforme certificado digital ICP-Brasil
-                    </div>
-                  </Section>
-                )}
               </>
             )}
 

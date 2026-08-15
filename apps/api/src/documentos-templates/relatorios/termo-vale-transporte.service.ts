@@ -10,6 +10,7 @@ import {
   drawHeader,
   drawParagraphs,
   embedLogo,
+  getResponsavelLegalParaAssinatura,
   wrapText,
 } from '../pdf-render.utils';
 
@@ -94,7 +95,20 @@ export class TermoValeTransporteService {
       dataDocumento,
       vales: candidatura.candidato.valeTransportes,
     });
-    drawAssinaturasEletronicas(pdf, lastPage, regular, bold, y, empresaNome, candidatoNome);
+    drawAssinaturasEletronicas(
+      pdf,
+      lastPage,
+      regular,
+      bold,
+      y,
+      empresaNome,
+      candidatoNome,
+      getResponsavelLegalParaAssinatura(
+        candidatura.candidato.dataNascimento,
+        candidatura.candidato.responsavelNome,
+        dataDocumento,
+      ),
+    );
 
     return Buffer.from(await pdf.save());
   }

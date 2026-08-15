@@ -10,6 +10,7 @@ import {
   drawHeader,
   drawParagraphs,
   embedLogo,
+  getResponsavelLegalParaAssinatura,
 } from '../pdf-render.utils';
 
 type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
@@ -72,6 +73,11 @@ export class TermoProrrogacaoExperienciaService {
       prazoContratoDias,
       prorrogacaoDias,
       dataAdmissao,
+      responsavelNome: getResponsavelLegalParaAssinatura(
+        candidatura.candidato.dataNascimento,
+        candidatura.candidato.responsavelNome,
+        dataAdmissao,
+      ),
     });
 
     return Buffer.from(await pdf.save());
@@ -90,9 +96,10 @@ export class TermoProrrogacaoExperienciaService {
       prazoContratoDias: number;
       prorrogacaoDias: number;
       dataAdmissao: Date;
+      responsavelNome?: string;
     },
   ): void {
-    let y = drawHeader(page, logo, TermoProrrogacaoExperienciaService.NOME, bold);
+    const y = drawHeader(page, logo, TermoProrrogacaoExperienciaService.NOME, bold);
 
     const total = data.prazoContratoDias + data.prorrogacaoDias;
 
@@ -130,6 +137,7 @@ export class TermoProrrogacaoExperienciaService {
       lastY - 30,
       data.empresaNome,
       data.candidatoNome,
+      data.responsavelNome,
     );
     drawFooter(page);
   }

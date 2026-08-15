@@ -1,10 +1,6 @@
 import { IsIP, IsNotEmpty, IsString } from 'class-validator';
 
-export class CreateBiometriaDispositivoDto {
-  @IsString()
-  @IsNotEmpty()
-  nome!: string;
-
+export class CreateSolicitacaoAssinaturaDto {
   @IsString()
   @IsNotEmpty()
   @IsIP('4')

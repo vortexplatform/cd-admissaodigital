@@ -149,7 +149,21 @@ export default function CandidateAssinaturasPage() {
                 <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
               </div>
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              {candidatura.portalAccessToken && (
+                <Button type="button" variant="outline" asChild>
+                  <a
+                    href={`/candidato/documentos/${candidatura.portalAccessToken}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Acessar documentos admissionais
+                  </a>
+                </Button>
+              )}
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="rounded-2xl border bg-background/70 p-4">
                   <div className="h-3 w-24 animate-pulse rounded bg-muted" />

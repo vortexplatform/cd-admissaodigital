@@ -21,6 +21,21 @@ export async function embedLogo(pdf: PDFDocument): Promise<PDFImage> {
   return pdf.embedPng(logoBytes);
 }
 
+export function getResponsavelLegalParaAssinatura(
+  dataNascimento: Date | null,
+  responsavelNome: string | null,
+  dataReferencia: Date,
+): string | undefined {
+  if (!dataNascimento || !responsavelNome) return undefined;
+
+  let idade = dataReferencia.getUTCFullYear() - dataNascimento.getUTCFullYear();
+  const mes = dataReferencia.getUTCMonth() - dataNascimento.getUTCMonth();
+  if (mes < 0 || (mes === 0 && dataReferencia.getUTCDate() < dataNascimento.getUTCDate())) {
+    idade -= 1;
+  }
+  return idade < 18 ? responsavelNome : undefined;
+}
+
 export function drawHeader(
   page: PDFPage,
   logo: PDFImage,
@@ -156,7 +171,13 @@ export function drawAssinaturasEletronicas(
   startY: number,
   empregadora: string,
   empregado: string,
+  responsavel?: string,
 ): void {
+  if (responsavel) {
+    drawAssinaturasEletronicasMenor(pdf, page, regular, bold, startY, empregadora, empregado, responsavel);
+    return;
+  }
+
   let currentPage = page;
   let y = startY;
 
@@ -231,23 +252,19 @@ export function drawAssinaturasEletronicasMenor(
   let y = startY;
 
   const blockHeight = 38;
-  const totalHeight = blockHeight + 10 + blockHeight; // 2 linhas
 
-  if (y < totalHeight + 50) {
+  if (y < blockHeight + 50) {
     currentPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     y = 740;
   }
 
-  const blockGap = 16;
-  const blockWidth = 232;
+  const blockGap = 10;
+  const blockWidth = 154;
   const leftX = 56;
-  const rightX = leftX + blockWidth + blockGap;
+  const middleX = leftX + blockWidth + blockGap;
+  const rightX = middleX + blockWidth + blockGap;
 
-  // — Linha 1: EMPREGADORA (esquerda) + EMPREGADO (direita) —
-  const row1Y = y;
-
-  // Bloco EMPREGADORA
-  const empBlockY = row1Y - blockHeight;
+  const empBlockY = y - blockHeight;
   currentPage.drawRectangle({
     x: leftX, y: empBlockY, width: blockWidth, height: blockHeight,
     color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
@@ -257,59 +274,56 @@ export function drawAssinaturasEletronicasMenor(
     color: rgb(0.13, 0.37, 0.69),
   });
   currentPage.drawText('EMPREGADORA  •  Assinado eletronicamente', {
-    x: leftX + 12, y: row1Y - 11, size: 6, font: regular, color: rgb(0.45, 0.45, 0.45),
+    x: leftX + 8, y: y - 11, size: 4.7, font: regular, color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(empregadora.toUpperCase(), {
-    x: leftX + 12, y: row1Y - 23, size: 7, font: bold, color: rgb(0.12, 0.12, 0.12),
+    x: leftX + 8, y: y - 23, size: 5.5, font: bold, color: rgb(0.12, 0.12, 0.12),
   });
   currentPage.drawText('Certificado ICP-Brasil  •  Admissão Digital', {
-    x: leftX + 12, y: row1Y - 34, size: 5.5, font: regular, color: rgb(0.6, 0.6, 0.6),
+    x: leftX + 8, y: y - 34, size: 4.4, font: regular, color: rgb(0.6, 0.6, 0.6),
   });
 
-  // Bloco EMPREGADO
-  const candBlockY = row1Y - blockHeight;
+  const candBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: rightX, y: candBlockY, width: blockWidth, height: blockHeight,
+    x: middleX, y: candBlockY, width: blockWidth, height: blockHeight,
     color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
   });
   currentPage.drawRectangle({
-    x: rightX, y: candBlockY, width: 3, height: blockHeight,
+    x: middleX, y: candBlockY, width: 3, height: blockHeight,
     color: rgb(0.18, 0.55, 0.34),
   });
   currentPage.drawText('EMPREGADO  •  Assinado eletronicamente', {
-    x: rightX + 12, y: row1Y - 11, size: 6, font: regular, color: rgb(0.45, 0.45, 0.45),
+    x: middleX + 8, y: y - 11, size: 4.7, font: regular, color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(empregado.toUpperCase(), {
-    x: rightX + 12, y: row1Y - 23, size: 7, font: bold, color: rgb(0.12, 0.12, 0.12),
+    x: middleX + 8, y: y - 23, size: 5.5, font: bold, color: rgb(0.12, 0.12, 0.12),
   });
   currentPage.drawText('OTP / Biometria / Reconhecimento facial', {
-    x: rightX + 12, y: row1Y - 34, size: 5.5, font: regular, color: rgb(0.6, 0.6, 0.6),
+    x: middleX + 8, y: y - 34, size: 4.4, font: regular, color: rgb(0.6, 0.6, 0.6),
   });
 
-  // — Linha 2: RESPONSÁVEL LEGAL (centralizado) —
-  const row2Y = row1Y - blockHeight - 10;
-  const respX = (PAGE_WIDTH - blockWidth) / 2;
-  const respBlockY = row2Y - blockHeight;
+  const respBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: respX, y: respBlockY, width: blockWidth, height: blockHeight,
+    x: rightX, y: respBlockY, width: blockWidth, height: blockHeight,
     color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
   });
   currentPage.drawRectangle({
-    x: respX, y: respBlockY, width: 3, height: blockHeight,
+    x: rightX, y: respBlockY, width: 3, height: blockHeight,
     color: rgb(0.55, 0.27, 0.07),
   });
   currentPage.drawText('RESPONSÁVEL LEGAL  •  Assinado eletronicamente', {
-    x: respX + 12, y: row2Y - 11, size: 6, font: regular, color: rgb(0.45, 0.45, 0.45),
+    x: rightX + 8, y: y - 11, size: 4.7, font: regular, color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(responsavel.toUpperCase(), {
-    x: respX + 12, y: row2Y - 23, size: 7, font: bold, color: rgb(0.12, 0.12, 0.12),
+    x: rightX + 8, y: y - 23, size: 5.5, font: bold, color: rgb(0.12, 0.12, 0.12),
   });
   currentPage.drawText('OTP  •  Assistente do menor  •  Admissão Digital', {
-    x: respX + 12, y: row2Y - 34, size: 5.5, font: regular, color: rgb(0.6, 0.6, 0.6),
+    x: rightX + 8, y: y - 34, size: 4.4, font: regular, color: rgb(0.6, 0.6, 0.6),
   });
 }
 
 export function drawFooter(_page: PDFPage): void {
+  void _page;
   // Rodapé sem bordas — mantido como noop para compatibilidade
 }
 

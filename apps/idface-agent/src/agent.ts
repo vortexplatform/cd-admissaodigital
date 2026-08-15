@@ -3,14 +3,14 @@ import type { AppConfig } from './config';
 import { IdfaceClient } from './idface-client';
 import { handleVerificacao } from './handlers/verificacao';
 import type { Logger } from './logger';
-import { SeniorIdfaceClient } from './senior-idface-client';
 import { sleep } from './utils';
+import { SeniorIdfaceClient } from './senior-idface-client';
 
 type IdfaceAgentOptions = {
   api: BiometriaApiClient;
   config: AppConfig;
-  senior: SeniorIdfaceClient;
   logger: Logger;
+  senior: SeniorIdfaceClient;
 };
 
 export class IdfaceAgent {
@@ -43,7 +43,7 @@ export class IdfaceAgent {
 
       this.processing = true;
       try {
-        const assumida = await this.options.api.assumir(solicitacao.id);
+        const assumida = await this.options.api.assumir(solicitacao.id, solicitacao.idfaceIp);
         await this.processar(assumida);
       } finally {
         this.processing = false;
@@ -67,13 +67,37 @@ export class IdfaceAgent {
         await this.options.api.reportResultado(solicitacao.id, {
           resultado: 'FALHOU',
           mensagem: 'O agente iDFace aceita somente autenticação facial para assinatura.',
-        });
+        }, solicitacao.idfaceIp);
+        return;
+      }
+
+      const devices = await this.options.senior.listDevices();
+      const device = devices.find((item) => item.ip === solicitacao.idfaceIp);
+      if (!device) {
+        await this.options.api.reportResultado(solicitacao.id, {
+          resultado: 'FALHOU',
+          mensagem: 'iDFace selecionado não está disponível na Senior.',
+        }, solicitacao.idfaceIp);
         return;
       }
 
       await handleVerificacao(solicitacao, {
-        api: this.options.api,
-        idfaces: await this.getIdfaces(),
+        api: {
+          reportResultado: (solicitacaoId, payload) =>
+            this.options.api.reportResultado(
+              solicitacaoId,
+              { ...payload, enderecoColeta: device.endereco },
+              solicitacao.idfaceIp,
+            ),
+        },
+        idfaces: [
+          new IdfaceClient({
+            ...this.options.config.idface,
+            baseUrl: `http://${device.ip}`,
+            timeoutMs: this.options.config.httpTimeoutMs,
+            logger: this.options.logger,
+          }),
+        ],
         logger: this.options.logger,
         minConfidence: this.options.config.idface.minConfidence,
         rejectOnMismatch: this.options.config.rejectOnMismatch,
@@ -89,7 +113,7 @@ export class IdfaceAgent {
         await this.options.api.reportResultado(solicitacao.id, {
           resultado: 'FALHOU',
           mensagem: 'Erro de comunicação com o agente iDFace.',
-        });
+        }, solicitacao.idfaceIp);
       } catch (reportError) {
         this.options.logger.error('Não foi possível registrar a falha na API.', {
           solicitacaoId: solicitacao.id,
@@ -97,18 +121,5 @@ export class IdfaceAgent {
         });
       }
     }
-  }
-
-  private async getIdfaces() {
-    const devices = await this.options.senior.listDevices();
-    return devices.map(
-      (device) =>
-        new IdfaceClient({
-          ...this.options.config.idface,
-          baseUrl: `http://${device.ip}`,
-          timeoutMs: this.options.config.httpTimeoutMs,
-          logger: this.options.logger,
-        }),
-    );
   }
 }

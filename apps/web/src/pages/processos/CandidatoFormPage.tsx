@@ -14,6 +14,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import ReactSelect from 'react-select';
 import type { StylesConfig } from 'react-select';
 import AsyncSelect from 'react-select/async';
+import { toast } from 'sonner';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -420,15 +421,11 @@ const candidatoSchema = z
     requiredText('numero', 'numero', 'Informe o número');
   }
 
-  // Validação do responsável legal para menores de 18 anos
-  if (values.dataNascimento) {
-    const nascimento = new Date(values.dataNascimento);
-    const hoje = new Date();
-    let idade = hoje.getFullYear() - nascimento.getFullYear();
-    const mes = hoje.getMonth() - nascimento.getMonth();
-    if (mes < 0 || (mes === 0 && hoje.getDate() < nascimento.getDate())) idade -= 1;
+  // Exigir responsável legal apenas ao avançar um candidato menor de idade no processo.
+  if (values.situacao !== 'CANDIDATO' && values.dataNascimento) {
+    const idade = getAge(values.dataNascimento);
 
-    if (idade >= 16 && idade < 18) {
+    if (idade !== null && idade < 18) {
       if (!values.responsavelNome?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelNome'], message: 'Informe o nome do responsável legal' });
       }
@@ -630,8 +627,19 @@ const defaultValues: CandidatoForm = {
 // ---------------------------------------------------------------------------
 const toDateInputValue = (value: string | null | undefined) => (value ? value.slice(0, 10) : '');
 const toText = (value: string | null | undefined) => value ?? '';
-const optionalString = (value?: string) => value?.trim() || undefined;
-const optionalDigits = (value?: string) => value?.replace(/\D/g, '') || undefined;
+const getAge = (dateOfBirth: string) => {
+  const [year, month, day] = dateOfBirth.split('-').map(Number);
+  if (!year || !month || !day) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) {
+    age -= 1;
+  }
+  return age;
+};
+const optionalString = (value?: string) => value?.trim() || null;
+const optionalDigits = (value?: string) => value?.replace(/\D/g, '') || null;
 
 const isWithin7Days = (dateStr: string | null | undefined) => {
   if (!dateStr) return false;
@@ -640,7 +648,7 @@ const isWithin7Days = (dateStr: string | null | undefined) => {
 };
 const optionalInt = (value?: string) => {
   const n = parseInt(value ?? '', 10);
-  return Number.isFinite(n) ? n : undefined;
+  return Number.isFinite(n) ? n : null;
 };
 
 const buildDependentePayload = (values: DependenteForm): DependentePayload => ({
@@ -1065,6 +1073,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [selectedRequisicao, setSelectedRequisicao] = useState<RequisicaoOption | null>(null);
   const [isSavingLink, setIsSavingLink] = useState(false);
+  const [isUnlinkingCandidaturaId, setIsUnlinkingCandidaturaId] = useState<number | null>(null);
   const [linkModalError, setLinkModalError] = useState('');
   const requisicaoSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isViewMode = mode === 'view';
@@ -1545,11 +1554,13 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       if (mode === 'edit') {
         await api.patch(`/candidatos/${id}`, buildPayload(values));
         reloadCandidato();
+        toast.success('Candidato salvo com sucesso!');
       } else {
         const { data: novoCandidato } = await api.post(
           '/candidatos',
           buildPayload(values, dependentesDraft, valeTransportesDraft, etapasDraft),
         );
+        toast.success('Candidato criado com sucesso!');
         navigate(`/candidatos/${novoCandidato.id}/editar`, { replace: true });
       }
     } catch {
@@ -1622,6 +1633,24 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       setLinkModalError(msg || 'Não foi possível vincular o candidato à requisição.');
     } finally {
       setIsSavingLink(false);
+    }
+  };
+
+  const desvincularRequisicao = async (candidaturaId: number) => {
+    setError('');
+    setIsUnlinkingCandidaturaId(candidaturaId);
+    try {
+      await api.delete(`/candidaturas/${candidaturaId}`);
+      reloadCandidato();
+      toast.success('Requisição desvinculada do candidato.');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setError(msg || 'Não foi possível desvincular a requisição.');
+    } finally {
+      setIsUnlinkingCandidaturaId(null);
     }
   };
 
@@ -1972,6 +2001,18 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               <ArrowLeft className="h-4 w-4" />
               Voltar
             </Button>
+            {isViewMode && id && (
+              <Button type="button" onClick={() => navigate(`/candidatos/${id}/editar`)} className="w-full sm:w-auto">
+                <Edit3 className="h-4 w-4" />
+                Editar
+              </Button>
+            )}
+            {!isViewMode && (
+              <Button type="submit" form="candidato-form" disabled={isSaving} className="w-full sm:w-auto">
+                <Save className="h-4 w-4" />
+                {isSaving ? 'Salvando...' : 'Salvar'}
+              </Button>
+            )}
           </>
         }
       />
@@ -1983,7 +2024,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           </CardContent>
         </Card>
       ) : (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form id="candidato-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Card className="">
             <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
               <div>
@@ -2013,12 +2054,22 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           ================================================================= */}
           {mode !== 'create' && (
             <Card className="">
-              <CardHeader>
-                <CardTitle>Candidaturas vinculadas</CardTitle>
-                <CardDescription>
-                  {candidato?.candidaturas.length ?? 0} vínculo(s) encontrado(s).
-                </CardDescription>
-              </CardHeader>
+                <CardHeader>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle>Candidaturas vinculadas</CardTitle>
+                      <CardDescription>
+                        {candidato?.candidaturas.length ?? 0} vínculo(s) encontrado(s).
+                      </CardDescription>
+                    </div>
+                    {mode === 'edit' && (
+                      <Button type="button" variant="outline" onClick={() => setLinkModalOpen(true)}>
+                        <UserRoundPlus className="h-4 w-4" />
+                        Vincular requisição
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
               <CardContent>
                 {!candidato || candidato.candidaturas.length === 0 ? (
                   <div className="rounded-xl border border-dashed bg-background p-6 text-center">
@@ -2120,6 +2171,20 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                               {statusSaveError[candidatura.id] && (
                                 <p className="text-xs text-destructive">{statusSaveError[candidatura.id]}</p>
                               )}
+                              {!candidatura.admissao && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-destructive text-destructive hover:bg-destructive/10"
+                                  disabled={isUnlinkingCandidaturaId === candidatura.id}
+                                  onClick={() => desvincularRequisicao(candidatura.id)}
+                                >
+                                  {isUnlinkingCandidaturaId === candidatura.id
+                                    ? 'Desvinculando...'
+                                    : 'Desvincular'}
+                                </Button>
+                              )}
                             </>
                           )}
 
@@ -2134,6 +2199,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                             <Button
                               type="button"
                               size="sm"
+                              className="text-white hover:text-white"
                               onClick={() => {
                                 setAdmissaoCandidaturaId(candidatura.id);
                                 setAdmissaoSuccess(false);
@@ -2192,9 +2258,13 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           <Tabs defaultValue="cadastro" className="space-y-4">
             <TabsList>
               <TabsTrigger value="cadastro">Cadastro</TabsTrigger>
-              <TabsTrigger value="dependentes">Dependentes</TabsTrigger>
-              <TabsTrigger value="valeTransporte">Vale Transporte</TabsTrigger>
-              <TabsTrigger value="etapas">Etapas</TabsTrigger>
+              {mode !== 'create' && (
+                <>
+                  <TabsTrigger value="dependentes">Dependentes</TabsTrigger>
+                  <TabsTrigger value="valeTransporte">Vale Transporte</TabsTrigger>
+                  <TabsTrigger value="etapas">Etapas</TabsTrigger>
+                </>
+              )}
             </TabsList>
 
             <TabsContent value="cadastro" className="space-y-4">
@@ -2860,16 +2930,17 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 </CardContent>
               </Card>
 
-              {/* ---- Responsável Legal (menores 16-17 anos) ---- */}
+              {/* ---- Responsável Legal ---- */}
               {(() => {
                 const dataNasc = watch('dataNascimento');
-                if (!dataNasc) return null;
-                const nascimento = new Date(dataNasc);
-                const hoje = new Date();
-                let idadeCalc = hoje.getFullYear() - nascimento.getFullYear();
-                const mesCalc = hoje.getMonth() - nascimento.getMonth();
-                if (mesCalc < 0 || (mesCalc === 0 && hoje.getDate() < nascimento.getDate())) idadeCalc -= 1;
-                if (idadeCalc < 16 || idadeCalc >= 18) return null;
+                const temDadosResponsavel = [
+                  watch('responsavelNome'),
+                  watch('responsavelCpf'),
+                  watch('responsavelEmail'),
+                  watch('responsavelTelefone'),
+                ].some((value) => value?.trim());
+                const idade = dataNasc ? getAge(dataNasc) : null;
+                if ((idade === null || idade >= 18) && !temDadosResponsavel) return null;
                 return (
                   <Card className="border-amber-200 dark:border-amber-800">
                     <CardHeader>
@@ -2927,7 +2998,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </div>
             </TabsContent>
 
-            <TabsContent value="dependentes" className="space-y-4">
+            {mode !== 'create' && (
+              <TabsContent value="dependentes" className="space-y-4">
                 <Card className="">
                   <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -2992,8 +3064,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   </CardContent>
                 </Card>
               </TabsContent>
+            )}
 
-            <TabsContent value="valeTransporte" className="space-y-4">
+            {mode !== 'create' && (
+              <TabsContent value="valeTransporte" className="space-y-4">
               <Card className="">
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -3043,9 +3117,11 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
+            )}
 
-            <TabsContent value="etapas" className="space-y-4">
+            {mode !== 'create' && (
+              <TabsContent value="etapas" className="space-y-4">
               <Card className="">
                 <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -3118,7 +3194,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
+            )}
           </Tabs>
 
           {/* ---- Ações ---- */}
@@ -3130,7 +3207,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 {isSaving ? 'Salvando...' : 'Salvar candidato'}
               </Button>
             )}
-            {mode !== 'create' && candidato && candidato.candidaturas.length === 0 && (
+            {mode === 'edit' && candidato && (
               <Button
                 type="button"
                 variant="outline"

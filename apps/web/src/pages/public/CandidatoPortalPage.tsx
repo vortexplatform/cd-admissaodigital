@@ -318,7 +318,13 @@ export default function CandidatoPortalPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {doc.status !== 'ASSINADO' && (
-                      <Button type="button" size="sm" disabled={signingId === doc.id} onClick={() => setPreviewState({ envelope, doc })}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="text-white hover:text-white"
+                        disabled={signingId === doc.id}
+                        onClick={() => setPreviewState({ envelope, doc })}
+                      >
                         {signingId === doc.id ? (
                           <><Loader2 className="h-4 w-4 animate-spin" />Assinando...</>
                         ) : (

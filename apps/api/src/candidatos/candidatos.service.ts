@@ -39,7 +39,17 @@ const candidatoInclude = {
 
 const cleanString = (value?: string) => value?.trim() || undefined;
 
+const cleanNullableString = (value?: string | null): string | null | undefined => {
+  if (value === undefined) return undefined;
+  return value?.trim() || null;
+};
+
 const normalizeCpf = (value?: string) => value?.replace(/\D/g, '') || undefined;
+
+const normalizeNullableDigits = (value?: string | null): string | null | undefined => {
+  if (value === undefined) return undefined;
+  return value?.replace(/\D/g, '') || null;
+};
 
 const normalizePis = (value?: string) => value?.replace(/\D/g, '') || undefined;
 
@@ -138,91 +148,94 @@ const validateSituacaoCandidato = (dto: CreateCandidatoDto | UpdateCandidatoDto)
   }
 };
 
+const cleanDate = (value?: string | null): Date | null | undefined => {
+  if (value === undefined) return undefined;
+  return value ? new Date(value) : null;
+};
+
 const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   cpf: normalizeCpf(dto.cpf),
-  dataNascimento: dto.dataNascimento ? new Date(dto.dataNascimento) : undefined,
-  nome: cleanString(dto.nome),
-  email: cleanString(dto.email),
-  telefone: cleanString(dto.telefone),
-  genero: cleanString(dto.genero),
+  dataNascimento: cleanDate(dto.dataNascimento),
+  nome: cleanNullableString(dto.nome),
+  email: cleanNullableString(dto.email),
+  telefone: cleanNullableString(dto.telefone),
+  genero: cleanNullableString(dto.genero),
   situacao: cleanString(dto.situacao),
-  justificativaReprovacao: cleanString(dto.justificativaReprovacao),
+  justificativaReprovacao: cleanNullableString(dto.justificativaReprovacao),
   possuiFilhos: dto.possuiFilhos,
   cidadeVagaId: dto.cidadeVagaId,
 
   // Admissão
-  tipoAdmissao: cleanString(dto.tipoAdmissao),
+  tipoAdmissao: cleanNullableString(dto.tipoAdmissao),
 
   // Dados pessoais adicionais
-  estadoCivil: cleanString(dto.estadoCivil),
-  grauInstrucao: cleanString(dto.grauInstrucao),
-  pis: normalizePis(dto.pis),
+  estadoCivil: cleanNullableString(dto.estadoCivil),
+  grauInstrucao: cleanNullableString(dto.grauInstrucao),
+  pis: normalizeNullableDigits(dto.pis),
   raccor: dto.raccor,
 
   // Naturalidade
   nacionalidade: dto.nacionalidade,
-  paisNascimento: cleanString(dto.paisNascimento),
-  estadoNascimento: cleanString(dto.estadoNascimento),
+  paisNascimento: cleanNullableString(dto.paisNascimento),
+  estadoNascimento: cleanNullableString(dto.estadoNascimento),
   cidadeNascimentoCod: dto.cidadeNascimentoCod,
-  cidadeNascimentoNome: cleanString(dto.cidadeNascimentoNome),
+  cidadeNascimentoNome: cleanNullableString(dto.cidadeNascimentoNome),
 
   // Endereço
-  pais: cleanString(dto.pais),
-  cep: normalizeCep(dto.cep),
-  estadoEndereco: cleanString(dto.estadoEndereco),
+  pais: cleanNullableString(dto.pais),
+  cep: normalizeNullableDigits(dto.cep),
+  estadoEndereco: cleanNullableString(dto.estadoEndereco),
   cidadeCod: dto.cidadeCod,
-  cidadeNome: cleanString(dto.cidadeNome),
+  cidadeNome: cleanNullableString(dto.cidadeNome),
   bairroCod: dto.bairroCod,
-  bairroNome: cleanString(dto.bairroNome),
-  tipoLogradouro: cleanString(dto.tipoLogradouro),
-  endereco: cleanString(dto.endereco),
-  numero: cleanString(dto.numero),
-  complemento: cleanString(dto.complemento),
+  bairroNome: cleanNullableString(dto.bairroNome),
+  tipoLogradouro: cleanNullableString(dto.tipoLogradouro),
+  endereco: cleanNullableString(dto.endereco),
+  numero: cleanNullableString(dto.numero),
+  complemento: cleanNullableString(dto.complemento),
 
   // Contatos
-  ddiTelefone: cleanString(dto.ddiTelefone),
-  dddTelefone: cleanString(dto.dddTelefone),
-  numeroTelefone: cleanString(dto.numeroTelefone),
-  ddiTelefone2: cleanString(dto.ddiTelefone2),
-  dddTelefone2: cleanString(dto.dddTelefone2),
-  numeroTelefone2: cleanString(dto.numeroTelefone2),
+  ddiTelefone: cleanNullableString(dto.ddiTelefone),
+  dddTelefone: cleanNullableString(dto.dddTelefone),
+  numeroTelefone: cleanNullableString(dto.numeroTelefone),
+  ddiTelefone2: cleanNullableString(dto.ddiTelefone2),
+  dddTelefone2: cleanNullableString(dto.dddTelefone2),
+  numeroTelefone2: cleanNullableString(dto.numeroTelefone2),
 
   // RG
-  numeroRg: cleanString(dto.numeroRg),
-  orgaoEmissorRg: cleanString(dto.orgaoEmissorRg),
-  dataExpedicaoRg: dto.dataExpedicaoRg ? new Date(dto.dataExpedicaoRg) : undefined,
+  numeroRg: cleanNullableString(dto.numeroRg),
+  orgaoEmissorRg: cleanNullableString(dto.orgaoEmissorRg),
+  dataExpedicaoRg: cleanDate(dto.dataExpedicaoRg),
 
   // Título de eleitor
-  numeroTituloEleitor: cleanString(dto.numeroTituloEleitor),
-  zonaTituloEleitor: cleanString(dto.zonaTituloEleitor),
-  secaoTituloEleitor: cleanString(dto.secaoTituloEleitor),
+  numeroTituloEleitor: cleanNullableString(dto.numeroTituloEleitor),
+  zonaTituloEleitor: cleanNullableString(dto.zonaTituloEleitor),
+  secaoTituloEleitor: cleanNullableString(dto.secaoTituloEleitor),
 
   // Reservista
-  numeroCertReservista: cleanString(dto.numeroCertReservista),
+  numeroCertReservista: cleanNullableString(dto.numeroCertReservista),
 
   // Certidão civil
-  tipoCertidaoCivil: cleanString(dto.tipoCertidaoCivil),
-  dataEmissaoCertidaoCivil: dto.dataEmissaoCertidaoCivil
-    ? new Date(dto.dataEmissaoCertidaoCivil)
-    : undefined,
-  matriculaCertidaoCivil: cleanString(dto.matriculaCertidaoCivil),
-  termoMatriculaCertidao: cleanString(dto.termoMatriculaCertidao),
-  livroCertidaoCivil: cleanString(dto.livroCertidaoCivil),
-  folhaCertidaoCivil: cleanString(dto.folhaCertidaoCivil),
-  estadoCertidaoCivil: cleanString(dto.estadoCertidaoCivil),
+  tipoCertidaoCivil: cleanNullableString(dto.tipoCertidaoCivil),
+  dataEmissaoCertidaoCivil: cleanDate(dto.dataEmissaoCertidaoCivil),
+  matriculaCertidaoCivil: cleanNullableString(dto.matriculaCertidaoCivil),
+  termoMatriculaCertidao: cleanNullableString(dto.termoMatriculaCertidao),
+  livroCertidaoCivil: cleanNullableString(dto.livroCertidaoCivil),
+  folhaCertidaoCivil: cleanNullableString(dto.folhaCertidaoCivil),
+  estadoCertidaoCivil: cleanNullableString(dto.estadoCertidaoCivil),
   cidadeCertidaoCivilCod: dto.cidadeCertidaoCivilCod,
-  cidadeCertidaoCivilNome: cleanString(dto.cidadeCertidaoCivilNome),
+  cidadeCertidaoCivilNome: cleanNullableString(dto.cidadeCertidaoCivilNome),
 
   // Uniforme
-  tamanhoCamisa: cleanString(dto.tamanhoCamisa),
-  tamanhoCalca: cleanString(dto.tamanhoCalca),
-  tamanhoCalcado: cleanString(dto.tamanhoCalcado),
+  tamanhoCamisa: cleanNullableString(dto.tamanhoCamisa),
+  tamanhoCalca: cleanNullableString(dto.tamanhoCalca),
+  tamanhoCalcado: cleanNullableString(dto.tamanhoCalcado),
 
   // Responsável legal
-  responsavelNome: cleanString(dto.responsavelNome),
-  responsavelCpf: normalizeCpf(dto.responsavelCpf),
-  responsavelEmail: cleanString(dto.responsavelEmail),
-  responsavelTelefone: cleanString(dto.responsavelTelefone),
+  responsavelNome: cleanNullableString(dto.responsavelNome),
+  responsavelCpf: normalizeNullableDigits(dto.responsavelCpf),
+  responsavelEmail: cleanNullableString(dto.responsavelEmail),
+  responsavelTelefone: cleanNullableString(dto.responsavelTelefone),
 });
 
 @Injectable()
@@ -528,7 +541,7 @@ export class CandidatosService {
     if (cpf && cpf !== candidato.cpf) throw new BadRequestException('CPF não pode ser alterado.');
 
     try {
-      const data = buildCandidatoData({ ...dto, cpf: undefined });
+      const data = buildCandidatoData({ ...dto, cpf: undefined }) as Prisma.CandidatoUncheckedUpdateInput;
       return await this.prisma.candidato.update({
         where: { id },
         data,

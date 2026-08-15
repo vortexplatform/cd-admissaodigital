@@ -386,7 +386,9 @@ export class ContratoExperienciaService {
     clausulas[9] = `9 - O presente Contrato vigerá durante ${data.prazoContratoDias} dias, sendo celebrado para as partes verificarem reciprocamente a conveniência ou não de se vincularem em caráter definitivo a um Contrato de Trabalho. A Empresa passando a conhecer as aptidões do EMPREGADO e suas qualidades pessoais e morais; o EMPREGADO verificando se o ambiente e os métodos de trabalho atendem a sua conveniência.`;
     clausulas[10] = `10 - Opera-se a rescisão do presente Contrato pela decorrência do prazo supra ou por vontade de uma das partes; rescindindo-se por vontade do EMPREGADO ou pela EMPREGADORA com justa causa, nenhuma indenização é devida; rescindindo-se, antes do prazo, por qualquer uma das partes, fica esta obrigada a pagar 50% dos salários até o final.`;
     clausulas[11] = `11 - Na hipótese deste ajuste transformar-se em Contrato de Prazo Indeterminado pelo decurso do tempo, continuarão em plena vigência as cláusulas de 1 (um) a 7 (sete), enquanto durarem as relações do EMPREGADO com a EMPREGADORA.`;
-    return clausulas;
+    return clausulas.map((clausula, index) =>
+      index >= 12 ? clausula.replace(/^(\d+)\./, (_, numero) => `${Number(numero) + 1}.`) : clausula,
+    );
   }
 
   private montarClausulasCargoExterno(

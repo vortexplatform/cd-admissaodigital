@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts } from 'pdf-lib';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   PAGE_HEIGHT,
@@ -10,6 +10,7 @@ import {
   drawHeader,
   drawParagraphs,
   embedLogo,
+  getResponsavelLegalParaAssinatura,
 } from '../pdf-render.utils';
 
 type CandidaturaContrato = Prisma.CandidaturaGetPayload<{
@@ -67,6 +68,11 @@ export class AutorizacaoPlanoSaudeService {
       cargo,
       dataAdmissao,
       sindicato,
+      responsavelNome: getResponsavelLegalParaAssinatura(
+        candidatura.candidato.dataNascimento,
+        candidatura.candidato.responsavelNome,
+        dataAdmissao,
+      ),
     });
 
     return Buffer.from(await pdf.save());
@@ -99,6 +105,7 @@ export class AutorizacaoPlanoSaudeService {
       cargo: string;
       dataAdmissao: Date;
       sindicato: string;
+      responsavelNome?: string;
     },
   ): void {
     let y = drawHeader(page, logo, AutorizacaoPlanoSaudeService.NOME, bold);
@@ -142,6 +149,7 @@ export class AutorizacaoPlanoSaudeService {
       lastY - 30,
       data.empresaNome,
       data.candidatoNome,
+      data.responsavelNome,
     );
     drawFooter(page);
   }

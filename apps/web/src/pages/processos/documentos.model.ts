@@ -87,6 +87,9 @@ export interface DocumentoAssinatura {
   assinadoEm: string | null;
   metodoAssinatura: 'OTP' | 'BIOMETRIA' | null;
   codigoVerificacao: string | null;
+  // Campos do responsável legal (menores de 18)
+  responsavelAssinadoEm: string | null;
+  responsavelHashAssinado: string | null;
 }
 
 export interface EnvelopeAssinatura {
@@ -101,6 +104,7 @@ export interface EnvelopeAssinatura {
 }
 
 export interface AssinaturasCandidatura extends Omit<DocumentosCandidatura, 'documentos'> {
+  portalAccessToken: string | null;
   envelopesAssinatura: EnvelopeAssinatura[];
 }
 
