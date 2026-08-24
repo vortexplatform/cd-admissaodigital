@@ -17,6 +17,8 @@ import CandidatoFormPage from '@/pages/processos/CandidatoFormPage';
 import DocumentosRhPage from '@/pages/processos/DocumentosRhPage';
 import AssinaturasPendentesPage from '@/pages/processos/AssinaturasPendentesPage';
 import AssinaturasRhPage from '@/pages/processos/AssinaturasRhPage';
+import ColaboradoresAdmitidosPage from '@/pages/relatorios/ColaboradoresAdmitidosPage';
+import RelatoriosPage from '@/pages/relatorios/RelatoriosPage';
 // Configurações
 import EmpresasPage from '@/pages/configuracoes/EmpresasPage';
 import UsuariosPage from '@/pages/configuracoes/UsuariosPage';
@@ -175,6 +177,8 @@ export default function Router() {
         <Route path="/documentos" element={<DocumentosRhPage />} />
         <Route path="/assinaturas" element={<AssinaturasPendentesPage />} />
         <Route path="/assinaturas/:candidatoId" element={<AssinaturasRhPage />} />
+        <Route path="/relatorios" element={<RelatoriosPage />} />
+        <Route path="/relatorios/candidatos-admitidos" element={<ColaboradoresAdmitidosPage />} />
         <Route element={<AdminRoute />}>
           <Route path="/certificados-a1" element={<CertificadosA1Page />} />
           <Route path="/documentos/configuracoes" element={<DocumentoTemplatesPage />} />

@@ -1,6 +1,7 @@
 import {
   BriefcaseBusiness,
   Building2,
+  BarChart3,
   ClipboardCheck,
   FileSignature,
   FileText,
@@ -51,6 +52,13 @@ export default function AppSidebar() {
           <NavLink to="/assinaturas" className={linkClass}>
             <FileSignature className="h-4 w-4" />
             Assinaturas
+          </NavLink>
+        </div>
+
+        <div>
+          <NavLink to="/relatorios" end className={linkClass}>
+            <BarChart3 className="h-4 w-4" />
+            Relatórios
           </NavLink>
         </div>
 
