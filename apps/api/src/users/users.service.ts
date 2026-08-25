@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
@@ -76,9 +76,7 @@ export class UsersService {
     email?: string | null,
     telefone?: string | null,
   ) {
-    return type === 'email'
-      ? { email: email ?? identifier }
-      : { telefone: telefone ?? identifier };
+    return type === 'email' ? { email: email ?? identifier } : { telefone: telefone ?? identifier };
   }
 
   async linkCandidatoByCpf(userId: number, cpf: string) {
@@ -96,34 +94,53 @@ export class UsersService {
   async createAdminUser(dto: CreateAdminUserDto) {
     const email = dto.email?.trim() || undefined;
     const telefone = dto.telefone?.trim() || undefined;
-    if (!email && !telefone) throw new BadRequestException('Informe e-mail ou telefone.');
-
     const empresa = await this.prisma.empresa.findUnique({ where: { id: dto.empresaId } });
     if (!empresa) throw new BadRequestException('Empresa não encontrada.');
-    if (dto.role && dto.role !== Role.RH && dto.role !== Role.ADMIN) {
+    const role = dto.role ?? Role.RH;
+    if (role !== Role.RH && role !== Role.ADMIN) {
       throw new BadRequestException('Apenas usuários RH ou ADMIN podem ser criados por esta tela.');
+    }
+    if (role === Role.ADMIN && !email && !telefone) {
+      throw new BadRequestException('Informe e-mail ou telefone para usuários ADMIN.');
     }
 
     const passwordHash = dto.password ? await bcrypt.hash(dto.password, 12) : undefined;
 
-    return this.prisma.user.create({
-      data: {
-        nome: dto.nome.trim(),
-        cpf: dto.cpf.replace(/\D/g, '').padStart(11, '0'),
-        email,
-        telefone,
-        role: dto.role ?? Role.RH,
-        passwordHash,
-        empresas: {
-          create: { empresaId: dto.empresaId },
+    try {
+      return await this.prisma.user.create({
+        data: {
+          nome: dto.nome.trim(),
+          cpf: dto.cpf.replace(/\D/g, '').padStart(11, '0'),
+          email,
+          telefone,
+          role,
+          passwordHash,
+          empresas: {
+            create: { empresaId: dto.empresaId },
+          },
         },
-      },
-      include: {
-        empresas: {
-          include: { empresa: true },
+        include: {
+          empresas: {
+            include: { empresa: true },
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = Array.isArray(error.meta?.target) ? error.meta.target : [];
+        if (target.includes('email')) throw new BadRequestException('E-mail já está cadastrado.');
+        if (target.includes('telefone')) {
+          throw new BadRequestException('Telefone já está cadastrado.');
+        }
+        if (target.includes('cpf')) throw new BadRequestException('CPF já está cadastrado.');
+        if (target.includes('id')) {
+          throw new InternalServerErrorException(
+            'Não foi possível gerar o identificador do usuário. Tente novamente após a atualização do banco.',
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   async updateUser(userId: number, dto: UpdateUserDto) {

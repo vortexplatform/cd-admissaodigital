@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -29,8 +30,8 @@ const usuarioSchema = z
     role: z.enum(['RH', 'ADMIN']),
     empresaId: z.string().trim().min(1, 'Selecione uma empresa'),
   })
-  .refine((values) => values.email || values.telefone, {
-    message: 'Informe e-mail ou telefone',
+  .refine((values) => values.role === 'RH' || values.email || values.telefone, {
+    message: 'Informe e-mail ou telefone para usuários ADMIN',
     path: ['email'],
   });
 
@@ -115,8 +116,12 @@ export default function UsuariosPage() {
         role: 'RH',
         empresaId: values.empresaId,
       });
-    } catch {
-      setError('Não foi possível criar o usuário. Verifique duplicidade de CPF/e-mail/telefone.');
+    } catch (submitError) {
+      const responseMessage = axios.isAxiosError(submitError)
+        ? submitError.response?.data?.message
+        : undefined;
+      const message = Array.isArray(responseMessage) ? responseMessage.join(', ') : responseMessage;
+      setError(message || 'Não foi possível criar o usuário. Verifique os dados informados.');
     } finally {
       setIsSaving(false);
     }
@@ -183,9 +188,7 @@ export default function UsuariosPage() {
     }
   };
 
-  const empresasNaoVinculadas = empresas.filter(
-    (e) => !userEmpresas.some((ue) => ue.id === e.id),
-  );
+  const empresasNaoVinculadas = empresas.filter((e) => !userEmpresas.some((ue) => ue.id === e.id));
 
   return (
     <>
@@ -237,18 +240,14 @@ export default function UsuariosPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
+                <Label htmlFor="email">E-mail (opcional para RH)</Label>
                 <Input id="email" placeholder="usuario@empresa.com" {...register('email')} />
                 {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="telefone">Telefone</Label>
-                <Input
-                  id="telefone"
-                  placeholder="Opcional se informar e-mail"
-                  {...register('telefone')}
-                />
+                <Input id="telefone" placeholder="Opcional para RH" {...register('telefone')} />
               </div>
 
               <div className="space-y-2">

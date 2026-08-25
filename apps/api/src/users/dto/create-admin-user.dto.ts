@@ -1,5 +1,6 @@
 import { Role } from '@prisma/client';
-import { IsEmail, IsEnum, IsInt, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator';
+import { IsEmail, IsEnum, IsInt, IsOptional, IsString, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateAdminUserDto {
   @IsString()
@@ -8,12 +9,14 @@ export class CreateAdminUserDto {
   @IsString()
   cpf!: string;
 
-  @ValidateIf((dto: CreateAdminUserDto) => !dto.telefone)
+  @IsOptional()
   @IsEmail()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() || undefined : value))
   email?: string;
 
-  @ValidateIf((dto: CreateAdminUserDto) => !dto.email)
+  @IsOptional()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() || undefined : value))
   telefone?: string;
 
   @IsOptional()
