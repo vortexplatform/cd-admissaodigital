@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { LogOut, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import EmpresaSelector from '@/components/EmpresaSelector';
-import BiometriaSelector from '@/components/BiometriaSelector';
 import { Logo } from '@/components/Logo';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,7 @@ export default function AppHeader({
 
   const envBadge = showEmpresaSelector ? (
     <>
-      <BiometriaSelector />
+      {/* Seletor de iDFace oculto temporariamente. */}
       <EmpresaSelector />
     </>
   ) : (
