@@ -48,6 +48,11 @@ export class CandidatosController {
     return this.candidatos.searchByNome(nome, limit);
   }
 
+  @Get('by-cpf')
+  findByCpf(@Query('cpf') cpf?: string) {
+    return this.candidatos.findByCpf(cpf);
+  }
+
   @Get('counts')
   countByTab(
     @Query('nome') nome?: string,

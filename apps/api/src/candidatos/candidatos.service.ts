@@ -386,6 +386,16 @@ export class CandidatosService {
     }
   }
 
+  async findByCpf(cpf?: string) {
+    const normalizedCpf = normalizeCpf(cpf);
+    if (!normalizedCpf || normalizedCpf.length !== 11) return null;
+
+    return this.prisma.candidato.findUnique({
+      where: { cpf: normalizedCpf },
+      select: { cpf: true, nome: true },
+    });
+  }
+
   private buildCandidateListFilters(
     term: string,
     filial?: number,

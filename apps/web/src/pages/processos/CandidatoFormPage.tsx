@@ -10,6 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, BriefcaseBusiness, Edit3, FileSignature, Save, UserRoundPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Control, Controller, FieldValues, Path, useForm } from 'react-hook-form';
+import { isAxiosError } from 'axios';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import ReactSelect from 'react-select';
 import type { StylesConfig } from 'react-select';
@@ -419,6 +420,7 @@ const candidatoSchema = z
     requiredText('tipoLogradouro', 'tipoLogradouro', 'Informe o tipo de logradouro');
     requiredText('endereco', 'endereco', 'Informe o logradouro');
     requiredText('numero', 'numero', 'Informe o número');
+    requiredText('ddiTelefone', 'ddiTelefone', 'Informe o DDI do telefone principal');
   }
 
   // Exigir responsável legal apenas ao avançar um candidato menor de idade no processo.
@@ -935,6 +937,7 @@ function MaskedTextField<TForm extends FieldValues>({
   error,
   required,
   placeholder,
+  onBlur: onBlurProp,
 }: {
   id: string;
   label: string;
@@ -945,6 +948,7 @@ function MaskedTextField<TForm extends FieldValues>({
   error?: string;
   required?: boolean;
   placeholder?: string;
+  onBlur?: React.FocusEventHandler<HTMLInputElement>;
 }) {
   return (
     <div className="space-y-2">
@@ -962,7 +966,10 @@ function MaskedTextField<TForm extends FieldValues>({
             placeholder={placeholder}
             value={(field.value as string) ?? ''}
             onChange={(event) => field.onChange(mask(event.target.value))}
-            onBlur={field.onBlur}
+             onBlur={(event) => {
+               field.onBlur();
+               onBlurProp?.(event);
+             }}
             ref={field.ref}
           />
         )}
@@ -1022,9 +1029,9 @@ function ReactSelectField<TForm extends FieldValues>({
             loadingMessage={() => 'Carregando...'}
             isClearable
             styles={{
-              singleValue: () => ({ color: 'inherit' }),
-              input: () => ({ color: 'inherit' }),
-              option: () => ({ color: 'inherit', backgroundColor: 'transparent' }),
+              singleValue: (base) => ({ ...base, color: 'inherit' }),
+              input: (base) => ({ ...base, color: 'inherit' }),
+              option: (base) => ({ ...base, color: 'inherit', backgroundColor: 'transparent' }),
             }}
             classNames={{
               control: (s) =>
@@ -1033,9 +1040,9 @@ function ReactSelectField<TForm extends FieldValues>({
                   s.isFocused && '!border-ring !ring-1 !ring-ring',
                   s.isDisabled && '!opacity-50 !cursor-not-allowed',
                 ),
-              valueContainer: () => '!py-0 !px-3',
+              valueContainer: () => '!py-0 !px-3 !overflow-hidden',
               input: () => '!m-0 !p-0 !text-sm',
-              singleValue: () => '!text-sm',
+              singleValue: () => '!text-sm !whitespace-nowrap !overflow-hidden !text-ellipsis',
               placeholder: () => '!text-sm !text-muted-foreground',
               indicatorsContainer: () => '!h-9',
               indicatorSeparator: () => '!hidden',
@@ -1070,6 +1077,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [isLoading, setIsLoading] = useState(mode !== 'create');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [candidatoEncontradoPorCpf, setCandidatoEncontradoPorCpf] = useState<{
+    cpf: string;
+    nome: string | null;
+  } | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [selectedRequisicao, setSelectedRequisicao] = useState<RequisicaoOption | null>(null);
   const [isSavingLink, setIsSavingLink] = useState(false);
@@ -1194,6 +1205,22 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const isCandidato = situacaoSelecionada === 'CANDIDATO';
   const exigeJustificativaReprovacao =
     situacaoSelecionada === 'ELIMINADO' || situacaoSelecionada === 'DESISTENTE';
+
+  const verificarCpfExistente = async (event: React.FocusEvent<HTMLInputElement>) => {
+    if (mode !== 'create') return;
+
+    const cpf = event.target.value.replace(/\D/g, '');
+    if (cpf.length !== 11) return;
+
+    try {
+      const { data } = await api.get<{ cpf: string; nome: string | null }>('/candidatos/by-cpf', {
+        params: { cpf },
+      });
+      if (data) setCandidatoEncontradoPorCpf(data);
+    } catch {
+      // A consulta é apenas informativa e não deve impedir o cadastro.
+    }
+  };
 
   const formValues = watch();
   const podeGerarAdmissao = useMemo(() => {
@@ -1563,8 +1590,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         toast.success('Candidato criado com sucesso!');
         navigate(`/candidatos/${novoCandidato.id}/editar`, { replace: true });
       }
-    } catch {
-      setError('Não foi possível salvar o candidato. Verifique os dados e tente novamente.');
+    } catch (error: unknown) {
+      const message =
+        isAxiosError(error) &&
+        error.response?.status === 409 &&
+        typeof error.response?.data?.message === 'string'
+        ? error.response.data.message
+        : 'Não foi possível salvar o candidato. Verifique os dados e tente novamente.';
+      setError(message);
     } finally {
       setIsSaving(false);
     }
@@ -2320,6 +2353,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       disabled={isViewMode}
                       placeholder="000.000.000-00"
                       error={errors.cpf?.message}
+                      onBlur={verificarCpfExistente}
                     />
                     <TextField
                       id="dataNascimento"
@@ -2642,8 +2676,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       <TextField
                         id="ddiTelefone"
                         label="DDI"
+                        required={!isCandidato}
                         disabled={isViewMode}
-                        placeholder="+55"
+                        placeholder="55"
                         {...register('ddiTelefone')}
                       />
                       <TextField
@@ -2651,7 +2686,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                         label="DDD"
                         required={!isCandidato}
                         disabled={isViewMode}
-                        placeholder="11"
+                        placeholder="33"
                         {...register('dddTelefone')}
                       />
                       <TextField
@@ -2672,14 +2707,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                         id="ddiTelefone2"
                         label="DDI"
                         disabled={isViewMode}
-                        placeholder="+55"
+                        placeholder="55"
                         {...register('ddiTelefone2')}
                       />
                       <TextField
                         id="dddTelefone2"
                         label="DDD"
                         disabled={isViewMode}
-                        placeholder="11"
+                        placeholder="33"
                         {...register('dddTelefone2')}
                       />
                       <TextField
@@ -2780,7 +2815,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <input type="hidden" {...register('bairroNome')} />
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-[auto_1fr_6rem]">
+                  <div>
                     <ReactSelectField
                       id="tipoLogradouro"
                       label="Logradouro"
@@ -2791,7 +2826,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       error={errors.tipoLogradouro?.message}
                       options={tiposLogradouro.map((t) => ({ value: t.KEYNAM, label: t.VALKEY }))}
                     />
+                  </div>
 
+                  <div>
                     <TextField
                       id="endereco"
                       label="Endereço"
@@ -2801,6 +2838,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       error={errors.endereco?.message}
                       {...register('endereco')}
                     />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-[6rem_1fr]">
                     <TextField
                       id="numero"
                       label="Número"
@@ -2810,15 +2850,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       error={errors.numero?.message}
                       {...register('numero')}
                     />
+                    <TextField
+                      id="complemento"
+                      label="Complemento"
+                      disabled={isViewMode}
+                      placeholder="Apto, bloco..."
+                      {...register('complemento')}
+                    />
                   </div>
-
-                  <TextField
-                    id="complemento"
-                    label="Complemento"
-                    disabled={isViewMode}
-                    placeholder="Apto, bloco..."
-                    {...register('complemento')}
-                  />
                 </CardContent>
               </Card>
 
@@ -2844,7 +2883,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                         id="orgaoEmissorRg"
                         label="Órgão emissor"
                         disabled={isViewMode}
-                        placeholder="SSP/SP"
+                        placeholder="SSP/MG"
                         {...register('orgaoEmissorRg')}
                       />
                       <TextField
@@ -3435,6 +3474,41 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 disabled={!selectedRequisicao || isSavingLink}
               >
                 {isSavingLink ? 'Vinculando...' : 'Confirmar vínculo'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {candidatoEncontradoPorCpf && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div
+            className="w-full max-w-md space-y-4 rounded-lg border bg-background p-6 shadow-lg"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="candidato-existente-title"
+          >
+            <div>
+              <h2 id="candidato-existente-title" className="text-lg font-semibold">
+                CPF já cadastrado
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                O CPF informado já está vinculado a um candidato cadastrado.
+              </p>
+            </div>
+            <div className="space-y-1 rounded-md border bg-muted/35 p-3 text-sm">
+              <p>
+                <span className="font-medium">CPF:</span>{' '}
+                {formatCpf(candidatoEncontradoPorCpf.cpf)}
+              </p>
+              <p>
+                <span className="font-medium">Nome:</span>{' '}
+                {candidatoEncontradoPorCpf.nome || 'Não informado'}
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => setCandidatoEncontradoPorCpf(null)}>
+                Fechar
               </Button>
             </div>
           </div>
