@@ -29,6 +29,7 @@ import DocumentoTemplatesPage from '@/pages/configuracoes/DocumentoTemplatesPage
 import CandidateAssinaturasPage from '@/pages/candidato/CandidateAssinaturasPage';
 // Público
 import VagasPage from '@/pages/public/VagasPage';
+import CandidaturaPage from '@/pages/public/CandidaturaPage';
 import CandidatoPortalPage from '@/pages/public/CandidatoPortalPage';
 import ResponsavelAssinaturasPage from '@/pages/public/ResponsavelAssinaturasPage';
 import VerificacaoPage from '@/pages/verificacao/VerificacaoPage';
@@ -163,6 +164,7 @@ export default function Router() {
       </Route>
       <Route path="/empresa-obrigatoria" element={<CompanyRequiredRoute />} />
       <Route path="/" element={<VagasPage />} />
+      <Route path="/candidatar" element={<CandidaturaPage />} />
       <Route element={<AdminLayoutRoute />}>
         <Route path="/painel" element={<HomePage />} />
         <Route path="/requisicoes" element={<RequisicoesPage />} />

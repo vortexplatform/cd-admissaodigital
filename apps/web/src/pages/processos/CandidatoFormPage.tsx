@@ -194,6 +194,11 @@ interface RequisicaoDisponivel {
   dataPrevistaAdmissao: string | null;
 }
 
+interface Filial {
+  CODFIL: number;
+  NOMFIL: string;
+}
+
 interface RequisicaoSelectOption {
   value: string;
   label: string;
@@ -1082,6 +1087,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     nome: string | null;
   } | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [filiais, setFiliais] = useState<Filial[]>([]);
+  const [filialFilter, setFilialFilter] = useState<RequisicaoSelectOption | null>(null);
   const [selectedRequisicao, setSelectedRequisicao] = useState<RequisicaoOption | null>(null);
   const [isSavingLink, setIsSavingLink] = useState(false);
   const [isUnlinkingCandidaturaId, setIsUnlinkingCandidaturaId] = useState<number | null>(null);
@@ -1149,6 +1156,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
   useEffect(() => {
     api.get<CidadeVaga[]>('/cidades-vaga').then(({ data }) => setCidadesVaga(data)).catch(() => setCidadesVaga([]));
+    api.get<Filial[]>('/general/filial').then(({ data }) => setFiliais(data)).catch(() => setFiliais([]));
   }, []);
 
   useEffect(
@@ -1615,6 +1623,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     if (isSavingLink && !force) return;
 
     setLinkModalOpen(false);
+    setFilialFilter(null);
     setSelectedRequisicao(null);
     setLinkModalError('');
   };
@@ -1637,6 +1646,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             candidatoId: candidato.id,
             limit: 20,
             q: inputValue.trim() || undefined,
+            filial: filialFilter?.value || undefined,
           },
         })
         .then(({ data }) => callback(data.map(formatRequisicaoOption)))
@@ -1646,6 +1656,11 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         });
     }, 350);
   };
+
+  const filialOptions: RequisicaoSelectOption[] = filiais.map((filial) => ({
+    value: String(filial.CODFIL),
+    label: `${String(filial.CODFIL).padStart(2, '0')} - ${filial.NOMFIL}`,
+  }));
 
   const vincularRequisicao = async () => {
     if (!candidato || !selectedRequisicao) return;
@@ -3425,9 +3440,25 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             </div>
             <div className="space-y-4 p-5">
               <label className="space-y-2">
+                <span className="text-sm font-medium">Filial</span>
+                <ReactSelect<RequisicaoSelectOption, false>
+                  isClearable
+                  options={filialOptions}
+                  placeholder="Todas as filiais"
+                  noOptionsMessage={() => 'Nenhuma filial encontrada'}
+                  styles={selectStyles}
+                  value={filialFilter}
+                  onChange={(value) => {
+                    setFilialFilter(value);
+                    setSelectedRequisicao(null);
+                    setLinkModalError('');
+                  }}
+                />
+              </label>
+              <label className="space-y-2">
                 <span className="text-sm font-medium">Buscar requisição com vaga disponível</span>
                 <AsyncSelect<RequisicaoOption, false>
-                  cacheOptions
+                  key={filialFilter?.value ?? 'todas'}
                   defaultOptions
                   loadOptions={loadRequisicaoOptions}
                   loadingMessage={() => 'Buscando requisições...'}

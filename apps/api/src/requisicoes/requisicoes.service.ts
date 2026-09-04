@@ -132,12 +132,15 @@ export class RequisicoesService {
     candidatoId,
     limit,
     q,
+    filial,
   }: {
     candidatoId?: string;
     limit?: string;
     q?: string;
+    filial?: string;
   }) {
     const parsedCandidatoId = optionalNumber(candidatoId);
+    const parsedFilial = optionalNumber(filial);
     const searchTerm = normalizeSearchTerm(q);
     const parsedRequisicaoId = optionalNumber(searchTerm);
     const searchWhere: Prisma.RequisicaoVagaWhereInput = searchTerm
@@ -155,6 +158,7 @@ export class RequisicoesService {
     const requisicoes = await this.prisma.requisicaoVaga.findMany({
       where: {
         ...searchWhere,
+        ...(parsedFilial !== undefined ? { filial: parsedFilial } : {}),
         status: {
           in: [
             StatusRequisicaoVaga.RASCUNHO,

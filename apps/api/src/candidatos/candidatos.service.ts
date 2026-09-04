@@ -2,8 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EmailService } from '../auth/email.service';
+import { GeneralService } from '../general/general.service';
 import { Prisma, StatusCandidatura } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -15,6 +18,12 @@ import { UpdateCandidatoDependenteDto } from './dto/update-candidato-dependente.
 import { UpdateCandidatoEtapaDto } from './dto/update-candidato-etapa.dto';
 import { UpdateCandidatoValeTransporteDto } from './dto/update-candidato-vale-transporte.dto';
 import { UpdateCandidatoDto } from './dto/update-candidato.dto';
+import {
+  PublicCandidatoDto,
+  PublicCandidatoUpdateDto,
+  PublicDadosVagaDto,
+  PublicExperienciaDto,
+} from './dto/public-candidato.dto';
 
 const candidatoInclude = {
   cidadeVaga: true,
@@ -50,10 +59,6 @@ const normalizeNullableDigits = (value?: string | null): string | null | undefin
   if (value === undefined) return undefined;
   return value?.replace(/\D/g, '') || null;
 };
-
-const normalizePis = (value?: string) => value?.replace(/\D/g, '') || undefined;
-
-const normalizeCep = (value?: string) => value?.replace(/\D/g, '') || undefined;
 
 const normalizeSearchTerm = (value?: string) => value?.trim().replace(/\s+/g, ' ') || '';
 
@@ -144,7 +149,9 @@ const exigeJustificativaReprovacao = (situacao?: string) =>
 
 const validateSituacaoCandidato = (dto: CreateCandidatoDto | UpdateCandidatoDto) => {
   if (exigeJustificativaReprovacao(dto.situacao) && !cleanString(dto.justificativaReprovacao)) {
-    throw new BadRequestException('Informe a justificativa para candidato eliminado ou desistente.');
+    throw new BadRequestException(
+      'Informe a justificativa para candidato eliminado ou desistente.',
+    );
   }
 };
 
@@ -238,11 +245,80 @@ const buildCandidatoData = (dto: CreateCandidatoDto | UpdateCandidatoDto) => ({
   responsavelTelefone: cleanNullableString(dto.responsavelTelefone),
 });
 
+const buildPublicDadosVagaData = (dto: PublicDadosVagaDto) => ({
+  bairro: cleanString(dto.bairro) ?? '',
+  estudoHorario: cleanNullableString(dto.estudoHorario),
+  disponibilidadeHorario: dto.disponibilidadeHorario,
+  nomePai: cleanNullableString(dto.nomePai),
+  nomeMae: cleanNullableString(dto.nomeMae),
+  indicadoFuncionario: dto.indicadoFuncionario,
+  indicadoLojaSetor: cleanNullableString(dto.indicadoLojaSetor),
+  parenteEmpresa: dto.parenteEmpresa,
+  parenteNome: cleanNullableString(dto.parenteNome),
+  parenteLojaSetor: cleanNullableString(dto.parenteLojaSetor),
+  aposentado: dto.aposentado,
+  aposentadoriaTipo: cleanNullableString(dto.aposentadoriaTipo),
+  conducaoPropria: cleanNullableString(dto.conducaoPropria),
+});
+
+const buildPublicExperiencias = (experiencias: PublicExperienciaDto[]) =>
+  experiencias.map((experiencia, index) => ({
+    id: index + 1,
+    empresa: cleanString(experiencia.empresa) ?? '',
+    cargo: cleanString(experiencia.cargo) ?? '',
+    admissao: cleanDate(experiencia.admissao),
+    demissao: cleanDate(experiencia.demissao),
+    motivoSaida: cleanNullableString(experiencia.motivoSaida),
+  }));
+
+const grauInstrucaoLabels: Record<string, string> = {
+  '01': 'Analfabeto',
+  '02': '1ª a 4ª Série',
+  '03': '4ª Série Completa',
+  '04': 'Ensino Fundamental Incompleto',
+  '05': 'Ensino Fundamental Completo',
+  '06': 'Ensino Médio Incompleto',
+  '07': 'Ensino Médio Completo',
+  '08': 'Superior Incompleto',
+  '09': 'Superior Completo',
+  '10': 'Pós-Graduação',
+  '11': 'Mestrado',
+  '12': 'Doutorado',
+};
+
+const tipoLogradouroLabels: Record<string, string> = {
+  AV: 'Avenida',
+  R: 'Rua',
+  PC: 'Praça',
+  ROD: 'Rodovia',
+  VLA: 'Vila',
+  COND: 'Condomínio',
+  SIT: 'Sítio',
+  BL: 'Bloco',
+  O: 'Outros',
+};
+
+const calculateAge = (date: Date) => {
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  if (
+    today.getMonth() < date.getMonth() ||
+    (today.getMonth() === date.getMonth() && today.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+  return age.toString();
+};
+
 @Injectable()
 export class CandidatosService {
+  private readonly logger = new Logger(CandidatosService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
+    private readonly email: EmailService,
+    private readonly general: GeneralService,
   ) {}
 
   async create(dto: CreateCandidatoDto) {
@@ -256,24 +332,29 @@ export class CandidatosService {
           ...(buildCandidatoData(dto) as Prisma.CandidatoUncheckedCreateInput),
           dependentes: dependentes?.length
             ? {
-                create: dependentes.map((dependente) =>
-                  buildDependenteData(dependente) as Prisma.CandidatoDependenteCreateWithoutCandidatoInput,
+                create: dependentes.map(
+                  (dependente) =>
+                    buildDependenteData(
+                      dependente,
+                    ) as Prisma.CandidatoDependenteCreateWithoutCandidatoInput,
                 ),
               }
             : undefined,
           valeTransportes: valeTransportes?.length
             ? {
-                create: valeTransportes.map((valeTransporte) =>
-                  buildValeTransporteData(
-                    valeTransporte,
-                  ) as Prisma.CandidatoValeTransporteCreateWithoutCandidatoInput,
+                create: valeTransportes.map(
+                  (valeTransporte) =>
+                    buildValeTransporteData(
+                      valeTransporte,
+                    ) as Prisma.CandidatoValeTransporteCreateWithoutCandidatoInput,
                 ),
               }
             : undefined,
           etapas: etapas?.length
             ? {
                 create: etapas.map(
-                  (etapa) => buildEtapaData(etapa) as Prisma.CandidatoEtapaCreateWithoutCandidatoInput,
+                  (etapa) =>
+                    buildEtapaData(etapa) as Prisma.CandidatoEtapaCreateWithoutCandidatoInput,
                 ),
               }
             : undefined,
@@ -313,7 +394,14 @@ export class CandidatosService {
       return this.buildPaginatedResponse([], 0, currentPage, pageSize);
     }
 
-    return this.findPaginatedFiltered(term, currentPage, pageSize, tab, filialNumero, cidadeVagaNumero);
+    return this.findPaginatedFiltered(
+      term,
+      currentPage,
+      pageSize,
+      tab,
+      filialNumero,
+      cidadeVagaNumero,
+    );
   }
 
   async countByTab(nome?: string, filial?: string, cidadeVagaId?: string) {
@@ -396,6 +484,252 @@ export class CandidatosService {
     });
   }
 
+  async findPublicByCpf(cpf?: string) {
+    const normalizedCpf = normalizeCpf(cpf);
+    if (!normalizedCpf || normalizedCpf.length !== 11) return null;
+
+    return this.prisma.candidato.findUnique({
+      where: { cpf: normalizedCpf },
+      select: {
+        id: true,
+        cpf: true,
+        cidadeVagaId: true,
+        nome: true,
+        email: true,
+        telefone: true,
+        dddTelefone: true,
+        numeroTelefone: true,
+        dataNascimento: true,
+        estadoCivil: true,
+        raccor: true,
+        grauInstrucao: true,
+        cep: true,
+        estadoEndereco: true,
+        cidadeCod: true,
+        cidadeNome: true,
+        bairroCod: true,
+        bairroNome: true,
+        tipoLogradouro: true,
+        endereco: true,
+        numero: true,
+        complemento: true,
+        dadosVaga: true,
+        lojasProximas: { orderBy: { codfil: 'asc' } },
+        experiencias: { orderBy: { id: 'asc' } },
+      },
+    });
+  }
+
+  findPublicCities() {
+    return this.prisma.cidadeVaga.findMany({ orderBy: { nome: 'asc' } });
+  }
+
+  async findPublicCity(id: number) {
+    const cidade = await this.prisma.cidadeVaga.findUnique({ where: { id } });
+    if (!cidade) throw new NotFoundException('Cidade da vaga não encontrada');
+    return cidade;
+  }
+
+  async savePublic(dto: PublicCandidatoDto) {
+    await this.ensureCidadeVagaExists(dto.cidadeVagaId);
+
+    try {
+      const candidato = await this.prisma.candidato.create({
+        data: {
+          ...(buildCandidatoData({
+            ...dto,
+            situacao: 'CANDIDATO',
+            possuiFilhos: false,
+          }) as Prisma.CandidatoUncheckedCreateInput),
+          dadosVaga: { create: buildPublicDadosVagaData(dto.dadosVaga) },
+          lojasProximas: { create: dto.lojasProximas.map(({ codfil }) => ({ codfil })) },
+          experiencias: { create: buildPublicExperiencias(dto.experiencias) },
+        },
+        include: candidatoInclude,
+      });
+      await this.linkUserByCpf(candidato.cpf);
+      await this.notifyPublicCandidatura(dto.cpf, dto);
+      return candidato;
+    } catch (error) {
+      this.handlePrismaError(error);
+    }
+  }
+
+  async updatePublic(dto: PublicCandidatoUpdateDto) {
+    const candidato = await this.prisma.candidato.findUnique({
+      where: { cpf: normalizeCpf(dto.cpf) },
+      select: { id: true },
+    });
+    if (!candidato) throw new NotFoundException('Candidato não encontrado');
+
+    const endereco = dto.atualizarEndereco
+      ? {
+          cep: normalizeNullableDigits(dto.cep),
+          estadoEndereco: cleanNullableString(dto.estadoEndereco),
+          cidadeCod: dto.cidadeCod,
+          cidadeNome: cleanNullableString(dto.cidadeNome),
+          bairroCod: dto.bairroCod,
+          bairroNome: cleanNullableString(dto.bairroNome),
+          tipoLogradouro: cleanNullableString(dto.tipoLogradouro),
+          endereco: cleanNullableString(dto.endereco),
+          numero: cleanNullableString(dto.numero),
+          complemento: cleanNullableString(dto.complemento),
+        }
+      : {};
+
+    const saved = await this.prisma.$transaction(async (tx) => {
+      await tx.candidato.update({
+        where: { id: candidato.id },
+        data: {
+          ...endereco,
+          email: cleanNullableString(dto.email),
+          telefone: cleanNullableString(dto.telefone),
+          dddTelefone: cleanNullableString(dto.dddTelefone),
+          numeroTelefone: cleanNullableString(dto.numeroTelefone),
+          dadosVaga: {
+            upsert: {
+              create: buildPublicDadosVagaData(dto.dadosVaga),
+              update: buildPublicDadosVagaData(dto.dadosVaga),
+            },
+          },
+          lojasProximas: {
+            deleteMany: {},
+            create: dto.lojasProximas.map(({ codfil }) => ({ codfil })),
+          },
+          experiencias: { deleteMany: {}, create: buildPublicExperiencias(dto.experiencias) },
+        },
+      });
+      return tx.candidato.findUniqueOrThrow({
+        where: { id: candidato.id },
+        include: candidatoInclude,
+      });
+    });
+    await this.notifyPublicCandidatura(dto.cpf, dto);
+    return saved;
+  }
+
+  private async notifyPublicCandidatura(
+    cpf: string,
+    submission: Partial<Pick<PublicCandidatoDto, 'vagas' | 'pcd' | 'pretensaoSalarial'>>,
+  ) {
+    try {
+      const candidato = await this.findPublicByCpf(cpf);
+      if (!candidato) return;
+
+      const [cidadeVaga, estadosCivis, etnias] = await Promise.all([
+        this.findPublicCity(candidato.cidadeVagaId),
+        this.general.getEstadosCivis().catch(() => []),
+        this.general.getEtnia().catch(() => []),
+      ]);
+      const dadosVaga = candidato.dadosVaga;
+      const estadoCivil = estadosCivis.find(
+        (item) => item.KEYNAM === candidato.estadoCivil,
+      )?.VALKEY;
+      const etnia = etnias.find((item) => item.CODETN === candidato.raccor)?.DESETN;
+      await this.email.sendCandidaturaNotification(candidato.nome ?? candidato.cpf, [
+        {
+          title: 'Interesse profissional',
+          fields: [
+            { label: 'Vagas de interesse', value: submission.vagas?.join(', ') },
+            {
+              label: 'Pessoa com deficiência (PCD)',
+              value: submission.pcd === undefined ? undefined : submission.pcd ? 'Sim' : 'Não',
+            },
+            { label: 'Pretensão salarial', value: submission.pretensaoSalarial },
+          ],
+        },
+        {
+          title: 'Dados pessoais',
+          fields: [
+            { label: 'Nome', value: candidato.nome },
+            { label: 'CPF', value: candidato.cpf },
+            {
+              label: 'Data de nascimento',
+              value: candidato.dataNascimento?.toLocaleDateString('pt-BR'),
+            },
+            {
+              label: 'Idade',
+              value: candidato.dataNascimento
+                ? `${calculateAge(candidato.dataNascimento)} anos`
+                : undefined,
+            },
+            { label: 'Estado civil', value: estadoCivil },
+            { label: 'Raça/cor', value: etnia },
+            {
+              label: 'Grau de instrução',
+              value: grauInstrucaoLabels[candidato.grauInstrucao ?? ''],
+            },
+          ],
+        },
+        {
+          title: 'Contato e endereço',
+          fields: [
+            { label: 'E-mail', value: candidato.email },
+            { label: 'Telefone', value: candidato.telefone },
+            { label: 'CEP', value: candidato.cep },
+            { label: 'Estado', value: candidato.estadoEndereco },
+            { label: 'Cidade', value: candidato.cidadeNome },
+            { label: 'Bairro', value: candidato.bairroNome },
+            {
+              label: 'Tipo de logradouro',
+              value: tipoLogradouroLabels[candidato.tipoLogradouro ?? ''],
+            },
+            { label: 'Endereço', value: candidato.endereco },
+            { label: 'Número', value: candidato.numero },
+            { label: 'Complemento', value: candidato.complemento },
+          ],
+        },
+        {
+          title: 'Perfil profissional',
+          fields: [
+            { label: 'Cidade próxima', value: cidadeVaga.nome },
+            { label: 'Bairros mais próximos', value: dadosVaga?.bairro },
+            { label: 'Horário de estudo', value: dadosVaga?.estudoHorario },
+            { label: 'Condução própria', value: dadosVaga?.conducaoPropria },
+            {
+              label: 'Disponibilidade de horário',
+              value: dadosVaga?.disponibilidadeHorario ? 'Sim' : 'Não',
+            },
+            { label: 'Nome do pai', value: dadosVaga?.nomePai },
+            { label: 'Nome da mãe', value: dadosVaga?.nomeMae },
+            {
+              label: 'Indicado por funcionário',
+              value: dadosVaga?.indicadoFuncionario ? 'Sim' : 'Não',
+            },
+            { label: 'Loja/setor da indicação', value: dadosVaga?.indicadoLojaSetor },
+            {
+              label: 'Possui parente na empresa',
+              value: dadosVaga?.parenteEmpresa ? 'Sim' : 'Não',
+            },
+            { label: 'Nome do parente', value: dadosVaga?.parenteNome },
+            { label: 'Loja/setor do parente', value: dadosVaga?.parenteLojaSetor },
+            { label: 'É aposentado', value: dadosVaga?.aposentado ? 'Sim' : 'Não' },
+            { label: 'Tipo de aposentadoria', value: dadosVaga?.aposentadoriaTipo },
+          ],
+        },
+        {
+          title: 'Experiências profissionais',
+          fields: candidato.experiencias.flatMap((experiencia, index) => [
+            { label: `Experiência ${index + 1} - Empresa`, value: experiencia.empresa },
+            { label: `Experiência ${index + 1} - Cargo`, value: experiencia.cargo },
+            {
+              label: `Experiência ${index + 1} - Admissão`,
+              value: experiencia.admissao?.toLocaleDateString('pt-BR'),
+            },
+            {
+              label: `Experiência ${index + 1} - Demissão`,
+              value: experiencia.demissao?.toLocaleDateString('pt-BR'),
+            },
+            { label: `Experiência ${index + 1} - Motivo de saída`, value: experiencia.motivoSaida },
+          ]),
+        },
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      this.logger.error(`Erro ao enviar notificação da candidatura ${cpf}: ${message}`);
+    }
+  }
+
   private buildCandidateListFilters(
     term: string,
     filial?: number,
@@ -440,7 +774,13 @@ export class CandidatosService {
     cidadeVagaId?: number,
   ) {
     const query = async (useUnaccent: boolean) => {
-      const where = this.buildCandidateListFilters(term, filial, situacao, cidadeVagaId, useUnaccent);
+      const where = this.buildCandidateListFilters(
+        term,
+        filial,
+        situacao,
+        cidadeVagaId,
+        useUnaccent,
+      );
       const offset = (page - 1) * limit;
       const [idRows, totalRows] = await Promise.all([
         this.prisma.$queryRaw<Array<{ id: number }>>(Prisma.sql`
@@ -482,9 +822,19 @@ export class CandidatosService {
     }
   }
 
-  private async findFilteredCandidateStatuses(term: string, filial?: number, cidadeVagaId?: number) {
+  private async findFilteredCandidateStatuses(
+    term: string,
+    filial?: number,
+    cidadeVagaId?: number,
+  ) {
     const query = (useUnaccent: boolean) => {
-      const where = this.buildCandidateListFilters(term, filial, undefined, cidadeVagaId, useUnaccent);
+      const where = this.buildCandidateListFilters(
+        term,
+        filial,
+        undefined,
+        cidadeVagaId,
+        useUnaccent,
+      );
       return this.prisma.$queryRaw<Array<{ status: StatusCandidatura | null }>>(Prisma.sql`
         WITH latest AS (
           SELECT DISTINCT ON ("candidato_id") "candidato_id", "requisicao_id", "status"
@@ -551,7 +901,10 @@ export class CandidatosService {
     if (cpf && cpf !== candidato.cpf) throw new BadRequestException('CPF não pode ser alterado.');
 
     try {
-      const data = buildCandidatoData({ ...dto, cpf: undefined }) as Prisma.CandidatoUncheckedUpdateInput;
+      const data = buildCandidatoData({
+        ...dto,
+        cpf: undefined,
+      }) as Prisma.CandidatoUncheckedUpdateInput;
       return await this.prisma.candidato.update({
         where: { id },
         data,
@@ -573,7 +926,11 @@ export class CandidatosService {
     });
   }
 
-  async updateDependente(candidatoId: number, dependenteId: number, dto: UpdateCandidatoDependenteDto) {
+  async updateDependente(
+    candidatoId: number,
+    dependenteId: number,
+    dto: UpdateCandidatoDependenteDto,
+  ) {
     await this.ensureDependenteBelongsToCandidato(candidatoId, dependenteId);
 
     return this.prisma.candidatoDependente.update({
@@ -675,7 +1032,10 @@ export class CandidatosService {
   }
 
   private async ensureCandidatoExists(id: number) {
-    const candidato = await this.prisma.candidato.findUnique({ where: { id }, select: { id: true } });
+    const candidato = await this.prisma.candidato.findUnique({
+      where: { id },
+      select: { id: true },
+    });
     if (!candidato) throw new NotFoundException('Candidato não encontrado');
   }
 

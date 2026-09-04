@@ -6,6 +6,6 @@ import { SeniorApiService } from './senior-api.service';
 @Module({
   controllers: [GeneralController],
   providers: [GeneralService, SeniorApiService],
-  exports: [SeniorApiService],
+  exports: [GeneralService, SeniorApiService],
 })
 export class GeneralModule {}

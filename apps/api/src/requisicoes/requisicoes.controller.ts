@@ -43,8 +43,9 @@ export class RequisicoesController {
     @Query('candidatoId') candidatoId?: string,
     @Query('q') q?: string,
     @Query('limit') limit?: string,
+    @Query('filial') filial?: string,
   ) {
-    return this.requisicoes.findDisponiveis({ candidatoId, q, limit });
+    return this.requisicoes.findDisponiveis({ candidatoId, q, limit, filial });
   }
 
   @Get(':id')

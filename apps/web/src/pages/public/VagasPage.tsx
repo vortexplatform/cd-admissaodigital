@@ -1,57 +1,65 @@
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
-  Briefcase,
+  Check,
   GraduationCap,
   HeartHandshake,
-  MapPin,
   Mail,
+  MapPin,
+  Menu,
   Phone,
-  Store,
-  Clock,
 } from 'lucide-react';
-
-const vagasDestaque = [
-  { cargo: 'Operador(a) de Caixa', setor: 'Frente de loja', tipo: 'Efetivo' },
-  { cargo: 'Repositor(a)', setor: 'Mercadorias', tipo: 'Efetivo' },
-  { cargo: 'Açougueiro(a)', setor: 'Açougue', tipo: 'Efetivo' },
-  { cargo: 'Padeiro(a)', setor: 'Padaria', tipo: 'Efetivo' },
-  { cargo: 'Fiscal de Loja', setor: 'Operações', tipo: 'Efetivo' },
-  { cargo: 'Jovem Aprendiz', setor: 'Todos os setores', tipo: 'Aprendizagem' },
-];
 
 const BRAND_YELLOW = '#f5c400';
 
+const vagasDestaque = [
+  { cargo: 'Açougueiro', image: 'ico_acougue.jpg' },
+  { cargo: 'Auxiliar de Depósito', image: 'ico_deposito.jpg' },
+  { cargo: 'Auxiliar de Frios', image: 'ico_frios.jpg' },
+  { cargo: 'Auxiliar de Hortifruti', image: 'ico_hotrifruti.jpg' },
+  { cargo: 'Auxiliar de Limpeza', image: 'ico_limpeza.jpg' },
+  { cargo: 'Auxiliar de Padaria', image: 'auxiliar-de-padaria.jpg' },
+  { cargo: 'Embalador', image: 'embalador.jpg' },
+  { cargo: 'Operador de Caixa', image: 'ico_operadora-caixa.jpg' },
+  { cargo: 'Padeiro', image: 'ico_padaria.jpg' },
+  { cargo: 'Prevenção e Perdas', image: 'ico_prevencao-perdas.jpg' },
+  { cargo: 'Repositor', image: 'ico_repositor.jpg' },
+];
+
+function Brand() {
+  return (
+    <Link to="/" className="flex items-center gap-3" aria-label="Coelho Diniz RH, início">
+      <img
+        src="/images/logo-coelho-diniz.png"
+        alt="Coelho Diniz"
+        className="h-auto w-[160px] rounded-sm"
+      />
+    </Link>
+  );
+}
+
 function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-neutral-950/95 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link to="/" className="flex items-center gap-2">
-          <span
-            className="flex h-9 w-9 items-center justify-center rounded-md font-display text-lg font-bold text-neutral-950"
-            style={{ backgroundColor: BRAND_YELLOW }}
-          >
-            CD
-          </span>
-          <span className="font-display text-base font-semibold tracking-tight text-white">
-            Coelho Diniz <span style={{ color: BRAND_YELLOW }}>RH</span>
-          </span>
-        </Link>
-        <nav className="flex items-center gap-2 sm:gap-3">
-          <Link
-            to="/rh/login"
-            className="rounded-md border border-white/25 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-white/60"
-          >
-            Sou RH
-          </Link>
-          <Link
-            to="/rh/login-candidato"
-            className="rounded-md px-4 py-2 text-sm font-semibold text-neutral-950 transition-opacity hover:opacity-90"
-            style={{ backgroundColor: BRAND_YELLOW }}
-          >
-            Sou Candidato
-          </Link>
+    <header className="absolute inset-x-0 top-0 z-20">
+      <div className="mx-auto flex max-w-content items-center justify-between px-5 py-5 sm:px-8 lg:py-7">
+        <Brand />
+        <nav className="hidden items-center gap-8 text-sm font-medium text-white/80 lg:flex" aria-label="Navegação principal">
+          <Link to="/" className="text-white transition-colors hover:text-yellow-300">HOME</Link>
+          <a href="#vagas" className="transition-colors hover:text-white">Vagas disponíveis</a>
+           <Link to="/candidatar" className="rounded-pill px-4 py-2.5 font-semibold text-ink transition-opacity hover:opacity-90" style={{ backgroundColor: BRAND_YELLOW }}>
+             Candidatar a vagas
+           </Link>
         </nav>
+        <details className="relative lg:hidden">
+          <summary className="flex list-none cursor-pointer rounded-md border border-white/25 p-2 text-white" aria-label="Abrir menu">
+            <Menu className="h-5 w-5" />
+          </summary>
+          <nav className="absolute right-0 top-12 flex w-56 flex-col gap-1 rounded-lg border border-white/10 bg-inverse-surface p-2 text-sm text-white shadow-xl" aria-label="Navegação mobile">
+            <Link to="/" className="rounded-md px-3 py-2 hover:bg-white/10">HOME</Link>
+            <a href="#vagas" className="rounded-md px-3 py-2 hover:bg-white/10">Vagas disponíveis</a>
+             <Link to="/candidatar" className="mt-1 rounded-md px-3 py-2 text-left font-semibold text-ink" style={{ backgroundColor: BRAND_YELLOW }}>Candidatar a vagas</Link>
+          </nav>
+        </details>
       </div>
     </header>
   );
@@ -59,107 +67,28 @@ function Header() {
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden bg-neutral-950 text-white">
-      <div
-        className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full opacity-20 blur-3xl"
-        style={{ backgroundColor: BRAND_YELLOW }}
-      />
-      <div
-        className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full opacity-10 blur-3xl"
-        style={{ backgroundColor: BRAND_YELLOW }}
-      />
-      <div className="relative mx-auto max-w-6xl px-4 py-24 sm:px-6 sm:py-32">
-        <p className="text-sm font-semibold uppercase tracking-widest" style={{ color: BRAND_YELLOW }}>
-          Recrutamento &amp; Seleção
-        </p>
-        <h1 className="mt-4 max-w-3xl font-display text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
-          Sua carreira começa onde o atendimento é levado a{' '}
-          <span style={{ color: BRAND_YELLOW }}>sério</span>.
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg text-neutral-300">
-          O Supermercado Coelho Diniz busca profissionais comprometidos com a satisfação dos
-          clientes e o crescimento da empresa. Cadastre seu currículo e faça parte do nosso time.
-        </p>
-        <div className="mt-10 flex flex-wrap items-center gap-4">
-          <Link
-            to="/rh/login-candidato"
-            className="inline-flex items-center gap-2 rounded-md px-6 py-3 text-base font-semibold text-neutral-950 transition-opacity hover:opacity-90"
-            style={{ backgroundColor: BRAND_YELLOW }}
-          >
-            Quero me candidatar
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <a
-            href="#vagas"
-            className="inline-flex items-center gap-2 rounded-md border border-white/25 px-6 py-3 text-base font-medium text-white transition-colors hover:border-white/60"
-          >
-            Ver vagas
-          </a>
-        </div>
-        <dl className="mt-16 grid max-w-2xl grid-cols-3 gap-6 border-t border-white/10 pt-8">
-          {[
-            ['+40', 'anos de história'],
-            ['Diversas', 'unidades na região'],
-            ['Centenas', 'de colaboradores'],
-          ].map(([valor, rotulo]) => (
-            <div key={rotulo}>
-              <dt className="sr-only">{rotulo}</dt>
-              <dd className="font-display text-2xl font-semibold sm:text-3xl" style={{ color: BRAND_YELLOW }}>
-                {valor}
-              </dd>
-              <dd className="mt-1 text-sm text-neutral-400">{rotulo}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+    <section className="relative isolate h-[360px] overflow-hidden bg-inverse-canvas sm:h-[470px] lg:h-[560px]">
+      <img src="/images/banner-02.jpg" alt="Campanha de recrutamento Coelho Diniz" className="h-full w-full object-cover object-center" />
     </section>
   );
 }
 
 function Vagas() {
   return (
-    <section id="vagas" className="bg-white py-20 sm:py-24">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <p className="text-sm font-semibold uppercase tracking-widest text-neutral-500">
-          Oportunidades
-        </p>
-        <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
-          Vagas disponíveis
-        </h2>
-        <p className="mt-4 max-w-2xl text-neutral-600">
-          Estamos sempre em busca de talentos para as nossas lojas. Confira algumas das posições
-          que costumamos recrutar e cadastre seu currículo — nossa equipe de RH entrará em contato
-          quando surgir uma oportunidade para o seu perfil.
-        </p>
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <section id="vagas" className="bg-white py-10 sm:py-14">
+      <div className="mx-auto max-w-[1840px] px-6 sm:px-10 lg:px-12">
+        <h2 className="text-center font-display text-[38px] font-bold uppercase tracking-tight text-ink">Vagas disponíveis</h2>
+        <div className="mt-10 grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4 lg:gap-x-12 lg:gap-y-10">
           {vagasDestaque.map((vaga) => (
-            <div
-              key={vaga.cargo}
-              className="group flex flex-col rounded-xl border border-neutral-200 bg-white p-6 transition-colors hover:border-neutral-950"
-            >
-              <div className="flex items-center justify-between">
-                <span
-                  className="flex h-10 w-10 items-center justify-center rounded-md"
-                  style={{ backgroundColor: `${BRAND_YELLOW}26` }}
-                >
-                  <Briefcase className="h-5 w-5 text-neutral-950" />
-                </span>
-                <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
-                  {vaga.tipo}
-                </span>
+             <Link to="/candidatar" state={{ vaga: vaga.cargo }} key={vaga.cargo} className="group overflow-hidden bg-[#f1f1f1] text-center transition-transform hover:-translate-y-1 hover:shadow-md">
+              <div className="aspect-[1.48] overflow-hidden bg-surface-2">
+                <img src={`/images/vagas/${vaga.image}`} alt={`Imagem ilustrativa para a vaga de ${vaga.cargo}`} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
               </div>
-              <h3 className="mt-4 font-display text-lg font-semibold text-neutral-950">
-                {vaga.cargo}
-              </h3>
-              <p className="mt-1 text-sm text-neutral-500">{vaga.setor}</p>
-              <Link
-                to="/rh/login-candidato"
-                className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-950 group-hover:underline"
-              >
-                Candidatar-se
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
+              <div className="flex min-h-[164px] flex-col items-center px-4 py-4 sm:min-h-[172px]">
+                <h3 className="font-display text-xl font-bold uppercase leading-tight tracking-tight text-ink sm:text-[22px]">{vaga.cargo}</h3>
+                <span className="mt-4 inline-flex min-w-[170px] items-center justify-center rounded-md px-5 py-3 text-lg font-medium uppercase text-ink shadow-sm transition-colors group-hover:bg-[#e0b400]" style={{ backgroundColor: BRAND_YELLOW }}>Saber mais...</span>
+              </div>
+            </Link>
           ))}
         </div>
       </div>
@@ -169,65 +98,36 @@ function Vagas() {
 
 function Inclusao() {
   return (
-    <section className="bg-neutral-950 py-20 text-white sm:py-24">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-2">
+    <section id="cultura" className="bg-surface-1 py-16 sm:py-24">
+      <div className="mx-auto grid max-w-content items-center gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_500px] lg:gap-20">
         <div>
-          <span
-            className="flex h-12 w-12 items-center justify-center rounded-md"
-            style={{ backgroundColor: BRAND_YELLOW }}
-          >
-            <HeartHandshake className="h-6 w-6 text-neutral-950" />
-          </span>
-          <h2 className="mt-6 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            Incluir para transformar
-          </h2>
-          <p className="mt-4 text-neutral-300">
-            A Lei nº 8.213/91 prevê que empresas destinem cotas de vagas para pessoas com
-            deficiência (PCD). Cientes da nossa responsabilidade e preocupados com a integração e
-            a inclusão, o Supermercado Coelho Diniz oferece condições de trabalho e oportunidades
-            para PCDs.
-          </p>
-          <p className="mt-4 text-neutral-300">
-            Se você — ou alguém que conheça — se encaixa nesse perfil, indique-nos: gostaríamos
-            muito de conhecê-lo.
-          </p>
-          <Link
-            to="/rh/login-candidato"
-            className="mt-8 inline-flex items-center gap-2 rounded-md px-6 py-3 text-base font-semibold text-neutral-950 transition-opacity hover:opacity-90"
-            style={{ backgroundColor: BRAND_YELLOW }}
-          >
-            Quero participar
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <HeartHandshake className="h-8 w-8 text-report-orange" />
+          <p className="mt-7 text-eyebrow uppercase tracking-[.18em] text-ink-muted">Inclusão para transformar</p>
+          <h2 className="mt-4 max-w-xl font-display text-headline font-semibold text-ink sm:text-display-md">Oportunidades para todos os talentos.</h2>
+          <p className="mt-6 max-w-2xl text-body-lg text-ink-muted">Você sabia que a Lei nº 8.213/91 prevê que Empresas destinem cotas de vagas para pessoas com deficiência (PCD)? Ciente de nossas responsabilidades e preocupado com a integração e inclusão destas pessoas, o Supermercado Coelho Diniz oferece condições de trabalho e oportunidades para PCD´S. Se você ou alguma pessoa que você conheça se encaixa neste quadro, indique-nos pois também gostaríamos muito de conhece-los.</p>
+           <Link to="/candidatar" className="mt-8 inline-flex items-center gap-2 rounded-md px-5 py-3 text-button font-semibold text-ink" style={{ backgroundColor: BRAND_YELLOW }}>Quero participar <ArrowRight className="h-4 w-4" /></Link>
         </div>
-        <div className="rounded-xl border border-white/10 bg-white/5 p-8">
-          <span
-            className="flex h-12 w-12 items-center justify-center rounded-md"
-            style={{ backgroundColor: `${BRAND_YELLOW}26` }}
-          >
-            <GraduationCap className="h-6 w-6" style={{ color: BRAND_YELLOW }} />
-          </span>
-          <h3 className="mt-6 font-display text-2xl font-semibold">Programa de Aprendizagem</h3>
-          <p className="mt-4 text-neutral-300">
-            Com formação teórica e prática — e sem prejuízo para a formação escolar — preparamos e
-            capacitamos adolescentes e jovens entre 14 e 24 anos para os desafios do mundo do
-            trabalho.
-          </p>
-          <ul className="mt-6 space-y-3 text-sm text-neutral-300">
-            <li className="flex items-start gap-2">
-              <Clock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_YELLOW }} />
-              Jornada compatível com os estudos
-            </li>
-            <li className="flex items-start gap-2">
-              <Store className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_YELLOW }} />
-              Vivência prática em ambiente real de loja
-            </li>
-            <li className="flex items-start gap-2">
-              <Briefcase className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_YELLOW }} />
-              Porta de entrada para a carreira profissional
-            </li>
-          </ul>
+        <div className="overflow-hidden rounded-xl bg-inverse-canvas shadow-sm">
+          <img src="/images/vagas_pcd.jpg" alt="Vaga para pessoa com deficiência no Coelho Diniz" className="h-auto w-full" />
         </div>
+      </div>
+    </section>
+  );
+}
+
+function Aprendizagem() {
+  return (
+    <section className="border-t border-hairline bg-canvas py-16 sm:py-24">
+      <div className="mx-auto max-w-content px-5 sm:px-8">
+        <div className="max-w-3xl">
+          <GraduationCap className="h-8 w-8 text-report-orange" />
+          <p className="mt-7 text-eyebrow uppercase tracking-[.18em] text-ink-muted">Primeiros passos</p>
+          <h2 className="mt-4 max-w-xl font-display text-headline font-semibold text-ink sm:text-display-md">Programa de aprendizagem</h2>
+          <p className="mt-6 max-w-2xl text-body-lg text-ink-muted">Com formação teórica e prática e sem prejuízo para a formação escolar, preparamos e capacitamos adolescentes e jovens entre 14 e 24 anos para os desafios do mundo do trabalho.</p>
+        </div>
+        <ul className="mt-8 grid gap-4 border-t border-hairline pt-6 text-body-sm text-ink sm:grid-cols-3 sm:gap-6">
+          {['Jornada compatível com os estudos', 'Vivência prática em loja', 'Porta de entrada para a carreira'].map((item) => <li key={item} className="flex items-start gap-3"><Check className="mt-0.5 h-4 w-4 shrink-0 text-report-orange" />{item}</li>)}
+        </ul>
       </div>
     </section>
   );
@@ -235,22 +135,14 @@ function Inclusao() {
 
 function QuemSomos() {
   return (
-    <section className="bg-white py-20 sm:py-24">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-semibold uppercase tracking-widest text-neutral-500">
-            Quem somos
-          </p>
-          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
-            Supermercados Coelho Diniz
-          </h2>
-          <p className="mt-6 text-lg text-neutral-600">
-            Através de um processo de Recrutamento e Seleção sério e transparente, buscamos
-            profissionais que se comprometam com a satisfação dos clientes e com o crescimento da
-            empresa — visando sempre a superação naquilo que nos propomos a fazer:{' '}
-            <span className="font-semibold text-neutral-950">atender com qualidade</span>.
-          </p>
+    <section className="border-t border-hairline bg-canvas py-16 sm:py-24">
+      <div className="mx-auto max-w-content px-5 sm:px-8">
+        <div className="max-w-3xl">
+          <p className="text-eyebrow uppercase tracking-[.18em] text-ink-muted">Quem somos</p>
+          <h2 className="mt-4 max-w-xl font-display text-headline font-semibold tracking-tight text-ink sm:text-display-md">Supermercados Coelho Diniz</h2>
+          <p className="mt-6 max-w-2xl text-body-lg text-ink-muted">Através de um processo de recrutamento e seleção sério e transparente, buscamos profissionais comprometidos com a satisfação dos clientes e com o crescimento da empresa.</p>
         </div>
+        <p className="mt-8 border-t border-hairline pt-6 text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-3xl">Nosso jeito de fazer é simples: <strong className="text-report-orange">atender com qualidade.</strong></p>
       </div>
     </section>
   );
@@ -258,86 +150,17 @@ function QuemSomos() {
 
 function Footer() {
   return (
-    <footer className="border-t border-white/10 bg-neutral-950 py-14 text-white">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 md:grid-cols-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-md font-display text-lg font-bold text-neutral-950"
-              style={{ backgroundColor: BRAND_YELLOW }}
-            >
-              CD
-            </span>
-            <span className="font-display text-base font-semibold tracking-tight">
-              Coelho Diniz <span style={{ color: BRAND_YELLOW }}>RH</span>
-            </span>
-          </div>
-          <p className="mt-4 text-sm text-neutral-400">
-            Recrutamento e seleção dos Supermercados Coelho Diniz.
-          </p>
-        </div>
-        <div>
-          <h4 className="text-sm font-semibold uppercase tracking-widest text-neutral-400">
-            Contato
-          </h4>
-          <ul className="mt-4 space-y-3 text-sm text-neutral-300">
-            <li className="flex items-start gap-2">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_YELLOW }} />
-              Rua Marechal Floriano, 1495 - Centro
-            </li>
-            <li className="flex items-start gap-2">
-              <Phone className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_YELLOW }} />
-              (33) 3279-6101
-            </li>
-            <li className="flex items-start gap-2">
-              <Mail className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_YELLOW }} />
-              <a href="mailto:vagas@coelhodiniz.com.br" className="hover:underline">
-                vagas@coelhodiniz.com.br
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div>
-          <h4 className="text-sm font-semibold uppercase tracking-widest text-neutral-400">
-            Acesso rápido
-          </h4>
-          <ul className="mt-4 space-y-3 text-sm text-neutral-300">
-            <li>
-              <a href="#vagas" className="hover:text-white">
-                Vagas disponíveis
-              </a>
-            </li>
-            <li>
-              <Link to="/rh/login-candidato" className="hover:text-white">
-                Área do candidato
-              </Link>
-            </li>
-            <li>
-              <Link to="/rh/login" className="hover:text-white">
-                Acesso RH
-              </Link>
-            </li>
-          </ul>
-        </div>
+    <footer className="bg-inverse-canvas py-12 text-white">
+      <div className="mx-auto grid max-w-content gap-10 px-5 sm:px-8 md:grid-cols-[1.2fr_.8fr_.8fr]">
+        <div><Brand /><p className="mt-5 max-w-xs text-body-sm text-white/50">Recrutamento e seleção dos Supermercados Coelho Diniz.</p></div>
+        <div><h3 className="text-eyebrow uppercase tracking-[.18em] text-white/40">Contato</h3><ul className="mt-4 space-y-3 text-body-sm text-white/70"><li className="flex gap-2"><MapPin className="h-4 w-4 shrink-0 text-yellow-300" />Rua Marechal Floriano, 1495 - Centro</li><li className="flex gap-2"><Phone className="h-4 w-4 shrink-0 text-yellow-300" />(33) 3279-6101</li><li className="flex gap-2"><Mail className="h-4 w-4 shrink-0 text-yellow-300" /><a href="mailto:vagas@coelhodiniz.com.br" className="hover:text-white">vagas@coelhodiniz.com.br</a></li></ul></div>
+        <div><h3 className="text-eyebrow uppercase tracking-[.18em] text-white/40">Acesso rápido</h3><ul className="mt-4 space-y-3 text-body-sm text-white/70"><li><a href="#vagas" className="hover:text-white">Vagas disponíveis</a></li><li><Link to="/rh/login-candidato" className="hover:text-white">Área do candidato</Link></li><li><Link to="/rh/login" className="hover:text-white">Acesso RH</Link></li></ul></div>
       </div>
-      <div className="mx-auto mt-12 max-w-6xl border-t border-white/10 px-4 pt-6 text-xs text-neutral-500 sm:px-6">
-        © {new Date().getFullYear()} Supermercados Coelho Diniz. Todos os direitos reservados.
-      </div>
+      <div className="mx-auto mt-12 max-w-content border-t border-white/10 px-5 pt-6 text-caption text-white/35 sm:px-8">© {new Date().getFullYear()} Supermercados Coelho Diniz. Todos os direitos reservados.</div>
     </footer>
   );
 }
 
 export default function VagasPage() {
-  return (
-    <div className="min-h-screen bg-white">
-      <Header />
-      <main>
-        <Hero />
-        <Vagas />
-        <Inclusao />
-        <QuemSomos />
-      </main>
-      <Footer />
-    </div>
-  );
+  return <div className="home-montserrat min-h-screen bg-canvas"><Header /><main><Hero /><Vagas /><Inclusao /><Aprendizagem /><QuemSomos /></main><Footer /></div>;
 }

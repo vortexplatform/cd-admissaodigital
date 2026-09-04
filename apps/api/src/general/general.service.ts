@@ -66,6 +66,14 @@ export interface FilialSenior {
   NOMFIL: string;
 }
 
+export interface BairroCidadeVagaSenior {
+  CODFIL: number;
+  CODCID: number;
+  NOMCID: string;
+  CODBAI: number;
+  NOMBAI: string;
+}
+
 export interface EscalaSenior {
   CODESC: number;
   NOMESC: string;
@@ -140,6 +148,10 @@ export class GeneralService {
 
   getFiliais(): Promise<FilialSenior[]> {
     return this.seniorApi.get('/general/filial');
+  }
+
+  getBairrosCidadeVaga(codcid: number): Promise<BairroCidadeVagaSenior[]> {
+    return this.seniorApi.get(`/admissao/cidade?codcid=${codcid}`);
   }
 
   getWorkschedules(): Promise<EscalaSenior[]> {

@@ -14,17 +14,17 @@ enum Role {
 }
 
 model User {
-  id        Int              @id @default(autoincrement())
-  cpf       String?          @unique
-  nome      String?
-  email     String?          @unique
-  telefone  String?          @unique
+  id           Int              @id @default(autoincrement())
+  cpf          String?          @unique
+  nome         String?
+  email        String?          @unique
+  telefone     String?          @unique
   role         Role             @default(CANDIDATO)
   passwordHash String?          @map("password_hash")
   createdAt    DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  candidato Candidato?
-  empresas  EmpresaUsuario[]
+  updatedAt    DateTime         @updatedAt
+  candidato    Candidato?
+  empresas     EmpresaUsuario[]
 
   requisicoesCriadas           RequisicaoVaga[]       @relation("RequisicaoCriadaPor")
   requisicoesAprovadas         RequisicaoVaga[]       @relation("RequisicaoAprovadaPor")
@@ -35,135 +35,185 @@ model User {
   envelopesGerados             EnvelopeAssinatura[]   @relation("EnvelopeGeradoPor")
   certificadosA1Criados        EmpresaCertificadoA1[] @relation("CertificadoA1CriadoPor")
   biometriaSolicitacoesCriadas BiometriaSolicitacao[] @relation("BiometriaSolicitadaPor")
-  refreshTokens                 RefreshToken[]
+  refreshTokens                RefreshToken[]
 
   @@map("users")
 }
 
 model Candidato {
-  id                            Int                    @id @default(autoincrement())
-  userId                        Int?                   @unique
-  cpf                           String                 @unique
-  dataNascimento                DateTime               @db.Date
+  id                            Int             @id @default(autoincrement())
+  userId                        Int?            @unique
+  cpf                           String          @unique
+  dataNascimento                DateTime        @db.Date
   nome                          String?
   email                         String?
   telefone                      String?
   genero                        String?
-  situacao                      String                 @default("ATIVO_PROCESSO")
-  justificativaReprovacao       String?                @map("justificativa_reprovacao")
-  possuiFilhos                  Boolean                @default(false) @map("possui_filhos")
-  biometriaStatus               BiometriaStatus        @default(NAO_CADASTRADA) @map("biometria_status")
-  biometriaCadastradaEm         DateTime?              @map("biometria_cadastrada_em")
-  biometriaIdentificadorExterno String?                @map("biometria_identificador_externo")
+  situacao                      String          @default("ATIVO_PROCESSO")
+  justificativaReprovacao       String?         @map("justificativa_reprovacao")
+  possuiFilhos                  Boolean         @default(false) @map("possui_filhos")
+  biometriaStatus               BiometriaStatus @default(NAO_CADASTRADA) @map("biometria_status")
+  biometriaCadastradaEm         DateTime?       @map("biometria_cadastrada_em")
+  biometriaIdentificadorExterno String?         @map("biometria_identificador_externo")
 
   // Admissão
-  tipoAdmissao                  String?                @map("tipo_admissao")
+  tipoAdmissao String? @map("tipo_admissao")
 
   // Dados pessoais adicionais
-  estadoCivil                   String?                @map("estado_civil")
-  grauInstrucao                 String?                @map("grau_instrucao")
-  pis                           String?
-  raccor                        Int?
+  estadoCivil   String? @map("estado_civil")
+  grauInstrucao String? @map("grau_instrucao")
+  pis           String?
+  raccor        Int?
 
   // Naturalidade
-  nacionalidade                 Int?
-  paisNascimento                String?                @map("pais_nascimento")
-  estadoNascimento              String?                @map("estado_nascimento")
-  cidadeNascimentoCod           Int?                   @map("cidade_nascimento_cod")
-  cidadeNascimentoNome          String?                @map("cidade_nascimento_nome")
+  nacionalidade        Int?
+  paisNascimento       String? @map("pais_nascimento")
+  estadoNascimento     String? @map("estado_nascimento")
+  cidadeNascimentoCod  Int?    @map("cidade_nascimento_cod")
+  cidadeNascimentoNome String? @map("cidade_nascimento_nome")
 
   // Endereço
-  pais                          String?
-  cep                           String?
-  estadoEndereco                String?                @map("estado_endereco")
-  cidadeCod                     Int?                   @map("cidade_cod")
-  cidadeNome                    String?                @map("cidade_nome")
-  bairroCod                     Int?                   @map("bairro_cod")
-  bairroNome                    String?                @map("bairro_nome")
-  tipoLogradouro                String?                @map("tipo_logradouro")
-  endereco                      String?
-  numero                        String?
-  complemento                   String?
+  pais           String?
+  cep            String?
+  estadoEndereco String? @map("estado_endereco")
+  cidadeCod      Int?    @map("cidade_cod")
+  cidadeNome     String? @map("cidade_nome")
+  bairroCod      Int?    @map("bairro_cod")
+  bairroNome     String? @map("bairro_nome")
+  tipoLogradouro String? @map("tipo_logradouro")
+  endereco       String?
+  numero         String?
+  complemento    String?
 
   // Contatos (telefone principal é o campo legado `telefone`)
-  ddiTelefone                   String?                @map("ddi_telefone")
-  dddTelefone                   String?                @map("ddd_telefone")
-  numeroTelefone                String?                @map("numero_telefone")
-  ddiTelefone2                  String?                @map("ddi_telefone2")
-  dddTelefone2                  String?                @map("ddd_telefone2")
-  numeroTelefone2               String?                @map("numero_telefone2")
+  ddiTelefone     String? @map("ddi_telefone")
+  dddTelefone     String? @map("ddd_telefone")
+  numeroTelefone  String? @map("numero_telefone")
+  ddiTelefone2    String? @map("ddi_telefone2")
+  dddTelefone2    String? @map("ddd_telefone2")
+  numeroTelefone2 String? @map("numero_telefone2")
 
   // RG
-  numeroRg                      String?                @map("numero_rg")
-  orgaoEmissorRg                String?                @map("orgao_emissor_rg")
-  dataExpedicaoRg               DateTime?              @db.Date @map("data_expedicao_rg")
+  numeroRg        String?   @map("numero_rg")
+  orgaoEmissorRg  String?   @map("orgao_emissor_rg")
+  dataExpedicaoRg DateTime? @map("data_expedicao_rg") @db.Date
 
   // Título de eleitor
-  numeroTituloEleitor           String?                @map("numero_titulo_eleitor")
-  zonaTituloEleitor             String?                @map("zona_titulo_eleitor")
-  secaoTituloEleitor            String?                @map("secao_titulo_eleitor")
+  numeroTituloEleitor String? @map("numero_titulo_eleitor")
+  zonaTituloEleitor   String? @map("zona_titulo_eleitor")
+  secaoTituloEleitor  String? @map("secao_titulo_eleitor")
 
   // Reservista
-  numeroCertReservista          String?                @map("numero_cert_reservista")
+  numeroCertReservista String? @map("numero_cert_reservista")
 
   // Certidão civil
-  tipoCertidaoCivil             String?                @map("tipo_certidao_civil")
-  dataEmissaoCertidaoCivil      DateTime?              @db.Date @map("data_emissao_certidao_civil")
-  matriculaCertidaoCivil        String?                @map("matricula_certidao_civil")
-  termoMatriculaCertidao        String?                @map("termo_matricula_certidao")
-  livroCertidaoCivil            String?                @map("livro_certidao_civil")
-  folhaCertidaoCivil            String?                @map("folha_certidao_civil")
-  estadoCertidaoCivil           String?                @map("estado_certidao_civil")
-  cidadeCertidaoCivilCod        Int?                   @map("cidade_certidao_civil_cod")
-  cidadeCertidaoCivilNome       String?                @map("cidade_certidao_civil_nome")
+  tipoCertidaoCivil        String?   @map("tipo_certidao_civil")
+  dataEmissaoCertidaoCivil DateTime? @map("data_emissao_certidao_civil") @db.Date
+  matriculaCertidaoCivil   String?   @map("matricula_certidao_civil")
+  termoMatriculaCertidao   String?   @map("termo_matricula_certidao")
+  livroCertidaoCivil       String?   @map("livro_certidao_civil")
+  folhaCertidaoCivil       String?   @map("folha_certidao_civil")
+  estadoCertidaoCivil      String?   @map("estado_certidao_civil")
+  cidadeCertidaoCivilCod   Int?      @map("cidade_certidao_civil_cod")
+  cidadeCertidaoCivilNome  String?   @map("cidade_certidao_civil_nome")
 
   // Uniforme
-  tamanhoCamisa                 String?                @map("tamanho_camisa")
-  tamanhoCalca                  String?                @map("tamanho_calca")
-  tamanhoCalcado                String?                @map("tamanho_calcado")
-  cidadeVagaId                  Int                    @map("cidade_vaga_id")
+  tamanhoCamisa  String? @map("tamanho_camisa")
+  tamanhoCalca   String? @map("tamanho_calca")
+  tamanhoCalcado String? @map("tamanho_calcado")
+  cidadeVagaId   Int     @map("cidade_vaga_id")
 
   // Responsável legal (obrigatório para menores 16-17 anos)
-  responsavelNome               String?                @map("responsavel_nome")
-  responsavelCpf                String?                @map("responsavel_cpf")
-  responsavelEmail              String?                @map("responsavel_email")
-  responsavelTelefone           String?                @map("responsavel_telefone")
+  responsavelNome     String? @map("responsavel_nome")
+  responsavelCpf      String? @map("responsavel_cpf")
+  responsavelEmail    String? @map("responsavel_email")
+  responsavelTelefone String? @map("responsavel_telefone")
 
-  user                          User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
-  cidadeVaga                    CidadeVaga             @relation(fields: [cidadeVagaId], references: [id], onDelete: Restrict)
-  candidaturas                  Candidatura[]
-  biometriaSolicitacoes         BiometriaSolicitacao[]
-  biometriaTemplates            BiometriaTemplate[]
-  aceitesRegulamento            AceiteRegulamento[]
-  dependentes                   CandidatoDependente[]
-  valeTransportes               CandidatoValeTransporte[]
-  etapas                        CandidatoEtapa[]
+  user                  User?                     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  cidadeVaga            CidadeVaga                @relation(fields: [cidadeVagaId], references: [id], onDelete: Restrict)
+  candidaturas          Candidatura[]
+  biometriaSolicitacoes BiometriaSolicitacao[]
+  biometriaTemplates    BiometriaTemplate[]
+  aceitesRegulamento    AceiteRegulamento[]
+  dependentes           CandidatoDependente[]
+  valeTransportes       CandidatoValeTransporte[]
+  etapas                CandidatoEtapa[]
+  dadosVaga             CandidatoDadosVaga?
+  lojasProximas         CandidatoLojaProxima[]
+  experiencias          CandidatoExperiencia[]
 
   @@map("candidato")
+}
+
+model CandidatoDadosVaga {
+  idCandidato            Int      @id @map("id_candidato")
+  bairro                 String
+  estudoHorario          String?  @map("estudo_horario")
+  disponibilidadeHorario Boolean? @map("disponibilidade_horario")
+  nomePai                String?  @map("nome_pai")
+  nomeMae                String?  @map("nome_mae")
+  indicadoFuncionario    Boolean? @map("indicado_funcionario")
+  indicadoLojaSetor      String?  @map("indicado_loja_setor")
+  parenteEmpresa         Boolean? @map("parente_empresa")
+  parenteNome            String?  @map("parente_nome")
+  parenteLojaSetor       String?  @map("parente_loja_setor")
+  aposentado             Boolean? @map("aposentado")
+  aposentadoriaTipo      String?  @map("aposentadoria_tipo")
+  conducaoPropria        String?  @map("conducao_propria")
+
+  candidato Candidato @relation(fields: [idCandidato], references: [id], onDelete: Cascade)
+
+  @@map("candidato_dados_vaga")
+}
+
+model CandidatoLojaProxima {
+  idCandidato Int @map("id_candidato")
+  codfil      Int
+
+  candidato Candidato @relation(fields: [idCandidato], references: [id], onDelete: Cascade)
+
+  @@id([idCandidato, codfil])
+  @@map("candidato_loja_proxima")
+}
+
+model CandidatoExperiencia {
+  idCandidato Int       @map("id_candidato")
+  id          Int
+  empresa     String
+  cargo       String
+  admissao    DateTime? @db.Date
+  demissao    DateTime? @db.Date
+  motivoSaida String?   @map("motivo_saida")
+
+  candidato Candidato @relation(fields: [idCandidato], references: [id], onDelete: Cascade)
+
+  @@id([idCandidato, id])
+  @@map("candidato_experiencia")
 }
 
 model CidadeVaga {
   id         Int         @id @default(autoincrement())
   nome       String      @unique
+  codcid     Int         @unique
   candidatos Candidato[]
 
   @@map("cidade_vaga")
 }
 
 model CandidatoDependente {
-  id                         Int      @id @default(autoincrement())
-  candidatoId                Int      @map("candidato_id")
-  nome                       String
-  codigoGrauParentesco       String   @map("codigo_grau_parentesco")
-  descricaoGrauParentesco    String   @map("descricao_grau_parentesco")
-  codigoTipoEsocial          Int      @map("codigo_tipo_esocial")
-  descricaoTipoEsocial       String   @map("descricao_tipo_esocial")
-  sexo                       String
-  dependenteIr               Boolean  @default(false) @map("dependente_ir")
-  dataNascimento             DateTime? @db.Date @map("data_nascimento")
-  cpf                        String
-  createdAt                  DateTime @default(now()) @map("created_at")
-  updatedAt                  DateTime @updatedAt @map("updated_at")
+  id                      Int       @id @default(autoincrement())
+  candidatoId             Int       @map("candidato_id")
+  nome                    String
+  codigoGrauParentesco    String    @map("codigo_grau_parentesco")
+  descricaoGrauParentesco String    @map("descricao_grau_parentesco")
+  codigoTipoEsocial       Int       @map("codigo_tipo_esocial")
+  descricaoTipoEsocial    String    @map("descricao_tipo_esocial")
+  sexo                    String
+  dependenteIr            Boolean   @default(false) @map("dependente_ir")
+  dataNascimento          DateTime? @map("data_nascimento") @db.Date
+  cpf                     String
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
   candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
@@ -172,15 +222,15 @@ model CandidatoDependente {
 }
 
 model CandidatoValeTransporte {
-  id                  Int      @id @default(autoincrement())
-  candidatoId         Int      @map("candidato_id")
-  tipoTransporte      String   @map("tipo_transporte")
-  tipoTrajeto         String   @map("tipo_trajeto")
-  transporteUsado     String   @map("transporte_usado")
-   tarifaUnitaria      Decimal  @db.Decimal(10, 2) @map("tarifa_unitaria")
-   valesPorDia         Int      @default(1) @map("vales_por_dia")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id              Int      @id @default(autoincrement())
+  candidatoId     Int      @map("candidato_id")
+  tipoTransporte  String   @map("tipo_transporte")
+  tipoTrajeto     String   @map("tipo_trajeto")
+  transporteUsado String   @map("transporte_usado")
+  tarifaUnitaria  Decimal  @map("tarifa_unitaria") @db.Decimal(10, 2)
+  valesPorDia     Int      @default(1) @map("vales_por_dia")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
@@ -207,16 +257,16 @@ model CandidatoEtapa {
 }
 
 model AceiteRegulamento {
-  id                    Int        @id @default(autoincrement())
-  candidatoId           Int        @map("candidato_id")
-  documentoAssinaturaId Int?       @map("documento_assinatura_id")
-  versaoRegulamento     String     @map("versao_regulamento")
-  hashRegulamento       String     @map("hash_regulamento")
-  aceitoEm              DateTime   @map("aceito_em")
+  id                    Int      @id @default(autoincrement())
+  candidatoId           Int      @map("candidato_id")
+  documentoAssinaturaId Int?     @map("documento_assinatura_id")
+  versaoRegulamento     String   @map("versao_regulamento")
+  hashRegulamento       String   @map("hash_regulamento")
+  aceitoEm              DateTime @map("aceito_em")
   ip                    String?
-  userAgent             String?    @map("user_agent")
-  codigoVerificacao     String     @unique @map("codigo_verificacao")
-  createdAt             DateTime   @default(now()) @map("created_at")
+  userAgent             String?  @map("user_agent")
+  codigoVerificacao     String   @unique @map("codigo_verificacao")
+  createdAt             DateTime @default(now()) @map("created_at")
 
   candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
@@ -409,28 +459,28 @@ model RequisicaoVaga {
 }
 
 model Candidatura {
-  id           Int               @id @default(autoincrement())
-  requisicaoId Int               @map("requisicao_id")
-  candidatoId  Int               @map("candidato_id")
-  status                StatusCandidatura @default(INSCRITO)
-  admissao              DateTime?         @db.Date
-  dataAdmissaoPrevista  DateTime?         @map("data_admissao_prevista") @db.Date
-  matricula             String?           @map("matricula")
+  id                   Int               @id @default(autoincrement())
+  requisicaoId         Int               @map("requisicao_id")
+  candidatoId          Int               @map("candidato_id")
+  status               StatusCandidatura @default(INSCRITO)
+  admissao             DateTime?         @db.Date
+  dataAdmissaoPrevista DateTime?         @map("data_admissao_prevista") @db.Date
+  matricula            String?           @map("matricula")
 
-  criadoPorUserId           Int?      @map("criado_por_user_id")
-  admissaoGeradaPorUserId   Int?      @map("admissao_gerada_por_user_id")
-  portalAccessToken         String?   @unique @map("portal_access_token")
+  criadoPorUserId         Int?    @map("criado_por_user_id")
+  admissaoGeradaPorUserId Int?    @map("admissao_gerada_por_user_id")
+  portalAccessToken       String? @unique @map("portal_access_token")
 
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  requisicao              RequisicaoVaga         @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
-  candidato               Candidato              @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
-  criadoPor               User?                  @relation("CandidaturaCriadaPor", fields: [criadoPorUserId], references: [id], onDelete: SetNull)
-  admissaoGeradaPor       User?                  @relation("CandidaturaAdmissaoGeradaPor", fields: [admissaoGeradaPorUserId], references: [id], onDelete: SetNull)
-  documentos              DocumentoAdmissao[]
-  envelopesAssinatura     EnvelopeAssinatura[]
-  biometriaSolicitacoes   BiometriaSolicitacao[]
+  requisicao            RequisicaoVaga         @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
+  candidato             Candidato              @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  criadoPor             User?                  @relation("CandidaturaCriadaPor", fields: [criadoPorUserId], references: [id], onDelete: SetNull)
+  admissaoGeradaPor     User?                  @relation("CandidaturaAdmissaoGeradaPor", fields: [admissaoGeradaPorUserId], references: [id], onDelete: SetNull)
+  documentos            DocumentoAdmissao[]
+  envelopesAssinatura   EnvelopeAssinatura[]
+  biometriaSolicitacoes BiometriaSolicitacao[]
 
   @@unique([requisicaoId, candidatoId])
   @@index([candidatoId])
@@ -536,28 +586,28 @@ model EnvelopeAssinatura {
 }
 
 model DocumentoAssinatura {
-  id                     Int                       @id @default(autoincrement())
-  envelopeId             Int                       @map("envelope_id")
-  codigo                 String
-  nome                   String
-  descricao              String?
-  ordem                  Int                       @default(0)
-  conteudo               String?
-  conteudoStoragePath    String?                   @map("conteudo_storage_path")
-  hashOriginal           String                    @map("hash_original")
-  hashAssinado           String?                   @map("hash_assinado")
-  status                 StatusDocumentoAssinatura @default(PENDENTE)
-  visualizadoEm          DateTime?                 @map("visualizado_em")
-  assinadoEm             DateTime?                 @map("assinado_em")
-  assinaturaNome         String?                   @map("assinatura_nome")
-  assinaturaCpf          String?                   @map("assinatura_cpf")
-  assinaturaIp           String?                   @map("assinatura_ip")
-  assinaturaUserAgent    String?                   @map("assinatura_user_agent")
-  assinaturaEmail        String?                   @map("assinatura_email")
-  assinaturaTelefone     String?                   @map("assinatura_telefone")
-  metodoAssinatura       MetodoAssinatura?         @map("metodo_assinatura")
-  biometriaSolicitacaoId Int?                      @map("biometria_solicitacao_id")
-  codigoVerificacao      String?                   @unique @map("codigo_verificacao")
+  id                             Int                       @id @default(autoincrement())
+  envelopeId                     Int                       @map("envelope_id")
+  codigo                         String
+  nome                           String
+  descricao                      String?
+  ordem                          Int                       @default(0)
+  conteudo                       String?
+  conteudoStoragePath            String?                   @map("conteudo_storage_path")
+  hashOriginal                   String                    @map("hash_original")
+  hashAssinado                   String?                   @map("hash_assinado")
+  status                         StatusDocumentoAssinatura @default(PENDENTE)
+  visualizadoEm                  DateTime?                 @map("visualizado_em")
+  assinadoEm                     DateTime?                 @map("assinado_em")
+  assinaturaNome                 String?                   @map("assinatura_nome")
+  assinaturaCpf                  String?                   @map("assinatura_cpf")
+  assinaturaIp                   String?                   @map("assinatura_ip")
+  assinaturaUserAgent            String?                   @map("assinatura_user_agent")
+  assinaturaEmail                String?                   @map("assinatura_email")
+  assinaturaTelefone             String?                   @map("assinatura_telefone")
+  metodoAssinatura               MetodoAssinatura?         @map("metodo_assinatura")
+  biometriaSolicitacaoId         Int?                      @map("biometria_solicitacao_id")
+  codigoVerificacao              String?                   @unique @map("codigo_verificacao")
   responsavelAssinaturaNome      String?                   @map("responsavel_assinatura_nome")
   responsavelAssinaturaCpf       String?                   @map("responsavel_assinatura_cpf")
   responsavelAssinadoEm          DateTime?                 @map("responsavel_assinado_em")
@@ -567,22 +617,22 @@ model DocumentoAssinatura {
   responsavelAssinaturaTelefone  String?                   @map("responsavel_assinatura_telefone")
   responsavelMetodoAssinatura    MetodoAssinatura?         @map("responsavel_metodo_assinatura")
   responsavelHashAssinado        String?                   @map("responsavel_hash_assinado")
-  empresaCertificadoId       Int?                      @map("empresa_certificado_id")
-  empresaAssinouEm           DateTime?                 @map("empresa_assinou_em")
-  empresaCertSubject         String?                   @map("empresa_cert_subject")
-  empresaCertIssuer          String?                   @map("empresa_cert_issuer")
-  empresaCertSerial          String?                   @map("empresa_cert_serial")
+  empresaCertificadoId           Int?                      @map("empresa_certificado_id")
+  empresaAssinouEm               DateTime?                 @map("empresa_assinou_em")
+  empresaCertSubject             String?                   @map("empresa_cert_subject")
+  empresaCertIssuer              String?                   @map("empresa_cert_issuer")
+  empresaCertSerial              String?                   @map("empresa_cert_serial")
   empresaPdfHash                 String?                   @map("empresa_pdf_hash")
   empresaPdfFinal                Bytes?                    @map("empresa_pdf_final")
   empresaPdfFinalStoragePath     String?                   @map("empresa_pdf_final_storage_path")
-  empresaRepresentanteNome   String?                   @map("empresa_representante_nome")
-  empresaRepresentanteCpf    String?                   @map("empresa_representante_cpf")
-  empresaRepresentanteCargo  String?                   @map("empresa_representante_cargo")
-  empresaRepresentanteEmail  String?                   @map("empresa_representante_email")
-  empresaIp                  String?                   @map("empresa_ip")
-  empresaUserAgent           String?                   @map("empresa_user_agent")
-  createdAt              DateTime                  @default(now()) @map("created_at")
-  updatedAt              DateTime                  @updatedAt @map("updated_at")
+  empresaRepresentanteNome       String?                   @map("empresa_representante_nome")
+  empresaRepresentanteCpf        String?                   @map("empresa_representante_cpf")
+  empresaRepresentanteCargo      String?                   @map("empresa_representante_cargo")
+  empresaRepresentanteEmail      String?                   @map("empresa_representante_email")
+  empresaIp                      String?                   @map("empresa_ip")
+  empresaUserAgent               String?                   @map("empresa_user_agent")
+  createdAt                      DateTime                  @default(now()) @map("created_at")
+  updatedAt                      DateTime                  @updatedAt @map("updated_at")
 
   envelope             EnvelopeAssinatura    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
   biometriaSolicitacao BiometriaSolicitacao? @relation(fields: [biometriaSolicitacaoId], references: [id], onDelete: SetNull)
@@ -610,12 +660,12 @@ model BiometriaDispositivo {
 }
 
 model BiometriaTemplate {
-  id          Int       @id @default(autoincrement())
-  candidatoId Int       @map("candidato_id")
-  template    Bytes     @db.ByteA
-  criadoEm   DateTime  @default(now()) @map("criado_em")
+  id          Int      @id @default(autoincrement())
+  candidatoId Int      @map("candidato_id")
+  template    Bytes    @db.ByteA
+  criadoEm    DateTime @default(now()) @map("criado_em")
 
-  candidato   Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
   @@index([candidatoId])
   @@map("biometria_template")

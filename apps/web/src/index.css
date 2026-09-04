@@ -64,9 +64,67 @@
 }
 
 @layer components {
+  .home-montserrat,
+  .home-montserrat * {
+    font-family: 'Montserrat', sans-serif !important;
+  }
+
   /* DESIGN.md: canvas creme plana — sem gradientes atmosfericos nem sombras. */
   .app-surface {
     @apply bg-background;
+  }
+
+  /* react-select does not inherit semantic text tokens by default. */
+  .public-select__control {
+    min-height: 44px !important;
+    border-color: #c8d1dc !important;
+    background-color: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .public-select__control--is-focused {
+    border-color: hsl(var(--ring)) !important;
+    box-shadow: 0 0 0 1px hsl(var(--ring)) !important;
+  }
+
+  .public-select__single-value,
+  .public-select__input-container,
+  .public-select__menu,
+  .public-select__option {
+    color: #1b2a3d !important;
+  }
+
+  .public-select__placeholder {
+    color: #5e6b7a !important;
+  }
+
+  .public-select__menu {
+    border: 1px solid #c8d1dc;
+    background-color: #ffffff !important;
+  }
+
+  .public-select__option--is-focused {
+    background-color: #e4eaf1 !important;
+  }
+
+  .public-select__option--is-selected {
+    background-color: #1d4a8a !important;
+    color: #ffffff !important;
+  }
+
+  .public-select__indicator {
+    color: #5e6b7a !important;
+  }
+
+  .public-candidatura input:not([type='date']):not([type='email']):not([type='checkbox']):not([type='radio']),
+  .public-candidatura .public-select__single-value,
+  .public-candidatura .public-select__input-container,
+  .public-candidatura .public-select__option {
+    text-transform: uppercase;
+  }
+
+  .public-candidatura .space-y-2 > label {
+    color: #1b2a3d !important;
   }
 }
 

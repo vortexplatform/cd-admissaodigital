@@ -14,6 +14,11 @@ type EmailContent = {
   note?: string;
 };
 
+type EmailField = {
+  label: string;
+  value: string | null | undefined;
+};
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -158,6 +163,44 @@ export class EmailService {
       }),
     });
     this.logger.log(`Notificação de assinatura de responsável enviada para ${email}`);
+  }
+
+  async sendCandidaturaNotification(
+    candidatoNome: string,
+    sections: { title: string; fields: EmailField[] }[],
+  ): Promise<void> {
+    const details = sections
+      .map(({ title, fields }) => {
+        const rows = fields
+          .filter(({ value }) => value !== null && value !== undefined && value !== '')
+          .map(
+            ({ label, value }) =>
+              `<tr><td style="padding: 8px 12px; border: 1px solid #dedbd0; font-size: 13px; font-weight: 600; color: #111111; vertical-align: top;">${this.escapeHtml(label)}</td><td style="padding: 8px 12px; border: 1px solid #dedbd0; font-size: 13px; color: #626260; vertical-align: top;">${this.escapeHtml(value ?? '')}</td></tr>`,
+          )
+          .join('');
+        return rows
+          ? `<p style="margin: 20px 0 8px; font-size: 15px; font-weight: 600; color: #111111;">${this.escapeHtml(title)}</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse: collapse;">${rows}</table>`
+          : '';
+      })
+      .join('');
+
+    await this.transporter.sendMail({
+      from: this.config.get<string>('SMTP_FROM'),
+      to: 'vagas@coelhodiniz.com.br',
+      subject: `Candidatura salva - ${candidatoNome}`,
+      text: `Uma candidatura foi salva para ${candidatoNome}. Consulte a plataforma para ver os dados completos.`,
+      html: this.renderEmail(
+        {
+          title: 'Candidatura salva',
+          body: `Os dados de ${candidatoNome} foram salvos na Admissão Digital.`,
+          note: 'Este e-mail contém dados pessoais e deve ser tratado de forma confidencial.',
+        },
+        details,
+      ),
+    });
+    this.logger.log(
+      `Notificação de candidatura enviada para vagas@coelhodiniz.com.br: ${candidatoNome}`,
+    );
   }
 
   private renderEmail(content: EmailContent, highlight?: string): string {
