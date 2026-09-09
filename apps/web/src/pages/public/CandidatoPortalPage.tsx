@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { Document, Page, pdfjs } from 'react-pdf';
 import {
   CheckCircle2,
   Download,
@@ -20,6 +21,11 @@ import {
   type EnvelopeAssinatura,
   getDocumentoPortalViewUrl,
 } from '../processos/documentos.model';
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
 interface PortalSummary {
   candidatoNome: string;
@@ -355,35 +361,6 @@ export default function CandidatoPortalPage() {
                 </Button>
               </div>
             )}
-            {otpChoiceOpen && sendOptionsOpen && (
-              <div className="mt-5 border-t border-border pt-5 text-left">
-                <p className="text-sm font-semibold text-foreground">
-                  Onde você quer receber o código?
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Escolha uma opção abaixo. Enviaremos um novo código para o contato cadastrado.
-                </p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {summary.canaisDisponiveis.email && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-auto min-h-16 justify-start px-4 py-3 text-left"
-                      onClick={() => sendOtp('email')}
-                      disabled={otpState?.submitting}
-                    >
-                      <Mail className="h-5 w-5 shrink-0 text-blue-600" />
-                      <span className="min-w-0">
-                        <span className="block font-semibold">E-mail</span>
-                        <span className="block truncate text-xs font-normal text-muted-foreground">
-                          {summary.canaisDisponiveis.email}
-                        </span>
-                      </span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -466,6 +443,59 @@ export default function CandidatoPortalPage() {
             </section>
           ))}
       </div>
+
+      {sendOptionsOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
+          <div
+            className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="send-code-title"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="send-code-title" className="text-card-title text-foreground">
+                  Enviar novo código
+                </h2>
+                <p className="mt-2 text-body-sm text-muted-foreground">
+                  Escolha onde deseja receber o código de acesso. Depois, você poderá informá-lo na
+                  tela de validação.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Fechar"
+                onClick={() => setSendOptionsOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {summary.canaisDisponiveis.email && (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-5 h-auto min-h-16 w-full justify-start px-4 py-3 text-left"
+                onClick={() => sendOtp('email')}
+              >
+                <Mail className="h-5 w-5 shrink-0 text-blue-600" />
+                <span className="min-w-0">
+                  <span className="block font-semibold">E-mail</span>
+                  <span className="block truncate text-xs font-normal text-muted-foreground">
+                    {summary.canaisDisponiveis.email}
+                  </span>
+                </span>
+              </Button>
+            )}
+            {!summary.canaisDisponiveis.email && (
+              <p className="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-body-sm text-amber-800">
+                Não há e-mail cadastrado para receber o código. Entre em contato com a empresa.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* PDF Preview / Sign Modal */}
       {previewState && portalAccessToken && (
@@ -554,6 +584,11 @@ function PortalPreviewModal({
   const [pdfLoaded, setPdfLoaded] = useState(false);
   const [pdfError, setPdfError] = useState('');
   const isSigned = doc.status === 'ASSINADO';
+  const handlePdfReady = useCallback(() => setPdfLoaded(true), []);
+  const handlePdfError = useCallback(
+    () => setPdfError('Não foi possível renderizar o PDF neste navegador.'),
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -575,7 +610,6 @@ function PortalPreviewModal({
             : new Blob([response.data], { type: 'application/pdf' });
         objectUrl = URL.createObjectURL(blob);
         setPdfUrl(objectUrl);
-        setPdfLoaded(true);
       })
       .catch(() => {
         if (!cancelled) setPdfError('Não foi possível carregar o PDF.');
@@ -613,14 +647,14 @@ function PortalPreviewModal({
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 bg-muted/30">
+      <div className="min-h-0 flex-1 overflow-auto bg-muted/30">
         {!pdfUrl && !pdfError && (
           <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             Carregando PDF...
           </div>
         )}
-        {pdfError && (
+        {pdfError && !pdfLoaded && (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
             <FileSignature className="h-10 w-10 opacity-40" />
             <p>{pdfError}</p>
@@ -632,20 +666,12 @@ function PortalPreviewModal({
           </div>
         )}
         {pdfUrl && (
-          <object
-            key={pdfUrl}
-            data={`${pdfUrl}#toolbar=1&navpanes=0`}
-            type="application/pdf"
+          <PdfDocumentViewer
+            url={pdfUrl}
             title={doc.nome}
-            className="h-full min-h-[60vh] w-full bg-white"
-            onLoad={() => setPdfLoaded(true)}
-          >
-            <embed
-              src={`${pdfUrl}#toolbar=1&navpanes=0`}
-              type="application/pdf"
-              className="h-full min-h-[60vh] w-full bg-white"
-            />
-          </object>
+            onReady={handlePdfReady}
+            onError={handlePdfError}
+          />
         )}
       </div>
       <div className="flex shrink-0 flex-col gap-3 border-t bg-card p-4 shadow-[0_-12px_30px_rgba(0,0,0,0.08)] sm:flex-row sm:items-center sm:justify-between">
@@ -674,6 +700,69 @@ function PortalPreviewModal({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function PdfDocumentViewer({
+  url,
+  title,
+  onReady,
+  onError,
+}: {
+  url: string;
+  title: string;
+  onReady: () => void;
+  onError: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  const [numPages, setNumPages] = useState(0);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const updateWidth = () => setWidth(Math.floor(container.clientWidth));
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="min-h-full w-full overflow-auto p-3" aria-label={title}>
+      {width > 0 && (
+        <Document
+          file={url}
+          onLoadSuccess={({ numPages: pageCount }) => {
+            setNumPages(pageCount);
+            onReady();
+          }}
+          onLoadError={onError}
+          loading={
+            <p className="p-6 text-center text-sm text-muted-foreground">Renderizando PDF...</p>
+          }
+          error={
+            <p className="p-6 text-center text-sm text-muted-foreground">
+              Não foi possível renderizar o PDF.
+            </p>
+          }
+        >
+          {Array.from({ length: numPages }, (_, index) => (
+            <Page
+              key={`${title}-${index + 1}`}
+              pageNumber={index + 1}
+              width={Math.max(width - 24, 1)}
+              className="mx-auto mb-4 bg-white shadow-sm"
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+              onRenderError={onError}
+            />
+          ))}
+        </Document>
+      )}
     </div>
   );
 }
