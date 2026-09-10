@@ -589,6 +589,7 @@ function PortalPreviewModal({
     () => setPdfError('Não foi possível renderizar o PDF neste navegador.'),
     [],
   );
+  const canSign = pdfLoaded || Boolean(pdfError);
 
   useEffect(() => {
     let cancelled = false;
@@ -659,7 +660,7 @@ function PortalPreviewModal({
             <FileSignature className="h-10 w-10 opacity-40" />
             <p>{pdfError}</p>
             <Button type="button" variant="outline" asChild>
-              <a href={directUrl} target="_blank" rel="noreferrer">
+              <a href={pdfUrl ?? directUrl} target="_blank" rel="noreferrer">
                 Abrir em nova aba
               </a>
             </Button>
@@ -690,7 +691,7 @@ function PortalPreviewModal({
             <CheckCircle2 className="h-4 w-4" /> Concluir
           </Button>
         ) : (
-          <Button type="button" disabled={!pdfLoaded || isSigning} onClick={onSign}>
+          <Button type="button" disabled={!canSign || isSigning} onClick={onSign}>
             {isSigning ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
