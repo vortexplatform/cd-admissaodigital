@@ -90,10 +90,13 @@ export class DocumentosController {
   listAssinaturasRhPaginado(
     @Request() req: AuthRequest,
     @Query('page') page = '1',
-    @Query('situacao') situacao: 'PENDENTES' | 'CONCLUIDAS' | 'TODAS' | 'APROVADOS' = 'PENDENTES',
+    @Query('situacao')
+    situacao: 'PENDENTES' | 'CONCLUIDAS' | 'TODAS' | 'APROVADOS' | 'EFETIVADOS' = 'PENDENTES',
     @Query('filial') filial?: string,
     @Query('setor') setor?: string,
     @Query('cargo') cargo?: string,
+    @Query('admissaoInicio') admissaoInicio?: string,
+    @Query('admissaoFim') admissaoFim?: string,
   ) {
     return this.assinaturas.listForRhPaginado(
       req.user.id,
@@ -104,6 +107,8 @@ export class DocumentosController {
         filial: filial ? Number(filial) : undefined,
         setor: setor || undefined,
         cargo: cargo || undefined,
+        admissaoInicio: admissaoInicio || undefined,
+        admissaoFim: admissaoFim || undefined,
       },
     );
   }
@@ -139,7 +144,10 @@ export class DocumentosController {
     @Body() dto: VerifySignatureOtpDto,
     @Headers('user-agent') userAgent?: string,
   ) {
-    return this.assinaturas.verifyOtp(req.user.id, id, dto.code, { ip: extractPublicIp(req), userAgent });
+    return this.assinaturas.verifyOtp(req.user.id, id, dto.code, {
+      ip: extractPublicIp(req),
+      userAgent,
+    });
   }
 
   @Post('assinaturas/documentos/:id/assinar')
@@ -149,7 +157,10 @@ export class DocumentosController {
     @Body('sessionToken') sessionToken: string,
     @Headers('user-agent') userAgent?: string,
   ) {
-    return this.assinaturas.signDocument(req.user.id, id, sessionToken, { ip: extractPublicIp(req), userAgent });
+    return this.assinaturas.signDocument(req.user.id, id, sessionToken, {
+      ip: extractPublicIp(req),
+      userAgent,
+    });
   }
 
   @Get('assinaturas/documentos/:id/view')
@@ -159,7 +170,10 @@ export class DocumentosController {
     @Headers('user-agent') userAgent: string | undefined,
     @Res() res: Response,
   ) {
-    const buffer = await this.assinaturas.viewDocument(req.user.id, id, { ip: extractPublicIp(req), userAgent });
+    const buffer = await this.assinaturas.viewDocument(req.user.id, id, {
+      ip: extractPublicIp(req),
+      userAgent,
+    });
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': contentDispositionInline(`documento-assinatura-${id}.pdf`),
@@ -249,7 +263,10 @@ export class DocumentosController {
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ) {
-    const { buffer, contentType, filename } = await this.documentos.getDocumentoFile(req.user.id, id);
+    const { buffer, contentType, filename } = await this.documentos.getDocumentoFile(
+      req.user.id,
+      id,
+    );
     res.set({
       'Content-Type': contentType,
       'Content-Disposition': contentDispositionInline(filename),

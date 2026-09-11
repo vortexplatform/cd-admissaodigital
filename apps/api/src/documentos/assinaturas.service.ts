@@ -216,6 +216,7 @@ export class AssinaturasService {
         OR: [
           { candidaturas: { some: { envelopesAssinatura: { some: {} } } } },
           { candidaturas: { some: this.aprovadosWhere() } },
+          { candidaturas: { some: { status: StatusCandidatura.EFETIVADO } } },
         ],
       },
       select: { filial: true, filialNome: true, ccustoNome: true, cargoNome: true, cargo: true },
@@ -252,8 +253,14 @@ export class AssinaturasService {
     userId: number,
     page: number,
     limit: number,
-    situacao: 'PENDENTES' | 'CONCLUIDAS' | 'TODAS' | 'APROVADOS',
-    filters: { filial?: number; setor?: string; cargo?: string },
+    situacao: 'PENDENTES' | 'CONCLUIDAS' | 'TODAS' | 'APROVADOS' | 'EFETIVADOS',
+    filters: {
+      filial?: number;
+      setor?: string;
+      cargo?: string;
+      admissaoInicio?: string;
+      admissaoFim?: string;
+    },
   ) {
     await this.ensureRh(userId);
 
@@ -270,29 +277,51 @@ export class AssinaturasService {
       ];
     }
 
+    const admissaoFilter: Prisma.DateTimeFilter = {};
+    if (filters.admissaoInicio) {
+      const inicio = new Date(`${filters.admissaoInicio}T00:00:00.000Z`);
+      if (Number.isNaN(inicio.getTime())) throw new BadRequestException('Data inicial inválida.');
+      admissaoFilter.gte = inicio;
+    }
+    if (filters.admissaoFim) {
+      const fim = new Date(`${filters.admissaoFim}T23:59:59.999Z`);
+      if (Number.isNaN(fim.getTime())) throw new BadRequestException('Data final inválida.');
+      admissaoFilter.lte = fim;
+    }
+    if (
+      filters.admissaoInicio &&
+      filters.admissaoFim &&
+      filters.admissaoInicio > filters.admissaoFim
+    ) {
+      throw new BadRequestException('A data inicial deve ser anterior à data final.');
+    }
+
     const situacaoFilter: Prisma.CandidaturaWhereInput =
       situacao === 'APROVADOS'
         ? this.aprovadosWhere()
-        : situacao === 'PENDENTES'
-          ? {
-              envelopesAssinatura: {
-                some: { status: { not: StatusEnvelopeAssinatura.CONCLUIDO } },
-              },
-            }
-          : situacao === 'CONCLUIDAS'
+        : situacao === 'EFETIVADOS'
+          ? { status: StatusCandidatura.EFETIVADO }
+          : situacao === 'PENDENTES'
             ? {
-                envelopesAssinatura: { some: {} },
-                NOT: {
-                  envelopesAssinatura: {
-                    some: { status: { not: StatusEnvelopeAssinatura.CONCLUIDO } },
-                  },
+                envelopesAssinatura: {
+                  some: { status: { not: StatusEnvelopeAssinatura.CONCLUIDO } },
                 },
               }
-            : { envelopesAssinatura: { some: {} } };
+            : situacao === 'CONCLUIDAS'
+              ? {
+                  envelopesAssinatura: { some: {} },
+                  NOT: {
+                    envelopesAssinatura: {
+                      some: { status: { not: StatusEnvelopeAssinatura.CONCLUIDO } },
+                    },
+                  },
+                }
+              : { envelopesAssinatura: { some: {} } };
 
     const where: Prisma.CandidaturaWhereInput = {
       ...situacaoFilter,
       ...(Object.keys(requisicaoFilter).length > 0 ? { requisicao: requisicaoFilter } : {}),
+      ...(Object.keys(admissaoFilter).length > 0 ? { admissao: admissaoFilter } : {}),
     };
 
     const [total, data] = await this.prisma.$transaction([
@@ -301,9 +330,10 @@ export class AssinaturasService {
         where,
         skip,
         take: limit,
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [{ candidato: { nome: 'asc' } }, { id: 'asc' }],
         select: {
           id: true,
+          status: true,
           admissao: true,
           candidato: { select: { id: true, nome: true, cpf: true } },
           requisicao: {

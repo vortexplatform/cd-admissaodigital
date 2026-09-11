@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import ReactSelect from 'react-select';
+import PageHeader from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import api from '@/lib/api';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -11,15 +12,18 @@ import {
   FileSignature,
   Loader2,
   PenLine,
+  Send,
   ShieldCheck,
   SlidersHorizontal,
   User,
   X,
 } from 'lucide-react';
-import PageHeader from '@/components/layout/PageHeader';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import api from '@/lib/api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import ReactSelect from 'react-select';
+import { ptBR } from 'date-fns/locale/pt-BR';
+import 'react-datepicker/dist/react-datepicker.css';
 import {
   type AssinaturasCandidatura,
   type DocumentosCandidatura,
@@ -30,8 +34,10 @@ import {
 
 // ─── tipos para a listagem paginada ─────────────────────────────────────────
 
-type Situacao = 'APROVADOS' | 'PENDENTES' | 'CONCLUIDAS' | 'TODAS';
+type Situacao = 'APROVADOS' | 'PENDENTES' | 'CONCLUIDAS' | 'TODAS' | 'EFETIVADOS';
 type Opt = { value: string; label: string };
+
+registerLocale('pt-BR', ptBR);
 
 interface FiltrosResponse {
   filiais: { numero: number; nome: string | null }[];
@@ -47,6 +53,7 @@ interface EnvelopeResumo {
 
 interface AssinaturaListItem {
   id: number;
+  status: string;
   admissao: string | null;
   candidato: { id: number; nome: string | null; cpf: string };
   requisicao: {
@@ -93,16 +100,31 @@ const formatDate = (iso: string | null | undefined) => {
   return new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
+const parseDateParam = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const formatDateParam = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const formatCandidaturaListItem = (item: AssinaturaListItem) => {
   const cargo = item.requisicao.cargoNome ?? item.requisicao.cargo ?? 'Cargo não informado';
   const setor = item.requisicao.ccustoNome ?? 'Setor não informado';
-  const filial = item.requisicao.filial == null ? '--' : String(item.requisicao.filial).padStart(2, '0');
+  const filial =
+    item.requisicao.filial == null ? '--' : String(item.requisicao.filial).padStart(2, '0');
   return `#${item.requisicao.id} - LJ ${filial} - ${setor} - ${cargo}`;
 };
 
 const SITUACAO_TABS: { value: Situacao; label: string }[] = [
   { value: 'PENDENTES', label: 'Pendentes' },
   { value: 'APROVADOS', label: 'Aprovados' },
+  { value: 'EFETIVADOS', label: 'Efetivados' },
   { value: 'CONCLUIDAS', label: 'Concluídas' },
   { value: 'TODAS', label: 'Todas' },
 ];
@@ -168,19 +190,27 @@ export default function AssinaturasPendentesPage() {
   const filialParam = searchParams.get('filial') ?? '';
   const setorParam = searchParams.get('setor') ?? '';
   const cargoParam = searchParams.get('cargo') ?? '';
+  const admissaoInicioParam = searchParams.get('admissaoInicio') ?? '';
+  const admissaoFimParam = searchParams.get('admissaoFim') ?? '';
 
   // opções carregadas do backend
   const [filtrosOpts, setFiltrosOpts] = useState<FiltrosResponse | null>(null);
 
   useEffect(() => {
-    api.get<FiltrosResponse>('/documentos/assinaturas/rh/filtros').then(({ data }) => setFiltrosOpts(data)).catch(() => {});
+    api
+      .get<FiltrosResponse>('/documentos/assinaturas/rh/filtros')
+      .then(({ data }) => setFiltrosOpts(data))
+      .catch(() => {});
   }, []);
 
   const filiaisOpts = useMemo<Opt[]>(
-    () => (filtrosOpts?.filiais ?? []).map((f) => ({
-      value: String(f.numero),
-      label: f.nome ? `${String(f.numero).padStart(2, '0')} - ${f.nome}` : String(f.numero).padStart(2, '0'),
-    })),
+    () =>
+      (filtrosOpts?.filiais ?? []).map((f) => ({
+        value: String(f.numero),
+        label: f.nome
+          ? `${String(f.numero).padStart(2, '0')} - ${f.nome}`
+          : String(f.numero).padStart(2, '0'),
+      })),
     [filtrosOpts],
   );
 
@@ -202,6 +232,7 @@ export default function AssinaturasPendentesPage() {
   const [isLoadingLista, setIsLoadingLista] = useState(true);
   const [errorLista, setErrorLista] = useState('');
   const [gerandoListaId, setGerandoListaId] = useState<number | null>(null);
+  const [enviandoListaId, setEnviandoListaId] = useState<number | null>(null);
 
   const gerarAssinaturasLista = async (candidaturaId: number) => {
     setErrorLista('');
@@ -211,9 +242,27 @@ export default function AssinaturasPendentesPage() {
       await loadLista();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setErrorLista(typeof msg === 'string' ? msg : 'Não foi possível gerar documentos para assinatura.');
+      setErrorLista(
+        typeof msg === 'string' ? msg : 'Não foi possível gerar documentos para assinatura.',
+      );
     } finally {
       setGerandoListaId(null);
+    }
+  };
+
+  const enviarAssinaturasLista = async (candidaturaId: number) => {
+    setErrorLista('');
+    setEnviandoListaId(candidaturaId);
+    try {
+      await api.post(`/documentos/assinaturas/rh/candidaturas/${candidaturaId}/enviar`);
+      await loadLista();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setErrorLista(
+        typeof msg === 'string' ? msg : 'Não foi possível enviar os documentos ao candidato.',
+      );
+    } finally {
+      setEnviandoListaId(null);
     }
   };
 
@@ -225,6 +274,8 @@ export default function AssinaturasPendentesPage() {
       if (filialParam) params.filial = filialParam;
       if (setorParam) params.setor = setorParam;
       if (cargoParam) params.cargo = cargoParam;
+      if (admissaoInicioParam) params.admissaoInicio = admissaoInicioParam;
+      if (admissaoFimParam) params.admissaoFim = admissaoFimParam;
       const { data } = await api.get<ListaResponse>('/documentos/assinaturas/rh/lista', { params });
       setLista(data);
     } catch {
@@ -232,23 +283,29 @@ export default function AssinaturasPendentesPage() {
     } finally {
       setIsLoadingLista(false);
     }
-  }, [page, situacao, filialParam, setorParam, cargoParam]);
+  }, [page, situacao, filialParam, setorParam, cargoParam, admissaoInicioParam, admissaoFimParam]);
 
   useEffect(() => {
     if (candidatoId === null) loadLista();
   }, [candidatoId, loadLista]);
 
-  const temFiltro = Boolean(filialParam || setorParam || cargoParam);
+  const temFiltro = Boolean(
+    filialParam || setorParam || cargoParam || admissaoInicioParam || admissaoFimParam,
+  );
 
   const buildParams = (overrides: Record<string, string> = {}) => {
     const next: Record<string, string> = { situacao, page: '1', ...overrides };
     if (filialParam && !('filial' in overrides)) next.filial = filialParam;
     if (setorParam && !('setor' in overrides)) next.setor = setorParam;
     if (cargoParam && !('cargo' in overrides)) next.cargo = cargoParam;
+    if (admissaoInicioParam && !('admissaoInicio' in overrides))
+      next.admissaoInicio = admissaoInicioParam;
+    if (admissaoFimParam && !('admissaoFim' in overrides)) next.admissaoFim = admissaoFimParam;
     return next;
   };
 
-  const setSituacao = (s: Situacao) => setSearchParams({ ...buildParams(), situacao: s, page: '1' });
+  const setSituacao = (s: Situacao) =>
+    setSearchParams({ ...buildParams(), situacao: s, page: '1' });
   const setPage = (p: number) => setSearchParams({ ...buildParams(), page: String(p) });
 
   const setFilial = (opt: Opt | null) =>
@@ -257,6 +314,10 @@ export default function AssinaturasPendentesPage() {
     setSearchParams(opt ? buildParams({ setor: opt.value }) : buildParams({ setor: '' }));
   const setCargo = (opt: Opt | null) =>
     setSearchParams(opt ? buildParams({ cargo: opt.value }) : buildParams({ cargo: '' }));
+  const setAdmissaoInicio = (date: Date | null) =>
+    setSearchParams(buildParams({ admissaoInicio: date ? formatDateParam(date) : '' }));
+  const setAdmissaoFim = (date: Date | null) =>
+    setSearchParams(buildParams({ admissaoFim: date ? formatDateParam(date) : '' }));
 
   const limparFiltros = () => setSearchParams({ situacao, page: '1' });
 
@@ -299,7 +360,9 @@ export default function AssinaturasPendentesPage() {
       await loadDetalhe();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setErrorDetalhe(typeof msg === 'string' ? msg : 'Não foi possível gerar documentos para assinatura.');
+      setErrorDetalhe(
+        typeof msg === 'string' ? msg : 'Não foi possível gerar documentos para assinatura.',
+      );
     } finally {
       setGerandoId(null);
     }
@@ -310,7 +373,9 @@ export default function AssinaturasPendentesPage() {
   if (candidatoId !== null) {
     const candidaturaDoc = documentos.find((d) => d.candidato.id === candidatoId) ?? null;
     const candidaturaAssinatura = assinaturas.find((a) => a.candidato.id === candidatoId) ?? null;
-    const prontoParaGerar = candidaturaDoc ? documentosProntosParaAssinatura(candidaturaDoc) : false;
+    const prontoParaGerar = candidaturaDoc
+      ? documentosProntosParaAssinatura(candidaturaDoc)
+      : false;
     const envelopes = candidaturaAssinatura?.envelopesAssinatura ?? [];
     const stats = getEnvelopeStats(envelopes);
     const candidatoNome =
@@ -326,9 +391,7 @@ export default function AssinaturasPendentesPage() {
           eyebrow="Assinaturas"
           title={candidatoNome}
           description={
-            candidaturaDoc
-              ? formatCandidaturaTitle(candidaturaDoc)
-              : 'Documentos para assinatura'
+            candidaturaDoc ? formatCandidaturaTitle(candidaturaDoc) : 'Documentos para assinatura'
           }
           actions={
             <div className="flex flex-wrap items-center gap-2">
@@ -345,7 +408,9 @@ export default function AssinaturasPendentesPage() {
               </Button>
               {envelopes.length > 0 && (
                 <div className="rounded-xl border bg-card px-4 py-2 text-sm">
-                  <span className="font-semibold">{stats.signed}/{stats.total}</span>{' '}
+                  <span className="font-semibold">
+                    {stats.signed}/{stats.total}
+                  </span>{' '}
                   <span className="text-muted-foreground">documentos assinados</span>
                 </div>
               )}
@@ -370,10 +435,7 @@ export default function AssinaturasPendentesPage() {
         ) : envelopes.length > 0 ? (
           <section className="space-y-4">
             {envelopes.map((envelope) => (
-              <div
-                key={envelope.id}
-                className="overflow-hidden rounded-xl border bg-card"
-              >
+              <div key={envelope.id} className="overflow-hidden rounded-xl border bg-card">
                 <div className="flex items-center justify-between border-b px-5 py-4">
                   <div>
                     <p className="font-semibold">{envelopeTitle(envelope.setor)}</p>
@@ -389,7 +451,8 @@ export default function AssinaturasPendentesPage() {
                   ) : (
                     <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
                       <PenLine className="h-3 w-3" />
-                      {envelope.documentos.filter((d) => d.status !== 'ASSINADO').length} pendente(s)
+                      {envelope.documentos.filter((d) => d.status !== 'ASSINADO').length}{' '}
+                      pendente(s)
                     </span>
                   )}
                 </div>
@@ -499,9 +562,9 @@ export default function AssinaturasPendentesPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Assinaturas"
+        eyebrow=""
         title="Assinaturas"
-        description="Acompanhe os contratos dos candidatos em processo de assinatura."
+        description=""
         actions={
           lista && (
             <span className="rounded-full border bg-card px-3 py-2 text-sm font-semibold text-muted-foreground">
@@ -511,9 +574,8 @@ export default function AssinaturasPendentesPage() {
         }
       />
 
-      {/* Abas de situação + filtros */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
+      <div className="mb-5 space-y-3">
+        <div className="flex w-full gap-1 overflow-x-auto rounded-xl border bg-muted/40 p-1">
           {SITUACAO_TABS.map((tab) => (
             <button
               key={tab.value}
@@ -530,50 +592,106 @@ export default function AssinaturasPendentesPage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filtros
+        <div className="rounded-xl border bg-card p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-primary" />
+            <div>
+              <p className="text-sm font-semibold">Filtros de busca</p>
+              <p className="text-xs text-muted-foreground">
+                Refine os candidatos por unidade, função ou período de admissão.
+              </p>
+            </div>
           </div>
-          <ReactSelect<Opt>
-            options={filiaisOpts}
-            value={filialValue}
-            onChange={setFilial}
-            placeholder="Filial"
-            isClearable
-            isLoading={!filtrosOpts}
-            noOptionsMessage={() => 'Nenhuma filial'}
-            styles={selectStyles}
-            classNamePrefix="rs"
-          />
-          <ReactSelect<Opt>
-            options={setoresOpts}
-            value={setorValue}
-            onChange={setSetor}
-            placeholder="Setor"
-            isClearable
-            isLoading={!filtrosOpts}
-            noOptionsMessage={() => 'Nenhum setor'}
-            styles={selectStyles}
-            classNamePrefix="rs"
-          />
-          <ReactSelect<Opt>
-            options={cargosOpts}
-            value={cargoValue}
-            onChange={setCargo}
-            placeholder="Cargo"
-            isClearable
-            isLoading={!filtrosOpts}
-            noOptionsMessage={() => 'Nenhum cargo'}
-            styles={selectStyles}
-            classNamePrefix="rs"
-          />
-          {temFiltro && (
-            <Button size="sm" variant="ghost" onClick={limparFiltros} className="h-8 px-2">
-              <X className="h-3.5 w-3.5" />
-              Limpar
-            </Button>
-          )}
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Filial</span>
+              <ReactSelect<Opt>
+                options={filiaisOpts}
+                value={filialValue}
+                onChange={setFilial}
+                placeholder="Todas as filiais"
+                isClearable
+                isLoading={!filtrosOpts}
+                noOptionsMessage={() => 'Nenhuma filial'}
+                styles={selectStyles}
+                classNamePrefix="rs"
+              />
+            </label>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Setor</span>
+              <ReactSelect<Opt>
+                options={setoresOpts}
+                value={setorValue}
+                onChange={setSetor}
+                placeholder="Todos os setores"
+                isClearable
+                isLoading={!filtrosOpts}
+                noOptionsMessage={() => 'Nenhum setor'}
+                styles={selectStyles}
+                classNamePrefix="rs"
+              />
+            </label>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Cargo</span>
+              <ReactSelect<Opt>
+                options={cargosOpts}
+                value={cargoValue}
+                onChange={setCargo}
+                placeholder="Todos os cargos"
+                isClearable
+                isLoading={!filtrosOpts}
+                noOptionsMessage={() => 'Nenhum cargo'}
+                styles={selectStyles}
+                classNamePrefix="rs"
+              />
+            </label>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Admissão a partir de
+              </span>
+              <DatePicker
+                selected={parseDateParam(admissaoInicioParam)}
+                onChange={setAdmissaoInicio}
+                selectsStart
+                startDate={parseDateParam(admissaoInicioParam)}
+                endDate={parseDateParam(admissaoFimParam)}
+                locale="pt-BR"
+                dateFormat="dd/MM/yyyy"
+                placeholderText="DD/MM/YYYY"
+                isClearable
+                className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                aria-label="Data inicial de admissão"
+              />
+            </label>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Admissão até</span>
+              <DatePicker
+                selected={parseDateParam(admissaoFimParam)}
+                onChange={setAdmissaoFim}
+                selectsEnd
+                startDate={parseDateParam(admissaoInicioParam)}
+                endDate={parseDateParam(admissaoFimParam)}
+                minDate={parseDateParam(admissaoInicioParam) ?? undefined}
+                locale="pt-BR"
+                dateFormat="dd/MM/yyyy"
+                placeholderText="DD/MM/YYYY"
+                isClearable
+                className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                aria-label="Data final de admissão"
+              />
+            </label>
+            {temFiltro && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={limparFiltros}
+                className="h-8 self-end px-2"
+              >
+                <X className="h-3.5 w-3.5" />
+                Limpar
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -595,9 +713,11 @@ export default function AssinaturasPendentesPage() {
                 ? 'Nenhuma assinatura pendente'
                 : situacao === 'APROVADOS'
                   ? 'Nenhum candidato aprovado aguardando geração'
-                  : situacao === 'CONCLUIDAS'
-                    ? 'Nenhuma assinatura concluída'
-                    : 'Nenhuma assinatura encontrada'}
+                  : situacao === 'EFETIVADOS'
+                    ? 'Nenhum candidato efetivado encontrado'
+                    : situacao === 'CONCLUIDAS'
+                      ? 'Nenhuma assinatura concluída'
+                      : 'Nenhuma assinatura encontrada'}
             </p>
             {situacao === 'APROVADOS' && (
               <p className="mt-1">
@@ -645,10 +765,7 @@ export default function AssinaturasPendentesPage() {
                     const total = row.envelopesAssinatura.length;
 
                     return (
-                      <tr
-                        key={row.id}
-                        className="border-b last:border-0 hover:bg-muted/40"
-                      >
+                      <tr key={row.id} className="border-b last:border-0 hover:bg-muted/40">
                         <td className="px-4 py-3">
                           <p className="font-medium">
                             <Link
@@ -688,29 +805,47 @@ export default function AssinaturasPendentesPage() {
                           </td>
                         )}
                         <td className="px-4 py-3 text-right">
-                          {situacao === 'APROVADOS' ? (
-                            <Button
-                              size="sm"
-                              disabled={gerandoListaId === row.id}
-                              onClick={() => gerarAssinaturasLista(row.id)}
-                            >
-                              {gerandoListaId === row.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <FileSignature className="h-4 w-4" />
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {(row.status === 'APROVADO' || row.status === 'EFETIVADO') &&
+                              row.envelopesAssinatura.length === 0 && (
+                                <Button
+                                  size="sm"
+                                  disabled={gerandoListaId === row.id}
+                                  onClick={() => gerarAssinaturasLista(row.id)}
+                                >
+                                  {gerandoListaId === row.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <FileSignature className="h-4 w-4" />
+                                  )}
+                                  Gerar documentos
+                                </Button>
                               )}
-                              Gerar documentos
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => navigate(`/assinaturas/${row.candidato.id}`)}
-                            >
-                              <Eye className="h-4 w-4" />
-                              Ver documentos
-                            </Button>
-                          )}
+                            {row.envelopesAssinatura.length > 0 && (
+                              <Button
+                                size="sm"
+                                disabled={enviandoListaId === row.id}
+                                onClick={() => enviarAssinaturasLista(row.id)}
+                              >
+                                {enviandoListaId === row.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Send className="h-4 w-4" />
+                                )}
+                                Enviar
+                              </Button>
+                            )}
+                            {row.envelopesAssinatura.length > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => navigate(`/assinaturas/${row.candidato.id}`)}
+                              >
+                                <Eye className="h-4 w-4" />
+                                Ver documentos
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -753,4 +888,3 @@ export default function AssinaturasPendentesPage() {
     </>
   );
 }
-
