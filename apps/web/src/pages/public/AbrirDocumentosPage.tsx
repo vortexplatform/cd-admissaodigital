@@ -1,4 +1,4 @@
-import { Check, Copy, ExternalLink, FileText } from 'lucide-react';
+import { Check, Copy, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -53,14 +53,11 @@ export default function AbrirDocumentosPage() {
         </div>
         <h1 className="mt-6 text-headline text-foreground">Acesse seus documentos</h1>
         <p className="mt-3 text-body text-muted-foreground">
-          Este link foi aberto dentro do aplicativo de e-mail. Para continuar, abra-o no navegador
-          do seu {platform}.
+          Para continuar, copie o link abaixo e cole-o na barra de endereço do navegador do seu{' '}
+          {platform}.
         </p>
         <Button asChild size="lg" className="mt-7 w-full">
-          <a href={target} target="_blank" rel="noopener noreferrer">
-            Abrir no navegador
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          </a>
+          <a href={target}>Já estou no navegador</a>
         </Button>
         <Button
           type="button"
@@ -77,11 +74,11 @@ export default function AbrirDocumentosPage() {
           {copied ? 'Link copiado' : 'Copiar link'}
         </Button>
         <div className="mt-6 rounded-lg bg-secondary p-4 text-left text-body-sm text-muted-foreground">
-          <p className="font-semibold text-foreground">Como abrir no {platform}</p>
+          <p className="font-semibold text-foreground">Como continuar no celular</p>
           <p className="mt-2">
-            Toque no menu de opções do aplicativo de e-mail e escolha{' '}
-            <strong className="font-semibold text-foreground">“Abrir no navegador”</strong>. Se
-            necessário, copie o link e cole no Chrome ou Safari.
+            Toque em <strong className="font-semibold text-foreground">“Copiar link”</strong> e
+            cole o endereço no Chrome ou Safari. Se você já estiver no navegador, cole o link na
+            barra de endereço ou abra uma nova aba para continuar.
           </p>
         </div>
       </section>

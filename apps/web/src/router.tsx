@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { PublicWhatsAppContact } from '@/components/public/PublicWhatsAppContact';
 // Auth
@@ -119,10 +119,12 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicContactLayout() {
+  const location = useLocation();
+
   return (
     <>
       <Outlet />
-      <PublicWhatsAppContact />
+      {!location.pathname.startsWith('/abrir-documentos/') && <PublicWhatsAppContact />}
     </>
   );
 }
