@@ -64,7 +64,7 @@ export class EmailService {
   async sendOtp(email: string, code: string): Promise<void> {
     await this.sendEmail({
       to: email,
-      subject: 'Admissão Digital - Supermercado Coelho Diniz',
+      subject: `Código de acesso à Admissão Digital: ${code} | Supermercado Coelho Diniz`,
       text: [
         'Admissão Digital - Supermercado Coelho Diniz',
         '',
