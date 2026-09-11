@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   Prisma,
@@ -30,7 +36,10 @@ type RequestEvidence = { ip?: string; userAgent?: string };
 const assinaturaTemplates = {
   [SetorAssinatura.ADM_PESSOAL]: [
     ['contrato-experiencia', 'Contrato de Experiência'],
-    ['declaracao-treinamento-biometrico', 'Declaração de Treinamento - Registro Eletrônico Biométrico'],
+    [
+      'declaracao-treinamento-biometrico',
+      'Declaração de Treinamento - Registro Eletrônico Biométrico',
+    ],
     ['acordo-domingos-feriados', 'Acordo para Trabalho aos Domingos e Feriados'],
     ['autorizacao-plano-saude', 'Autorização Desconto Plano de Saúde'],
     ['termo-prorrogacao-experiencia', 'Termo de Prorrogação do Contrato de Experiência'],
@@ -83,8 +92,13 @@ export class AssinaturasService {
     if (candidatura.candidato.userId !== userId) {
       throw new ForbiddenException('Candidatura não pertence ao candidato autenticado.');
     }
-    if (candidatura.status !== StatusCandidatura.APROVADO && candidatura.status !== StatusCandidatura.EFETIVADO) {
-      throw new BadRequestException('Os documentos só podem ser gerados para candidaturas aprovadas ou efetivadas.');
+    if (
+      candidatura.status !== StatusCandidatura.APROVADO &&
+      candidatura.status !== StatusCandidatura.EFETIVADO
+    ) {
+      throw new BadRequestException(
+        'Os documentos só podem ser gerados para candidaturas aprovadas ou efetivadas.',
+      );
     }
 
     await this.documentos.ensureDocumentos(candidaturaId);
@@ -150,11 +164,17 @@ export class AssinaturasService {
       (envelope) => envelope.tipoSignatario === TipoSignatario.CANDIDATO,
     );
     if (!candidatura.portalAccessToken || !hasCandidatoEnvelope) {
-      throw new BadRequestException('Gere os documentos de assinatura antes de enviá-los ao candidato.');
+      throw new BadRequestException(
+        'Gere os documentos de assinatura antes de enviá-los ao candidato.',
+      );
     }
 
     await this.notifyCandidatoDocumentsGenerated(candidatura);
-    if (candidatura.envelopesAssinatura.some((envelope) => envelope.tipoSignatario === TipoSignatario.RESPONSAVEL)) {
+    if (
+      candidatura.envelopesAssinatura.some(
+        (envelope) => envelope.tipoSignatario === TipoSignatario.RESPONSAVEL,
+      )
+    ) {
       await this.notifyResponsavelIfNeeded(candidatura.id, candidatura.candidato);
     }
     return { message: 'Documentos enviados ao candidato e responsável legal.' };
@@ -241,7 +261,8 @@ export class AssinaturasService {
 
     const requisicaoFilter: Prisma.RequisicaoVagaWhereInput = {};
     if (filters.filial != null) requisicaoFilter.filial = filters.filial;
-    if (filters.setor) requisicaoFilter.ccustoNome = { contains: filters.setor, mode: 'insensitive' };
+    if (filters.setor)
+      requisicaoFilter.ccustoNome = { contains: filters.setor, mode: 'insensitive' };
     if (filters.cargo) {
       requisicaoFilter.OR = [
         { cargoNome: { contains: filters.cargo, mode: 'insensitive' } },
@@ -253,11 +274,19 @@ export class AssinaturasService {
       situacao === 'APROVADOS'
         ? this.aprovadosWhere()
         : situacao === 'PENDENTES'
-          ? { envelopesAssinatura: { some: { status: { not: StatusEnvelopeAssinatura.CONCLUIDO } } } }
+          ? {
+              envelopesAssinatura: {
+                some: { status: { not: StatusEnvelopeAssinatura.CONCLUIDO } },
+              },
+            }
           : situacao === 'CONCLUIDAS'
             ? {
                 envelopesAssinatura: { some: {} },
-                NOT: { envelopesAssinatura: { some: { status: { not: StatusEnvelopeAssinatura.CONCLUIDO } } } },
+                NOT: {
+                  envelopesAssinatura: {
+                    some: { status: { not: StatusEnvelopeAssinatura.CONCLUIDO } },
+                  },
+                },
               }
             : { envelopesAssinatura: { some: {} } };
 
@@ -304,8 +333,13 @@ export class AssinaturasService {
       include: { candidato: true },
     });
     if (!candidatura) throw new NotFoundException('Candidatura não encontrada.');
-    if (candidatura.status !== StatusCandidatura.APROVADO && candidatura.status !== StatusCandidatura.EFETIVADO) {
-      throw new BadRequestException('Os documentos só podem ser gerados para candidaturas aprovadas ou efetivadas.');
+    if (
+      candidatura.status !== StatusCandidatura.APROVADO &&
+      candidatura.status !== StatusCandidatura.EFETIVADO
+    ) {
+      throw new BadRequestException(
+        'Os documentos só podem ser gerados para candidaturas aprovadas ou efetivadas.',
+      );
     }
 
     await this.documentos.ensureDocumentos(candidaturaId);
@@ -326,13 +360,60 @@ export class AssinaturasService {
     });
   }
 
+  async regenerarDocumentosPendentesParaAssinaturaPresencial(envelopeId: number) {
+    const envelope = await this.prisma.envelopeAssinatura.findUnique({
+      where: { id: envelopeId },
+      include: { candidatura: { include: { candidato: true } }, documentos: true },
+    });
+    if (!envelope) throw new NotFoundException('Envelope não encontrado.');
+    if (envelope.tipoSignatario !== TipoSignatario.CANDIDATO) return;
+    if (
+      envelope.documentos.some(
+        (documento) => documento.status === StatusDocumentoAssinatura.ASSINADO,
+      )
+    ) {
+      throw new BadRequestException(
+        'Não é possível iniciar assinatura presencial em documento já assinado.',
+      );
+    }
+
+    await Promise.all(
+      envelope.documentos.map(async (documento) => {
+        const pdf = await this.documentosTemplates.gerarPdf(
+          documento.codigo,
+          envelope.candidaturaId,
+        );
+        const key = this.buildAssinaturaKey(
+          envelope.candidatura.candidato.cpf,
+          envelope.id,
+          documento.codigo,
+          'original',
+        );
+        await this.s3.upload(key, pdf, 'application/pdf');
+        await this.prisma.documentoAssinatura.update({
+          where: { id: documento.id },
+          data: {
+            conteudoStoragePath: key,
+            hashOriginal: this.hashBuffer(pdf),
+            presencialPdfStoragePath: null,
+            presencialFotoStoragePath: null,
+            responsavelPresencialFotoStoragePath: null,
+          },
+        });
+      }),
+    );
+  }
+
   async sendOtp(userId: number, envelopeId: number, evidence: RequestEvidence) {
     const envelope = await this.findEnvelopeForUser(userId, envelopeId);
     if (envelope.status === StatusEnvelopeAssinatura.CONCLUIDO) {
       throw new BadRequestException('Envelope já concluído.');
     }
 
-    const identifier = this.signatureIdentifier(envelope.candidatura.candidato, envelope.tipoSignatario);
+    const identifier = this.signatureIdentifier(
+      envelope.candidatura.candidato,
+      envelope.tipoSignatario,
+    );
     const code = this.otp.generate();
     await this.otp.save(identifier, code);
     await this.deliverOtp(identifier, code);
@@ -355,7 +436,8 @@ export class AssinaturasService {
 
   async verifyOtp(userId: number, envelopeId: number, code: string, evidence: RequestEvidence) {
     const envelope = await this.findEnvelopeForUser(userId, envelopeId);
-    if (!envelope.otpIdentifier) throw new BadRequestException('Solicite o código antes de validar.');
+    if (!envelope.otpIdentifier)
+      throw new BadRequestException('Solicite o código antes de validar.');
 
     const valid = await this.otp.verify(envelope.otpIdentifier, code);
     if (!valid) throw new ForbiddenException('Código inválido ou expirado.');
@@ -364,7 +446,12 @@ export class AssinaturasService {
     const sessionExpiraEm = new Date(Date.now() + 30 * 60 * 1000);
     await this.prisma.envelopeAssinatura.update({
       where: { id: envelope.id },
-      data: { status: StatusEnvelopeAssinatura.OTP_VALIDADO, otpValidadoEm: new Date(), sessionToken, sessionExpiraEm },
+      data: {
+        status: StatusEnvelopeAssinatura.OTP_VALIDADO,
+        otpValidadoEm: new Date(),
+        sessionToken,
+        sessionExpiraEm,
+      },
     });
     await this.recordEvent(envelope.id, TipoEventoAssinatura.OTP_VALIDADO, evidence);
 
@@ -373,7 +460,8 @@ export class AssinaturasService {
 
   async viewDocument(userId: number, documentoId: number, evidence: RequestEvidence) {
     const documento = await this.findDocumentForUser(userId, documentoId);
-    if (documento.empresaPdfFinalStoragePath) return this.s3.download(documento.empresaPdfFinalStoragePath);
+    if (documento.empresaPdfFinalStoragePath)
+      return this.s3.download(documento.empresaPdfFinalStoragePath);
     if (documento.empresaPdfFinal) return Buffer.from(documento.empresaPdfFinal);
 
     if (!documento.visualizadoEm) {
@@ -381,9 +469,14 @@ export class AssinaturasService {
         where: { id: documento.id },
         data: { visualizadoEm: new Date() },
       });
-      await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_VISUALIZADO, evidence, {
-        documentoId: documento.id,
-      });
+      await this.recordEvent(
+        documento.envelopeId,
+        TipoEventoAssinatura.DOCUMENTO_VISUALIZADO,
+        evidence,
+        {
+          documentoId: documento.id,
+        },
+      );
     }
 
     return this.renderDocumentoPdf(documento);
@@ -391,28 +484,37 @@ export class AssinaturasService {
 
   async viewDocumentForRh(userId: number, documentoId: number) {
     await this.ensureRh(userId);
-    const documento = await this.prisma.documentoAssinatura.findUnique({ where: { id: documentoId } });
+    const documento = await this.prisma.documentoAssinatura.findUnique({
+      where: { id: documentoId },
+    });
     if (!documento) throw new NotFoundException('Documento de assinatura não encontrado.');
-    if (documento.empresaPdfFinalStoragePath) return this.s3.download(documento.empresaPdfFinalStoragePath);
+    if (documento.empresaPdfFinalStoragePath)
+      return this.s3.download(documento.empresaPdfFinalStoragePath);
     if (documento.empresaPdfFinal) return Buffer.from(documento.empresaPdfFinal);
 
     return this.renderDocumentoPdf(documento);
   }
 
-  async signDocument(userId: number, documentoId: number, sessionToken: string, evidence: RequestEvidence) {
+  async signDocument(
+    userId: number,
+    documentoId: number,
+    sessionToken: string,
+    evidence: RequestEvidence,
+  ) {
     const documento = await this.findDocumentForUser(userId, documentoId);
     if (documento.status === StatusDocumentoAssinatura.ASSINADO) return documento;
-    if (!documento.visualizadoEm) throw new BadRequestException('Visualize o documento antes de assinar.');
+    if (!documento.visualizadoEm)
+      throw new BadRequestException('Visualize o documento antes de assinar.');
 
     this.validateSession(documento.envelope, sessionToken);
 
     const candidato = documento.envelope.candidatura.candidato;
     const isResponsavel = documento.envelope.tipoSignatario === TipoSignatario.RESPONSAVEL;
     const signatarioNome = isResponsavel
-      ? candidato.responsavelNome ?? 'RESPONSÁVEL NÃO INFORMADO'
-      : candidato.nome ?? documento.envelope.user.nome;
+      ? (candidato.responsavelNome ?? 'RESPONSÁVEL NÃO INFORMADO')
+      : (candidato.nome ?? documento.envelope.user.nome);
     const signatarioCpf = isResponsavel
-      ? candidato.responsavelCpf ?? candidato.cpf
+      ? (candidato.responsavelCpf ?? candidato.cpf)
       : candidato.cpf;
     const otpIdentifier = documento.envelope.otpIdentifier;
     const assinaturaEmail = otpIdentifier?.includes('@') ? otpIdentifier : null;
@@ -421,16 +523,16 @@ export class AssinaturasService {
     const signedAt = new Date();
     const codigoVerificacao = this.generateVerificationCode();
     const pdfCandidato = await this.renderDocumentoPdf({
-        ...documento,
-        status: StatusDocumentoAssinatura.ASSINADO,
-        assinadoEm: signedAt,
-        assinaturaNome: signatarioNome,
-        assinaturaCpf: signatarioCpf,
-        assinaturaIp: evidence.ip ?? null,
-        assinaturaUserAgent: evidence.userAgent ?? null,
-        codigoVerificacao,
-        hashAssinado: null,
-      });
+      ...documento,
+      status: StatusDocumentoAssinatura.ASSINADO,
+      assinadoEm: signedAt,
+      assinaturaNome: signatarioNome,
+      assinaturaCpf: signatarioCpf,
+      assinaturaIp: evidence.ip ?? null,
+      assinaturaUserAgent: evidence.userAgent ?? null,
+      codigoVerificacao,
+      hashAssinado: null,
+    });
     const hashAssinado = this.hashBuffer(pdfCandidato);
 
     const signed = await this.prisma.documentoAssinatura.update({
@@ -450,18 +552,27 @@ export class AssinaturasService {
       },
     });
 
-    await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_ASSINADO, evidence, {
-      documentoId: documento.id,
-      hashOriginal: documento.hashOriginal,
-      hashAssinado,
-      codigoVerificacao,
-    });
+    await this.recordEvent(
+      documento.envelopeId,
+      TipoEventoAssinatura.DOCUMENTO_ASSINADO,
+      evidence,
+      {
+        documentoId: documento.id,
+        hashOriginal: documento.hashOriginal,
+        hashAssinado,
+        codigoVerificacao,
+      },
+    );
     await this.concludeEnvelopeIfComplete(documento.envelopeId);
 
     return signed;
   }
 
-  async signEnvelopeByBiometria(envelopeId: number, biometriaSolicitacaoId: number, evidence: RequestEvidence) {
+  async signEnvelopeByBiometria(
+    envelopeId: number,
+    biometriaSolicitacaoId: number,
+    evidence: RequestEvidence,
+  ) {
     const envelope = await this.prisma.envelopeAssinatura.findUnique({
       where: { id: envelopeId },
       include: {
@@ -522,17 +633,22 @@ export class AssinaturasService {
           hashAssinado,
         },
       });
-      await this.recordEvent(envelope.id, TipoEventoAssinatura.DOCUMENTO_ASSINADO_BIOMETRIA, evidence, {
-        documentoId: documento.id,
-        biometriaSolicitacaoId,
-        dispositivoId: solicitacao.dispositivoId,
-        dispositivoNome: solicitacao.dispositivo?.nome,
-        solicitadoPorId: solicitacao.solicitadaPorId,
-        solicitadoPorNome: solicitacao.solicitadaPor.nome,
-        hashOriginal: documento.hashOriginal,
-        hashAssinado,
-        codigoVerificacao,
-      });
+      await this.recordEvent(
+        envelope.id,
+        TipoEventoAssinatura.DOCUMENTO_ASSINADO_BIOMETRIA,
+        evidence,
+        {
+          documentoId: documento.id,
+          biometriaSolicitacaoId,
+          dispositivoId: solicitacao.dispositivoId,
+          dispositivoNome: solicitacao.dispositivo?.nome,
+          solicitadoPorId: solicitacao.solicitadaPorId,
+          solicitadoPorNome: solicitacao.solicitadaPor.nome,
+          hashOriginal: documento.hashOriginal,
+          hashAssinado,
+          codigoVerificacao,
+        },
+      );
     }
 
     // Para menores, não certificar individualmente — a certificação unificada acontece
@@ -549,11 +665,113 @@ export class AssinaturasService {
     await this.concludeEnvelopeIfComplete(envelope.id);
   }
 
+  async concluirAssinaturaPresencial(
+    envelopeId: number,
+    tipoSignatario: TipoSignatario,
+    evidence: RequestEvidence,
+  ) {
+    const envelope = await this.prisma.envelopeAssinatura.findUnique({
+      where: { id: envelopeId },
+      include: {
+        candidatura: { include: { candidato: true } },
+        user: true,
+        documentos: { orderBy: { ordem: 'asc' } },
+      },
+    });
+    if (!envelope) throw new NotFoundException('Envelope não encontrado.');
+
+    const documentos =
+      tipoSignatario === TipoSignatario.CANDIDATO
+        ? envelope.documentos.filter(
+            (documento) => documento.status !== StatusDocumentoAssinatura.ASSINADO,
+          )
+        : await this.prisma.documentoAssinatura.findMany({
+            where: {
+              envelope: {
+                candidaturaId: envelope.candidaturaId,
+                setor: envelope.setor,
+                tipoSignatario: TipoSignatario.CANDIDATO,
+              },
+              status: StatusDocumentoAssinatura.ASSINADO,
+              responsavelAssinadoEm: null,
+            },
+            orderBy: { ordem: 'asc' },
+          });
+    if (documentos.length === 0)
+      throw new BadRequestException('Não há documentos pendentes para assinatura presencial.');
+
+    const signedAt = new Date();
+    const candidato = envelope.candidatura.candidato;
+    for (const documento of documentos) {
+      const codigoVerificacao = documento.codigoVerificacao ?? this.generateVerificationCode();
+      if (tipoSignatario === TipoSignatario.CANDIDATO) {
+        const pdf = await this.renderDocumentoPdf({
+          ...documento,
+          status: StatusDocumentoAssinatura.ASSINADO,
+          assinadoEm: signedAt,
+          assinaturaNome: candidato.nome ?? envelope.user.nome,
+          assinaturaCpf: candidato.cpf,
+          assinaturaIp: evidence.ip ?? null,
+          assinaturaUserAgent: evidence.userAgent ?? null,
+          metodoAssinatura: MetodoAssinatura.PRESENCIAL,
+          codigoVerificacao,
+          hashAssinado: null,
+        });
+        const hashAssinado = this.hashBuffer(pdf);
+        await this.prisma.documentoAssinatura.update({
+          where: { id: documento.id },
+          data: {
+            status: StatusDocumentoAssinatura.ASSINADO,
+            assinadoEm: signedAt,
+            assinaturaNome: candidato.nome ?? envelope.user.nome,
+            assinaturaCpf: candidato.cpf,
+            assinaturaIp: evidence.ip,
+            assinaturaUserAgent: evidence.userAgent,
+            metodoAssinatura: MetodoAssinatura.PRESENCIAL,
+            codigoVerificacao,
+            hashAssinado,
+          },
+        });
+      } else {
+        const nome = candidato.responsavelNome ?? 'RESPONSÁVEL NÃO INFORMADO';
+        const cpf = candidato.responsavelCpf ?? candidato.cpf;
+        const pdf = await this.renderDocumentoPdf({
+          ...documento,
+          responsavelAssinaturaNome: nome,
+          responsavelAssinaturaCpf: cpf,
+          responsavelAssinadoEm: signedAt,
+          responsavelAssinaturaIp: evidence.ip ?? null,
+          responsavelAssinaturaUserAgent: evidence.userAgent ?? null,
+          responsavelMetodoAssinatura: MetodoAssinatura.PRESENCIAL,
+          responsavelHashAssinado: null,
+        });
+        await this.prisma.documentoAssinatura.update({
+          where: { id: documento.id },
+          data: {
+            responsavelAssinaturaNome: nome,
+            responsavelAssinaturaCpf: cpf,
+            responsavelAssinadoEm: signedAt,
+            responsavelAssinaturaIp: evidence.ip,
+            responsavelAssinaturaUserAgent: evidence.userAgent,
+            responsavelMetodoAssinatura: MetodoAssinatura.PRESENCIAL,
+            responsavelHashAssinado: this.hashBuffer(pdf),
+          },
+        });
+      }
+    }
+
+    await this.concludeEnvelopeIfComplete(envelopeId);
+  }
+
   /**
    * Assina os documentos do CANDIDATO como responsável legal via biometria.
    * Preenche os campos responsavel* nos DocumentoAssinatura existentes.
    */
-  async signResponsavelByBiometria(candidaturaId: number, biometriaSolicitacaoId: number, evidence: RequestEvidence) {
+  async signResponsavelByBiometria(
+    candidaturaId: number,
+    biometriaSolicitacaoId: number,
+    evidence: RequestEvidence,
+  ) {
     const solicitacao = await this.prisma.biometriaSolicitacao.findUnique({
       where: { id: biometriaSolicitacaoId },
       include: { dispositivo: true, solicitadaPor: true },
@@ -619,16 +837,21 @@ export class AssinaturasService {
       });
 
       if (responsavelEnvelope) {
-        await this.recordEvent(responsavelEnvelope.id, TipoEventoAssinatura.DOCUMENTO_ASSINADO_BIOMETRIA, evidence, {
-          documentoId: documento.id,
-          biometriaSolicitacaoId,
-          dispositivoId: solicitacao.dispositivoId,
-          dispositivoNome: solicitacao.dispositivo?.nome,
-          solicitadoPorId: solicitacao.solicitadaPorId,
-          solicitadoPorNome: solicitacao.solicitadaPor.nome,
-          hashAssinado,
-          tipoSignatario: 'RESPONSAVEL',
-        });
+        await this.recordEvent(
+          responsavelEnvelope.id,
+          TipoEventoAssinatura.DOCUMENTO_ASSINADO_BIOMETRIA,
+          evidence,
+          {
+            documentoId: documento.id,
+            biometriaSolicitacaoId,
+            dispositivoId: solicitacao.dispositivoId,
+            dispositivoNome: solicitacao.dispositivo?.nome,
+            solicitadoPorId: solicitacao.solicitadaPorId,
+            solicitadoPorNome: solicitacao.solicitadaPor.nome,
+            hashAssinado,
+            tipoSignatario: 'RESPONSAVEL',
+          },
+        );
       }
     }
 
@@ -652,7 +875,10 @@ export class AssinaturasService {
 
     const existingUser = await this.prisma.user.findUnique({ where: { cpf } });
     if (existingUser) {
-      await this.prisma.candidato.update({ where: { id: candidato.id }, data: { userId: existingUser.id } });
+      await this.prisma.candidato.update({
+        where: { id: candidato.id },
+        data: { userId: existingUser.id },
+      });
       return existingUser.id;
     }
 
@@ -668,7 +894,10 @@ export class AssinaturasService {
         where: { id: contactUser.id },
         data: { cpf, nome: contactUser.nome ?? candidato.nome },
       });
-      await this.prisma.candidato.update({ where: { id: candidato.id }, data: { userId: user.id } });
+      await this.prisma.candidato.update({
+        where: { id: candidato.id },
+        data: { userId: user.id },
+      });
       return user.id;
     }
 
@@ -693,7 +922,8 @@ export class AssinaturasService {
       where: { id: candidaturaId },
       include: { candidato: true, requisicao: true },
     });
-    const dataAdmissao = candidatura?.admissao ?? candidatura?.requisicao.dataPrevistaAdmissao ?? new Date();
+    const dataAdmissao =
+      candidatura?.admissao ?? candidatura?.requisicao.dataPrevistaAdmissao ?? new Date();
     const isMenor = candidatura?.candidato.dataNascimento
       ? this.calcularIdade(candidatura.candidato.dataNascimento, dataAdmissao) < 18
       : false;
@@ -705,10 +935,18 @@ export class AssinaturasService {
       const envelope = await this.prisma.envelopeAssinatura.upsert({
         where: {
           candidaturaId_setor_tipoSignatario: {
-            candidaturaId, setor, tipoSignatario: TipoSignatario.CANDIDATO,
+            candidaturaId,
+            setor,
+            tipoSignatario: TipoSignatario.CANDIDATO,
           },
         },
-        create: { candidaturaId, userId, setor, tipoSignatario: TipoSignatario.CANDIDATO, geradoPorUserId: geradoPorUserId ?? null },
+        create: {
+          candidaturaId,
+          userId,
+          setor,
+          tipoSignatario: TipoSignatario.CANDIDATO,
+          geradoPorUserId: geradoPorUserId ?? null,
+        },
         update: {},
       });
       await this.ensureDocuments(envelope.id, candidaturaId, setor);
@@ -718,7 +956,9 @@ export class AssinaturasService {
         const responsavelEnvelope = await this.prisma.envelopeAssinatura.upsert({
           where: {
             candidaturaId_setor_tipoSignatario: {
-              candidaturaId, setor, tipoSignatario: TipoSignatario.RESPONSAVEL,
+              candidaturaId,
+              setor,
+              tipoSignatario: TipoSignatario.RESPONSAVEL,
             },
           },
           create: {
@@ -819,7 +1059,12 @@ export class AssinaturasService {
 
     if (email) {
       try {
-        await this.email.sendDocumentsReadyNotification(email, candidatoNome, empresaNome, signingLink);
+        await this.email.sendDocumentsReadyNotification(
+          email,
+          candidatoNome,
+          empresaNome,
+          signingLink,
+        );
       } catch (err) {
         this.logger.error(`Erro ao enviar e-mail de documentos prontos para ${email}: ${err}`);
       }
@@ -837,7 +1082,9 @@ export class AssinaturasService {
     }
 
     if (!email && !telefone) {
-      this.logger.warn(`Candidato ${candidato.id} sem e-mail e telefone para notificação de documentos prontos.`);
+      this.logger.warn(
+        `Candidato ${candidato.id} sem e-mail e telefone para notificação de documentos prontos.`,
+      );
     }
   }
 
@@ -864,8 +1111,10 @@ export class AssinaturasService {
     const temDependentes = (candidatura?.candidato?.dependentes?.length ?? 0) > 0;
 
     const templates = assinaturaTemplates[setor].filter(([codigo]) => {
-      if (codigo === 'autorizacao-plano-saude') return filial != null && filiaisAutorizacaoPlanoSaude.has(filial);
-      if (codigo === 'termo-prorrogacao-experiencia') return !!prorrogacaoDias && prorrogacaoDias > 0;
+      if (codigo === 'autorizacao-plano-saude')
+        return filial != null && filiaisAutorizacaoPlanoSaude.has(filial);
+      if (codigo === 'termo-prorrogacao-experiencia')
+        return !!prorrogacaoDias && prorrogacaoDias > 0;
       if (codigo === 'declaracao-encargos-ir') return temDependentes;
       return true;
     });
@@ -896,6 +1145,9 @@ export class AssinaturasService {
     nome: string;
     conteudo: string | null;
     conteudoStoragePath?: string | null;
+    presencialPdfStoragePath?: string | null;
+    presencialFotoStoragePath?: string | null;
+    responsavelPresencialFotoStoragePath?: string | null;
     hashOriginal: string;
     hashAssinado: string | null;
     status: StatusDocumentoAssinatura;
@@ -926,8 +1178,12 @@ export class AssinaturasService {
     empresaAssinouEm?: Date | null;
     empresaPdfHash?: string | null;
   }): Promise<Buffer> {
-    if (documento.conteudoStoragePath) {
-      const basePdf = await this.s3.download(documento.conteudoStoragePath);
+    const storagePath =
+      documento.status === StatusDocumentoAssinatura.ASSINADO && documento.presencialPdfStoragePath
+        ? documento.presencialPdfStoragePath
+        : documento.conteudoStoragePath;
+    if (storagePath) {
+      const basePdf = await this.s3.download(storagePath);
       if (documento.status !== StatusDocumentoAssinatura.ASSINADO) {
         return basePdf;
       }
@@ -967,9 +1223,14 @@ export class AssinaturasService {
     cursorY -= 32;
 
     for (const paragraph of body) {
-      if (!paragraph.trim()) { cursorY -= 10; continue; }
+      if (!paragraph.trim()) {
+        cursorY -= 10;
+        continue;
+      }
       for (const line of wrapText(paragraph, regular, 10, 455)) {
-        if (cursorY < 70) { cursorY = 785; }
+        if (cursorY < 70) {
+          cursorY = 785;
+        }
         page.drawText(line, { x: 70, y: cursorY, size: 10, font: regular, color: rgb(0, 0, 0) });
         cursorY -= 13;
       }
@@ -1019,7 +1280,9 @@ export class AssinaturasService {
       responsavelAssinaturaEmail?: string | null;
       responsavelAssinaturaTelefone?: string | null;
       responsavelMetodoAssinatura?: MetodoAssinatura | null;
-        responsavelHashAssinado?: string | null;
+      responsavelHashAssinado?: string | null;
+      presencialFotoStoragePath?: string | null;
+      responsavelPresencialFotoStoragePath?: string | null;
       // Dados da empresa
       empresaCertSubject?: string | null;
       empresaCertIssuer?: string | null;
@@ -1048,7 +1311,12 @@ export class AssinaturasService {
 
     const drawSection = (titulo: string) => {
       cursorY -= 8;
-      page.drawLine({ start: { x: 70, y: cursorY }, end: { x: 525, y: cursorY }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+      page.drawLine({
+        start: { x: 70, y: cursorY },
+        end: { x: 525, y: cursorY },
+        thickness: 0.5,
+        color: rgb(0.6, 0.6, 0.6),
+      });
       cursorY -= 13;
       page.drawText(titulo, { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.3, 0.3, 0.3) });
       cursorY -= 13;
@@ -1056,36 +1324,103 @@ export class AssinaturasService {
 
     const drawRow = (label: string, value: string) => {
       if (cursorY < 60) return;
-      page.drawText(`${label}:`, { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.15, 0.15, 0.15) });
+      page.drawText(`${label}:`, {
+        x: 70,
+        y: cursorY,
+        size: 9,
+        font: bold,
+        color: rgb(0.15, 0.15, 0.15),
+      });
       cursorY -= 13;
       for (const line of wrapText(value, regular, 8.5, 445)) {
         if (cursorY < 60) break;
-        page.drawText(line, { x: 82, y: cursorY, size: 8.5, font: regular, color: rgb(0.2, 0.2, 0.2) });
+        page.drawText(line, {
+          x: 82,
+          y: cursorY,
+          size: 8.5,
+          font: regular,
+          color: rgb(0.2, 0.2, 0.2),
+        });
         cursorY -= 11;
       }
       cursorY -= 3;
     };
 
     // Título
-    page.drawText('Comprovante de Assinatura Eletrônica', { x: 70, y: cursorY, size: 13, font: bold, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText('Comprovante de Assinatura Eletrônica', {
+      x: 70,
+      y: cursorY,
+      size: 13,
+      font: bold,
+      color: rgb(0.1, 0.1, 0.1),
+    });
     cursorY -= 8;
-    page.drawLine({ start: { x: 70, y: cursorY }, end: { x: 525, y: cursorY }, thickness: 0.8, color: rgb(0.2, 0.2, 0.2) });
+    page.drawLine({
+      start: { x: 70, y: cursorY },
+      end: { x: 525, y: cursorY },
+      thickness: 0.8,
+      color: rgb(0.2, 0.2, 0.2),
+    });
     cursorY -= 18;
+
+    const fotosPresenciais = [
+      { path: documento.presencialFotoStoragePath, label: 'Foto do candidato' },
+      {
+        path: documento.responsavelPresencialFotoStoragePath,
+        label: 'Foto do responsável legal',
+      },
+    ].filter((foto): foto is { path: string; label: string } => Boolean(foto.path));
+    for (const [index, foto] of fotosPresenciais.entries()) {
+      const photoBytes = await this.s3.download(foto.path);
+      const photo = photoBytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+        ? await pdf.embedPng(photoBytes)
+        : await pdf.embedJpg(photoBytes);
+      const scaled = photo.scaleToFit(72, 72);
+      const x = 425 - index * 90;
+      page.drawImage(photo, {
+        x,
+        y: cursorY - scaled.height + 8,
+        width: scaled.width,
+        height: scaled.height,
+      });
+      page.drawText(foto.label, {
+        x,
+        y: cursorY - scaled.height - 5,
+        size: 7,
+        font: regular,
+        color: rgb(0.3, 0.3, 0.3),
+      });
+    }
+    if (fotosPresenciais.length) cursorY -= 64;
 
     // Seção COLABORADOR
     const metodoLabel =
       documento.metodoAssinatura === MetodoAssinatura.BIOMETRIA
         ? 'Assinatura biométrica assistida (verificação facial)'
-        : 'Assinatura eletrônica avançada por OTP (MP 2.200-2/2001 e Lei 14.063/2020)';
+        : documento.metodoAssinatura === MetodoAssinatura.PRESENCIAL
+          ? 'Assinatura presencial manuscrita em tablet'
+          : 'Assinatura eletrônica avançada por OTP (MP 2.200-2/2001 e Lei 14.063/2020)';
 
     const signatarioSectionLabel = documento.signatarioLabel ?? 'COLABORADOR';
-    page.drawText(signatarioSectionLabel, { x: 70, y: cursorY, size: 9, font: bold, color: rgb(0.3, 0.3, 0.3) });
+    page.drawText(signatarioSectionLabel, {
+      x: 70,
+      y: cursorY,
+      size: 9,
+      font: bold,
+      color: rgb(0.3, 0.3, 0.3),
+    });
     cursorY -= 13;
     drawRow('Assinado por', documento.assinaturaNome ?? 'Não informado');
-    drawRow('CPF', documento.assinaturaCpf ? this.maskCpf(documento.assinaturaCpf) : 'Não informado');
+    drawRow(
+      'CPF',
+      documento.assinaturaCpf ? this.maskCpf(documento.assinaturaCpf) : 'Não informado',
+    );
     drawRow('Método de assinatura', metodoLabel);
     drawRow('Data/hora (UTC)', documento.assinadoEm?.toISOString() ?? 'Não informado');
-    drawRow('Data/hora (Brasília)', documento.assinadoEm ? this.formatDateBrasilia(documento.assinadoEm) : 'Não informado');
+    drawRow(
+      'Data/hora (Brasília)',
+      documento.assinadoEm ? this.formatDateBrasilia(documento.assinadoEm) : 'Não informado',
+    );
     drawRow('IP público', documento.assinaturaIp ?? 'Não informado');
     const canalOtp = documento.assinaturaEmail ?? documento.assinaturaTelefone;
     drawRow(
@@ -1094,7 +1429,9 @@ export class AssinaturasService {
         ? `${documento.assinaturaEmail ? 'E-mail' : 'Telefone'}: ${this.maskIdentifier(canalOtp)}`
         : documento.metodoAssinatura === MetodoAssinatura.BIOMETRIA
           ? 'Biometria facial'
-          : 'Não informado',
+          : documento.metodoAssinatura === MetodoAssinatura.PRESENCIAL
+            ? 'Assinatura presencial em tablet'
+            : 'Não informado',
     );
     drawRow(
       documento.metodoAssinatura === MetodoAssinatura.BIOMETRIA &&
@@ -1112,32 +1449,46 @@ export class AssinaturasService {
       await checkPageBreak(250);
       drawSection('RESPONSÁVEL LEGAL');
       drawRow('Assinado por', documento.responsavelAssinaturaNome ?? 'Não informado');
-      drawRow('CPF', documento.responsavelAssinaturaCpf ? this.maskCpf(documento.responsavelAssinaturaCpf) : 'Não informado');
+      drawRow(
+        'CPF',
+        documento.responsavelAssinaturaCpf
+          ? this.maskCpf(documento.responsavelAssinaturaCpf)
+          : 'Não informado',
+      );
       const metodoLabelResp =
         documento.responsavelMetodoAssinatura === MetodoAssinatura.BIOMETRIA
           ? 'Assinatura biométrica assistida (verificação facial)'
-          : 'Assinatura eletrônica avançada por OTP (MP 2.200-2/2001 e Lei 14.063/2020)';
+          : documento.responsavelMetodoAssinatura === MetodoAssinatura.PRESENCIAL
+            ? 'Assinatura presencial manuscrita em tablet'
+            : 'Assinatura eletrônica avançada por OTP (MP 2.200-2/2001 e Lei 14.063/2020)';
       drawRow('Método de assinatura', metodoLabelResp);
       drawRow('Data/hora (UTC)', documento.responsavelAssinadoEm.toISOString());
       drawRow('Data/hora (Brasília)', this.formatDateBrasilia(documento.responsavelAssinadoEm));
       drawRow('IP público', documento.responsavelAssinaturaIp ?? 'Não informado');
-      const canalOtpResp = documento.responsavelAssinaturaEmail ?? documento.responsavelAssinaturaTelefone;
+      const canalOtpResp =
+        documento.responsavelAssinaturaEmail ?? documento.responsavelAssinaturaTelefone;
       drawRow(
         'Canal de validação',
         canalOtpResp
           ? `${documento.responsavelAssinaturaEmail ? 'E-mail' : 'Telefone'}: ${this.maskIdentifier(canalOtpResp)}`
           : documento.responsavelMetodoAssinatura === MetodoAssinatura.BIOMETRIA
             ? 'Biometria facial'
-            : 'Não informado',
+            : documento.responsavelMetodoAssinatura === MetodoAssinatura.PRESENCIAL
+              ? 'Assinatura presencial em tablet'
+              : 'Não informado',
       );
       drawRow(
         documento.responsavelMetodoAssinatura === MetodoAssinatura.BIOMETRIA &&
           documento.responsavelAssinaturaUserAgent?.startsWith('Coleta facial:')
           ? 'Local da coleta facial'
           : 'Dispositivo/Navegador',
-        documento.responsavelAssinaturaUserAgent?.replace(/^Coleta facial:\s*/, '') ?? 'Não informado',
+        documento.responsavelAssinaturaUserAgent?.replace(/^Coleta facial:\s*/, '') ??
+          'Não informado',
       );
-      drawRow('Hash após assinatura SHA-256', documento.responsavelHashAssinado ?? 'Não disponível');
+      drawRow(
+        'Hash após assinatura SHA-256',
+        documento.responsavelHashAssinado ?? 'Não disponível',
+      );
     }
 
     // Seção EMPRESA (condicional — só exibe se o certificado A1 foi aplicado)
@@ -1152,10 +1503,20 @@ export class AssinaturasService {
       drawRow('Subject do certificado', documento.empresaCertSubject);
       drawRow('Emissor', documento.empresaCertIssuer ?? 'Não informado');
       drawRow('Número de série', documento.empresaCertSerial ?? 'Não informado');
-      drawRow('Data/hora assinatura (UTC)', documento.empresaAssinouEm?.toISOString() ?? 'Não informado');
-      drawRow('Data/hora assinatura (Brasília)', documento.empresaAssinouEm ? this.formatDateBrasilia(documento.empresaAssinouEm) : 'Não informado');
-      drawRow('Hash SHA-256 do documento (pré-carimbo ICP-Brasil)', documento.empresaPdfHash ?? 'Não disponível');
-
+      drawRow(
+        'Data/hora assinatura (UTC)',
+        documento.empresaAssinouEm?.toISOString() ?? 'Não informado',
+      );
+      drawRow(
+        'Data/hora assinatura (Brasília)',
+        documento.empresaAssinouEm
+          ? this.formatDateBrasilia(documento.empresaAssinouEm)
+          : 'Não informado',
+      );
+      drawRow(
+        'Hash SHA-256 do documento (pré-carimbo ICP-Brasil)',
+        documento.empresaPdfHash ?? 'Não disponível',
+      );
     }
 
     // Link de verificação
@@ -1169,7 +1530,12 @@ export class AssinaturasService {
     // Rodapé
     cursorY -= 10;
     if (cursorY > 60) {
-      page.drawLine({ start: { x: 70, y: cursorY }, end: { x: 525, y: cursorY }, thickness: 0.4, color: rgb(0.7, 0.7, 0.7) });
+      page.drawLine({
+        start: { x: 70, y: cursorY },
+        end: { x: 525, y: cursorY },
+        thickness: 0.4,
+        color: rgb(0.7, 0.7, 0.7),
+      });
       cursorY -= 12;
       page.drawText(
         'Este comprovante faz parte integrante do documento assinado. Verifique a autenticidade pelo código de verificação no sistema Admissão Digital.',
@@ -1227,7 +1593,14 @@ export class AssinaturasService {
     return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
   }
 
-  private validateSession(envelope: { sessionToken: string | null; sessionExpiraEm: Date | null; status: StatusEnvelopeAssinatura }, sessionToken: string) {
+  private validateSession(
+    envelope: {
+      sessionToken: string | null;
+      sessionExpiraEm: Date | null;
+      status: StatusEnvelopeAssinatura;
+    },
+    sessionToken: string,
+  ) {
     if (envelope.status !== StatusEnvelopeAssinatura.OTP_VALIDADO) {
       throw new ForbiddenException('Valide o OTP antes de assinar.');
     }
@@ -1245,7 +1618,9 @@ export class AssinaturasService {
       include: { documentos: true, candidatura: { include: { candidato: true } } },
     });
     if (!envelope) return;
-    const complete = envelope.documentos.every((documento) => documento.status === StatusDocumentoAssinatura.ASSINADO);
+    const complete = envelope.documentos.every(
+      (documento) => documento.status === StatusDocumentoAssinatura.ASSINADO,
+    );
     if (!complete) return;
 
     await this.prisma.envelopeAssinatura.update({
@@ -1265,12 +1640,18 @@ export class AssinaturasService {
         },
       });
       if (pendingCandidatoEnvelopes === 0) {
-        await this.notifyResponsavelIfNeeded(envelope.candidaturaId, envelope.candidatura.candidato);
+        await this.notifyResponsavelIfNeeded(
+          envelope.candidaturaId,
+          envelope.candidatura.candidato,
+        );
       }
     }
 
     const pending = await this.prisma.envelopeAssinatura.count({
-      where: { candidaturaId: envelope.candidaturaId, status: { not: StatusEnvelopeAssinatura.CONCLUIDO } },
+      where: {
+        candidaturaId: envelope.candidaturaId,
+        status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
+      },
     });
     if (pending === 0) {
       // Certifica com A1 e atualiza status (ambos — candidato e responsável — já assinaram)
@@ -1281,16 +1662,26 @@ export class AssinaturasService {
           data: { status: StatusRequisicaoVaga.AGUARDANDO_RH },
         });
         // Notifica menor e responsável que todos os documentos foram assinados
-        await this.notifyAllSignaturesComplete(envelope.candidaturaId, envelope.candidatura.candidato);
+        await this.notifyAllSignaturesComplete(
+          envelope.candidaturaId,
+          envelope.candidatura.candidato,
+        );
       } catch (err) {
-        this.logger.error(`Erro na certificação/notificação pós-assinatura (candidatura ${envelope.candidaturaId}): ${err}`);
+        this.logger.error(
+          `Erro na certificação/notificação pós-assinatura (candidatura ${envelope.candidaturaId}): ${err}`,
+        );
       }
     }
   }
 
   private async notifyResponsavelIfNeeded(
     candidaturaId: number,
-    candidato: { responsavelEmail?: string | null; responsavelTelefone?: string | null; responsavelNome?: string | null; nome?: string | null },
+    candidato: {
+      responsavelEmail?: string | null;
+      responsavelTelefone?: string | null;
+      responsavelNome?: string | null;
+      nome?: string | null;
+    },
   ) {
     const responsavelEnvelopes = await this.prisma.envelopeAssinatura.findMany({
       where: {
@@ -1318,7 +1709,10 @@ export class AssinaturasService {
     } else {
       const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:5010';
       const link = `${baseUrl}/responsavel/assinaturas/${accessToken}`;
-      await this.sms.sendMessage(responsavelIdentifier, `Admissão Digital: Assine os documentos de ${candidatoNome} em ${link}`);
+      await this.sms.sendMessage(
+        responsavelIdentifier,
+        `Admissão Digital: Assine os documentos de ${candidatoNome} em ${link}`,
+      );
     }
   }
 
@@ -1367,7 +1761,10 @@ export class AssinaturasService {
   private async certifyEnvelopeDocuments(envelopeId: number) {
     const envelope = await this.prisma.envelopeAssinatura.findUnique({
       where: { id: envelopeId },
-      include: { candidatura: { include: { requisicao: true } }, documentos: { orderBy: { ordem: 'asc' } } },
+      include: {
+        candidatura: { include: { requisicao: true } },
+        documentos: { orderBy: { ordem: 'asc' } },
+      },
     });
     if (!envelope) return;
     if (!envelope.candidatura.requisicao.empresaId) {
@@ -1381,9 +1778,12 @@ export class AssinaturasService {
         })
       : null;
 
-    const certificado = await this.certificados.getActiveCertificateForEmpresa(envelope.candidatura.requisicao.empresaId);
+    const certificado = await this.certificados.getActiveCertificateForEmpresa(
+      envelope.candidatura.requisicao.empresaId,
+    );
     for (const documento of envelope.documentos) {
-      if (documento.status !== StatusDocumentoAssinatura.ASSINADO || documento.empresaPdfFinal) continue;
+      if (documento.status !== StatusDocumentoAssinatura.ASSINADO || documento.empresaPdfFinal)
+        continue;
       await this.certifyDocument(documento, certificado, { user: responsavelUser });
     }
   }
@@ -1414,7 +1814,9 @@ export class AssinaturasService {
         })
       : null;
 
-    const certificado = await this.certificados.getActiveCertificateForEmpresa(candidatura.requisicao.empresaId);
+    const certificado = await this.certificados.getActiveCertificateForEmpresa(
+      candidatura.requisicao.empresaId,
+    );
 
     // Documentos estão apenas nos envelopes CANDIDATO (o responsável assina os mesmos registros)
     const documentos = candidatura.envelopesAssinatura
@@ -1451,7 +1853,9 @@ export class AssinaturasService {
         portalLink,
       );
     } else {
-      this.logger.warn(`Candidato ${candidatura.candidato.id} sem e-mail para receber documentos assinados.`);
+      this.logger.warn(
+        `Candidato ${candidatura.candidato.id} sem e-mail para receber documentos assinados.`,
+      );
     }
 
     // Enviar email para o responsável legal (se menor de 18)
@@ -1471,10 +1875,14 @@ export class AssinaturasService {
   private async certifyDocument(
     documento: Prisma.DocumentoAssinaturaGetPayload<Record<string, never>>,
     certificado: Awaited<ReturnType<EmpresaCertificadosService['getActiveCertificateForEmpresa']>>,
-    responsavel?: { user: { nome: string | null; cpf: string | null; email: string | null; role: string } | null; evidence?: RequestEvidence },
+    responsavel?: {
+      user: { nome: string | null; cpf: string | null; email: string | null; role: string } | null;
+      evidence?: RequestEvidence;
+    },
   ) {
     const empresaAssinouEm = new Date();
-    const empresaRepresentanteNome = responsavel?.user?.nome ?? this.parseSubjectCN(certificado.subject);
+    const empresaRepresentanteNome =
+      responsavel?.user?.nome ?? this.parseSubjectCN(certificado.subject);
     const empresaRepresentanteCpf = responsavel?.user?.cpf ?? null;
     const empresaRepresentanteCargo = responsavel?.user?.role ?? null;
     const empresaRepresentanteEmail = responsavel?.user?.email ?? null;
@@ -1495,11 +1903,19 @@ export class AssinaturasService {
     };
 
     // Pass 1: renderiza sem hash para calcular o hash do documento
-    const pdfPass1 = await this.renderDocumentoPdf({ ...documento, ...dadosEmpresa, empresaPdfHash: null });
+    const pdfPass1 = await this.renderDocumentoPdf({
+      ...documento,
+      ...dadosEmpresa,
+      empresaPdfHash: null,
+    });
     const empresaPdfHash = this.hashBuffer(pdfPass1);
 
     // Pass 2: renderiza com o hash real incluído na audit page
-    const pdfPass2 = await this.renderDocumentoPdf({ ...documento, ...dadosEmpresa, empresaPdfHash });
+    const pdfPass2 = await this.renderDocumentoPdf({
+      ...documento,
+      ...dadosEmpresa,
+      empresaPdfHash,
+    });
 
     // Aplica a assinatura digital ICP-Brasil sobre o PDF com hash já visível
     const pdfFinalEmpresa = await this.pdfDigitalSignature.signWithPfx(
@@ -1526,6 +1942,8 @@ export class AssinaturasService {
         empresaCertSerial: certificado.serialNumber,
         empresaPdfHash,
         empresaPdfFinalStoragePath: finalKey,
+        conteudoStoragePath: null,
+        presencialPdfStoragePath: null,
         empresaRepresentanteNome,
         empresaRepresentanteCpf,
         empresaRepresentanteCargo,
@@ -1534,15 +1952,25 @@ export class AssinaturasService {
         empresaUserAgent,
       },
     });
-    await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_CERTIFICADO_EMPRESA, {}, {
-      documentoId: documento.id,
-      empresaCertificadoId: certificado.id,
-      empresaPdfHash,
-      certificadoSubject: certificado.subject,
-      certificadoIssuer: certificado.issuer,
-      certificadoSerial: certificado.serialNumber,
-      responsavelNome: empresaRepresentanteNome,
-    });
+    await Promise.all(
+      [documento.conteudoStoragePath, documento.presencialPdfStoragePath]
+        .filter((path): path is string => Boolean(path) && path !== finalKey)
+        .map((path) => this.s3.delete(path)),
+    );
+    await this.recordEvent(
+      documento.envelopeId,
+      TipoEventoAssinatura.DOCUMENTO_CERTIFICADO_EMPRESA,
+      {},
+      {
+        documentoId: documento.id,
+        empresaCertificadoId: certificado.id,
+        empresaPdfHash,
+        certificadoSubject: certificado.subject,
+        certificadoIssuer: certificado.issuer,
+        certificadoSerial: certificado.serialNumber,
+        responsavelNome: empresaRepresentanteNome,
+      },
+    );
 
     return pdfFinalEmpresa;
   }
@@ -1599,13 +2027,18 @@ export class AssinaturasService {
     const envelope = await this.findEnvelopeByAccessToken(accessToken);
 
     if (envelope.status === StatusEnvelopeAssinatura.CONCLUIDO) {
-      throw new BadRequestException('Todos os documentos já foram assinados pelo responsável legal.');
+      throw new BadRequestException(
+        'Todos os documentos já foram assinados pelo responsável legal.',
+      );
     }
 
     // Verificar que o candidato já assinou todos os envelopes
     await this.ensureCandidatoEnvelopesConcluidos(envelope.candidaturaId);
 
-    const identifier = this.signatureIdentifier(envelope.candidatura.candidato, TipoSignatario.RESPONSAVEL);
+    const identifier = this.signatureIdentifier(
+      envelope.candidatura.candidato,
+      TipoSignatario.RESPONSAVEL,
+    );
     const code = this.otp.generate();
     await this.otp.save(identifier, code);
     await this.deliverOtp(identifier, code);
@@ -1635,9 +2068,12 @@ export class AssinaturasService {
   async verifyOtpResponsavel(accessToken: string, code: string, evidence: RequestEvidence) {
     const envelope = await this.findEnvelopeByAccessToken(accessToken);
     if (envelope.status === StatusEnvelopeAssinatura.CONCLUIDO) {
-      throw new BadRequestException('Todos os documentos já foram assinados pelo responsável legal.');
+      throw new BadRequestException(
+        'Todos os documentos já foram assinados pelo responsável legal.',
+      );
     }
-    if (!envelope.otpIdentifier) throw new BadRequestException('Solicite o código antes de validar.');
+    if (!envelope.otpIdentifier)
+      throw new BadRequestException('Solicite o código antes de validar.');
 
     const valid = await this.otp.verify(envelope.otpIdentifier, code);
     if (!valid) throw new ForbiddenException('Código inválido ou expirado.');
@@ -1652,7 +2088,12 @@ export class AssinaturasService {
         tipoSignatario: TipoSignatario.RESPONSAVEL,
         status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
       },
-      data: { status: StatusEnvelopeAssinatura.OTP_VALIDADO, otpValidadoEm: new Date(), sessionToken, sessionExpiraEm },
+      data: {
+        status: StatusEnvelopeAssinatura.OTP_VALIDADO,
+        otpValidadoEm: new Date(),
+        sessionToken,
+        sessionExpiraEm,
+      },
     });
     await this.recordEvent(envelope.id, TipoEventoAssinatura.OTP_VALIDADO, evidence, {
       tipoSignatario: 'RESPONSAVEL',
@@ -1661,21 +2102,42 @@ export class AssinaturasService {
     return { sessionToken, sessionExpiraEm };
   }
 
-  async viewDocumentResponsavel(accessToken: string, documentoId: number, evidence: RequestEvidence) {
-    const { documento, responsavelEnvelope } = await this.findCandidatoDocumentByAccessToken(accessToken, documentoId);
-    if (documento.empresaPdfFinalStoragePath) return this.s3.download(documento.empresaPdfFinalStoragePath);
+  async viewDocumentResponsavel(
+    accessToken: string,
+    documentoId: number,
+    evidence: RequestEvidence,
+  ) {
+    const { documento, responsavelEnvelope } = await this.findCandidatoDocumentByAccessToken(
+      accessToken,
+      documentoId,
+    );
+    if (documento.empresaPdfFinalStoragePath)
+      return this.s3.download(documento.empresaPdfFinalStoragePath);
     if (documento.empresaPdfFinal) return Buffer.from(documento.empresaPdfFinal);
 
-    await this.recordEvent(responsavelEnvelope.id, TipoEventoAssinatura.DOCUMENTO_VISUALIZADO, evidence, {
-      documentoId: documento.id,
-      tipoSignatario: 'RESPONSAVEL',
-    });
+    await this.recordEvent(
+      responsavelEnvelope.id,
+      TipoEventoAssinatura.DOCUMENTO_VISUALIZADO,
+      evidence,
+      {
+        documentoId: documento.id,
+        tipoSignatario: 'RESPONSAVEL',
+      },
+    );
 
     return this.renderDocumentoPdf(documento);
   }
 
-  async signDocumentResponsavel(accessToken: string, documentoId: number, sessionToken: string, evidence: RequestEvidence) {
-    const { documento, responsavelEnvelope } = await this.findCandidatoDocumentByAccessToken(accessToken, documentoId);
+  async signDocumentResponsavel(
+    accessToken: string,
+    documentoId: number,
+    sessionToken: string,
+    evidence: RequestEvidence,
+  ) {
+    const { documento, responsavelEnvelope } = await this.findCandidatoDocumentByAccessToken(
+      accessToken,
+      documentoId,
+    );
 
     // Já assinado pelo responsável
     if (documento.responsavelAssinadoEm) return documento;
@@ -1726,13 +2188,21 @@ export class AssinaturasService {
       },
     });
 
-    await this.recordEvent(responsavelEnvelope.id, TipoEventoAssinatura.DOCUMENTO_ASSINADO, evidence, {
-      documentoId: documento.id,
-      hashOriginal: documento.hashOriginal,
-      hashAssinado,
-      tipoSignatario: 'RESPONSAVEL',
-    });
-    await this.concludeResponsavelEnvelopeIfComplete(responsavelEnvelope.id, documento.envelope.candidaturaId);
+    await this.recordEvent(
+      responsavelEnvelope.id,
+      TipoEventoAssinatura.DOCUMENTO_ASSINADO,
+      evidence,
+      {
+        documentoId: documento.id,
+        hashOriginal: documento.hashOriginal,
+        hashAssinado,
+        tipoSignatario: 'RESPONSAVEL',
+      },
+    );
+    await this.concludeResponsavelEnvelopeIfComplete(
+      responsavelEnvelope.id,
+      documento.envelope.candidaturaId,
+    );
 
     return signed;
   }
@@ -1745,8 +2215,12 @@ export class AssinaturasService {
       include: {
         candidato: {
           select: {
-            nome: true, email: true, telefone: true,
-            ddiTelefone: true, dddTelefone: true, numeroTelefone: true,
+            nome: true,
+            email: true,
+            telefone: true,
+            ddiTelefone: true,
+            dddTelefone: true,
+            numeroTelefone: true,
             user: { select: { email: true, telefone: true } },
           },
         },
@@ -1763,12 +2237,20 @@ export class AssinaturasService {
     const email = candidatura.candidato.email ?? candidatura.candidato.user?.email ?? null;
     const telefone = this.resolveCandidatoTelefone(candidatura.candidato);
 
-    const totalDocs = candidatura.envelopesAssinatura.reduce((sum, env) => sum + env.documentos.length, 0);
-    const signedDocs = candidatura.envelopesAssinatura.reduce(
-      (sum, env) => sum + env.documentos.filter((d) => d.status === StatusDocumentoAssinatura.ASSINADO).length, 0,
+    const totalDocs = candidatura.envelopesAssinatura.reduce(
+      (sum, env) => sum + env.documentos.length,
+      0,
     );
-    const allComplete = candidatura.envelopesAssinatura.length > 0 &&
-      candidatura.envelopesAssinatura.every((env) => env.status === StatusEnvelopeAssinatura.CONCLUIDO);
+    const signedDocs = candidatura.envelopesAssinatura.reduce(
+      (sum, env) =>
+        sum + env.documentos.filter((d) => d.status === StatusDocumentoAssinatura.ASSINADO).length,
+      0,
+    );
+    const allComplete =
+      candidatura.envelopesAssinatura.length > 0 &&
+      candidatura.envelopesAssinatura.every(
+        (env) => env.status === StatusEnvelopeAssinatura.CONCLUIDO,
+      );
 
     return {
       candidatoNome: candidatura.candidato.nome ?? 'Candidato',
@@ -1798,14 +2280,22 @@ export class AssinaturasService {
 
     // Valida que o sessionToken pertence a um envelope desta candidatura
     const hasValidSession = candidatura.envelopesAssinatura.some(
-      (env) => env.sessionToken === sessionToken && env.sessionExpiraEm && env.sessionExpiraEm > new Date(),
+      (env) =>
+        env.sessionToken === sessionToken &&
+        env.sessionExpiraEm &&
+        env.sessionExpiraEm > new Date(),
     );
-    if (!hasValidSession) throw new ForbiddenException('Sessão inválida ou expirada. Solicite um novo código.');
+    if (!hasValidSession)
+      throw new ForbiddenException('Sessão inválida ou expirada. Solicite um novo código.');
 
     return candidatura.envelopesAssinatura;
   }
 
-  async sendOtpPortal(portalAccessToken: string, channel: 'email' | 'sms', evidence: RequestEvidence) {
+  async sendOtpPortal(
+    portalAccessToken: string,
+    channel: 'email' | 'sms',
+    evidence: RequestEvidence,
+  ) {
     const candidatura = await this.prisma.candidatura.findUnique({
       where: { portalAccessToken },
       include: {
@@ -1823,7 +2313,9 @@ export class AssinaturasService {
     const candidatoTelefone = this.resolveCandidatoTelefone(candidatura.candidato);
     const identifier = channel === 'email' ? candidatoEmail : candidatoTelefone;
     if (!identifier) {
-      throw new BadRequestException(`Candidato não possui ${channel === 'email' ? 'e-mail' : 'telefone'} cadastrado.`);
+      throw new BadRequestException(
+        `Candidato não possui ${channel === 'email' ? 'e-mail' : 'telefone'} cadastrado.`,
+      );
     }
 
     const code = this.otp.generate();
@@ -1860,10 +2352,15 @@ export class AssinaturasService {
     });
 
     if (candidatura.envelopesAssinatura[0]) {
-      await this.recordEvent(candidatura.envelopesAssinatura[0].id, TipoEventoAssinatura.OTP_ENVIADO, evidence, {
-        identifierMasked: this.maskIdentifier(identifier),
-        via: 'portal',
-      });
+      await this.recordEvent(
+        candidatura.envelopesAssinatura[0].id,
+        TipoEventoAssinatura.OTP_ENVIADO,
+        evidence,
+        {
+          identifierMasked: this.maskIdentifier(identifier),
+          via: 'portal',
+        },
+      );
     }
 
     return { identifier: this.maskIdentifier(identifier) };
@@ -1883,9 +2380,12 @@ export class AssinaturasService {
 
     // Usa o otpIdentifier salvo no envelope (definido pelo sendOtpPortal)
     const envelopeWithOtp = candidatura.envelopesAssinatura.find((e) => e.otpIdentifier);
-    const identifier = envelopeWithOtp?.otpIdentifier
-      ?? candidatura.candidato.email ?? candidatura.candidato.user?.email
-      ?? candidatura.candidato.telefone ?? candidatura.candidato.user?.telefone;
+    const identifier =
+      envelopeWithOtp?.otpIdentifier ??
+      candidatura.candidato.email ??
+      candidatura.candidato.user?.email ??
+      candidatura.candidato.telefone ??
+      candidatura.candidato.user?.telefone;
     if (!identifier) throw new BadRequestException('Candidato sem contato cadastrado.');
 
     const valid = await this.otp.verify(identifier, code);
@@ -1901,7 +2401,12 @@ export class AssinaturasService {
         tipoSignatario: TipoSignatario.CANDIDATO,
         status: { not: StatusEnvelopeAssinatura.CONCLUIDO },
       },
-      data: { status: StatusEnvelopeAssinatura.OTP_VALIDADO, otpValidadoEm: new Date(), sessionToken, sessionExpiraEm },
+      data: {
+        status: StatusEnvelopeAssinatura.OTP_VALIDADO,
+        otpValidadoEm: new Date(),
+        sessionToken,
+        sessionExpiraEm,
+      },
     });
 
     // Atualiza envelopes concluídos (mantém status, apenas salva sessionToken para validação)
@@ -1924,10 +2429,15 @@ export class AssinaturasService {
     return { sessionToken, sessionExpiraEm };
   }
 
-  async viewDocumentPortal(portalAccessToken: string, documentoId: number, evidence: RequestEvidence) {
+  async viewDocumentPortal(
+    portalAccessToken: string,
+    documentoId: number,
+    evidence: RequestEvidence,
+  ) {
     const documento = await this.findDocumentByPortalToken(portalAccessToken, documentoId);
 
-    if (documento.empresaPdfFinalStoragePath) return this.s3.download(documento.empresaPdfFinalStoragePath);
+    if (documento.empresaPdfFinalStoragePath)
+      return this.s3.download(documento.empresaPdfFinalStoragePath);
     if (documento.empresaPdfFinal) return Buffer.from(documento.empresaPdfFinal);
 
     if (!documento.visualizadoEm) {
@@ -1935,19 +2445,30 @@ export class AssinaturasService {
         where: { id: documento.id },
         data: { visualizadoEm: new Date() },
       });
-      await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_VISUALIZADO, evidence, {
-        documentoId: documento.id,
-        via: 'portal',
-      });
+      await this.recordEvent(
+        documento.envelopeId,
+        TipoEventoAssinatura.DOCUMENTO_VISUALIZADO,
+        evidence,
+        {
+          documentoId: documento.id,
+          via: 'portal',
+        },
+      );
     }
 
     return this.renderDocumentoPdf(documento);
   }
 
-  async signDocumentPortal(portalAccessToken: string, documentoId: number, sessionToken: string, evidence: RequestEvidence) {
+  async signDocumentPortal(
+    portalAccessToken: string,
+    documentoId: number,
+    sessionToken: string,
+    evidence: RequestEvidence,
+  ) {
     const documento = await this.findDocumentByPortalToken(portalAccessToken, documentoId);
     if (documento.status === StatusDocumentoAssinatura.ASSINADO) return documento;
-    if (!documento.visualizadoEm) throw new BadRequestException('Visualize o documento antes de assinar.');
+    if (!documento.visualizadoEm)
+      throw new BadRequestException('Visualize o documento antes de assinar.');
 
     this.validateSession(documento.envelope, sessionToken);
 
@@ -1990,13 +2511,18 @@ export class AssinaturasService {
       },
     });
 
-    await this.recordEvent(documento.envelopeId, TipoEventoAssinatura.DOCUMENTO_ASSINADO, evidence, {
-      documentoId: documento.id,
-      hashOriginal: documento.hashOriginal,
-      hashAssinado,
-      codigoVerificacao,
-      via: 'portal',
-    });
+    await this.recordEvent(
+      documento.envelopeId,
+      TipoEventoAssinatura.DOCUMENTO_ASSINADO,
+      evidence,
+      {
+        documentoId: documento.id,
+        hashOriginal: documento.hashOriginal,
+        hashAssinado,
+        codigoVerificacao,
+        via: 'portal',
+      },
+    );
     await this.concludeEnvelopeIfComplete(documento.envelopeId);
 
     return signed;
@@ -2070,7 +2596,10 @@ export class AssinaturasService {
    * Verifica se todos os documentos dos envelopes CANDIDATO têm assinatura do responsável.
    * Se sim, marca o envelope RESPONSAVEL como concluído.
    */
-  private async concludeResponsavelEnvelopeIfComplete(responsavelEnvelopeId: number, candidaturaId: number) {
+  private async concludeResponsavelEnvelopeIfComplete(
+    responsavelEnvelopeId: number,
+    candidaturaId: number,
+  ) {
     // Verifica se todos os documentos dos envelopes CANDIDATO já foram assinados pelo responsável
     const pendingDocs = await this.prisma.documentoAssinatura.count({
       where: {
@@ -2113,7 +2642,9 @@ export class AssinaturasService {
         });
         await this.notifyAllSignaturesComplete(candidaturaId, candidatura.candidato);
       } catch (err) {
-        this.logger.error(`Erro na certificação/notificação pós-assinatura (candidatura ${candidaturaId}): ${err}`);
+        this.logger.error(
+          `Erro na certificação/notificação pós-assinatura (candidatura ${candidaturaId}): ${err}`,
+        );
       }
     }
   }
@@ -2136,7 +2667,8 @@ export class AssinaturasService {
       where: { id: envelopeId },
       include: { candidatura: { include: { candidato: true } }, user: true },
     });
-    if (!envelope || envelope.userId !== userId) throw new NotFoundException('Envelope não encontrado.');
+    if (!envelope || envelope.userId !== userId)
+      throw new NotFoundException('Envelope não encontrado.');
 
     return envelope;
   }
@@ -2168,16 +2700,25 @@ export class AssinaturasService {
   }
 
   private signatureIdentifier(
-    candidato: { email: string | null; telefone: string | null; responsavelEmail?: string | null; responsavelTelefone?: string | null },
+    candidato: {
+      email: string | null;
+      telefone: string | null;
+      responsavelEmail?: string | null;
+      responsavelTelefone?: string | null;
+    },
     tipoSignatario: TipoSignatario = TipoSignatario.CANDIDATO,
   ) {
     if (tipoSignatario === TipoSignatario.RESPONSAVEL) {
       const identifier = candidato.responsavelEmail ?? candidato.responsavelTelefone;
-      if (!identifier) throw new BadRequestException('Responsável legal sem e-mail ou telefone para envio do OTP.');
+      if (!identifier)
+        throw new BadRequestException(
+          'Responsável legal sem e-mail ou telefone para envio do OTP.',
+        );
       return identifier;
     }
     const identifier = candidato.email ?? candidato.telefone;
-    if (!identifier) throw new BadRequestException('Candidato sem e-mail ou telefone para envio do OTP.');
+    if (!identifier)
+      throw new BadRequestException('Candidato sem e-mail ou telefone para envio do OTP.');
     return identifier;
   }
 
@@ -2190,7 +2731,12 @@ export class AssinaturasService {
     await this.sms.sendOtp(identifier, code);
   }
 
-  private recordEvent(envelopeId: number, tipo: TipoEventoAssinatura, evidence: RequestEvidence, metadata?: Prisma.InputJsonValue) {
+  private recordEvent(
+    envelopeId: number,
+    tipo: TipoEventoAssinatura,
+    evidence: RequestEvidence,
+    metadata?: Prisma.InputJsonValue,
+  ) {
     return this.prisma.eventoAssinatura.create({
       data: {
         envelopeId,
@@ -2202,7 +2748,12 @@ export class AssinaturasService {
     });
   }
 
-  private buildAssinaturaKey(cpf: string | null, envelopeId: number, codigo: string, suffix: string): string {
+  private buildAssinaturaKey(
+    cpf: string | null,
+    envelopeId: number,
+    codigo: string,
+    suffix: string,
+  ): string {
     const cpfSlug = (cpf ?? 'sem-cpf').replace(/\D/g, '');
     const safeCodigo = codigo.replace(/[^a-zA-Z0-9._-]/g, '_');
     return `assinaturas/${cpfSlug}/${envelopeId}-${safeCodigo}-${suffix}.pdf`;
@@ -2236,7 +2787,9 @@ export class AssinaturasService {
       include: {
         envelope: {
           include: {
-            candidatura: { include: { candidato: true, requisicao: { include: { empresa: true } } } },
+            candidatura: {
+              include: { candidato: true, requisicao: { include: { empresa: true } } },
+            },
           },
         },
         empresaCertificado: true,
@@ -2265,14 +2818,19 @@ export class AssinaturasService {
         cpfMascarado: documento.assinaturaCpf ? this.maskCpf(documento.assinaturaCpf) : null,
         metodoAssinatura: documento.metodoAssinatura,
         assinadoEm: documento.assinadoEm?.toISOString() ?? null,
-        assinadoEmBrasilia: documento.assinadoEm ? this.formatDateBrasilia(documento.assinadoEm) : null,
+        assinadoEmBrasilia: documento.assinadoEm
+          ? this.formatDateBrasilia(documento.assinadoEm)
+          : null,
         ip: documento.assinaturaIp ?? null,
       },
 
       empresa: documento.empresaAssinouEm
         ? {
             nome: empresa?.nome ?? null,
-            cnpj: documento.empresaCertSubject ? this.formatarCnpjAudit(this.parseSubjectCnpj(documento.empresaCertSubject) ?? '') || null : null,
+            cnpj: documento.empresaCertSubject
+              ? this.formatarCnpjAudit(this.parseSubjectCnpj(documento.empresaCertSubject) ?? '') ||
+                null
+              : null,
             metodo: 'Assinatura digital com certificado A1 ICP-Brasil',
             certificadoSubject: documento.empresaCertSubject ?? null,
             emissor: documento.empresaCertIssuer ?? null,
@@ -2294,7 +2852,9 @@ export class AssinaturasService {
       responsavelLegal: documento.responsavelAssinadoEm
         ? {
             nome: documento.responsavelAssinaturaNome ?? 'Não informado',
-            cpfMascarado: documento.responsavelAssinaturaCpf ? this.maskCpf(documento.responsavelAssinaturaCpf) : null,
+            cpfMascarado: documento.responsavelAssinaturaCpf
+              ? this.maskCpf(documento.responsavelAssinaturaCpf)
+              : null,
             metodoAssinatura: documento.responsavelMetodoAssinatura,
             assinadoEm: documento.responsavelAssinadoEm.toISOString(),
             assinadoEmBrasilia: this.formatDateBrasilia(documento.responsavelAssinadoEm),

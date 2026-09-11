@@ -42,7 +42,15 @@ export interface DocumentoAdmissao {
 
 export interface DocumentosCandidatura {
   id: number;
-  status: 'INSCRITO' | 'EM_ANALISE' | 'ENTREVISTA' | 'APROVADO' | 'EFETIVADO' | 'REPROVADO' | 'DESISTIU' | 'CANCELADO';
+  status:
+    | 'INSCRITO'
+    | 'EM_ANALISE'
+    | 'ENTREVISTA'
+    | 'APROVADO'
+    | 'EFETIVADO'
+    | 'REPROVADO'
+    | 'DESISTIU'
+    | 'CANCELADO';
   admissao: string | null;
   candidato: {
     id: number;
@@ -85,7 +93,7 @@ export interface DocumentoAssinatura {
   hashAssinado: string | null;
   visualizadoEm: string | null;
   assinadoEm: string | null;
-  metodoAssinatura: 'OTP' | 'BIOMETRIA' | null;
+  metodoAssinatura: 'OTP' | 'BIOMETRIA' | 'PRESENCIAL' | null;
   codigoVerificacao: string | null;
   // Campos do responsável legal (menores de 18)
   responsavelAssinadoEm: string | null;
@@ -126,10 +134,13 @@ export const documentoStatusTone: Record<StatusDocumentoAdmissao, string> = {
   REENVIO_SOLICITADO: 'border-orange-300 bg-orange-500/10 text-orange-700 dark:text-orange-200',
 };
 
-export const formatCandidaturaTitle = (item: { requisicao: DocumentosCandidatura['requisicao'] }) => {
+export const formatCandidaturaTitle = (item: {
+  requisicao: DocumentosCandidatura['requisicao'];
+}) => {
   const cargo = item.requisicao.cargoNome ?? item.requisicao.cargo ?? 'Cargo não informado';
   const setor = item.requisicao.ccustoNome ?? 'Setor não informado';
-  const filial = item.requisicao.filial == null ? '--' : String(item.requisicao.filial).padStart(2, '0');
+  const filial =
+    item.requisicao.filial == null ? '--' : String(item.requisicao.filial).padStart(2, '0');
 
   return `#${item.requisicao.id} - LJ ${filial} - ${setor} - ${cargo}`;
 };
@@ -148,4 +159,6 @@ export const getDocumentoAssinaturaResponsavelUrl = (accessToken: string, id: nu
 export const getDocumentoPortalViewUrl = (portalAccessToken: string, id: number) =>
   `${apiBaseUrl()}/documentos/portal/${portalAccessToken}/documentos/${id}/view`;
 
-const apiBaseUrl = () => import.meta.env.VITE_API_URL ?? 'http://localhost:5011';
+// Mantém o PDF na mesma origem do app quando a URL pública da API não foi configurada.
+// Isso evita que tablets tentem acessar a própria porta localhost:5011.
+const apiBaseUrl = () => import.meta.env.VITE_API_URL ?? '/api';

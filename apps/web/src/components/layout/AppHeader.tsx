@@ -12,6 +12,8 @@ type AppHeaderProps = {
   description: string;
   showEmpresaSelector?: boolean;
   badgeLabel?: string;
+  navigationOpen?: boolean;
+  onOpenNavigation?: () => void;
 };
 
 export default function AppHeader({
@@ -19,11 +21,15 @@ export default function AppHeader({
   description,
   showEmpresaSelector = false,
   badgeLabel,
+  navigationOpen = false,
+  onOpenNavigation,
 }: AppHeaderProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const identifier = user?.email ?? user?.telefone ?? '';
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isNavigationMenu = Boolean(onOpenNavigation);
+  const menuOpen = isNavigationMenu ? navigationOpen : mobileMenuOpen;
 
   const handleLogout = async () => {
     await logout();
@@ -38,9 +44,7 @@ export default function AppHeader({
   ) : (
     <div className="rounded-md border bg-card px-3 py-2 text-body-sm">
       <p className="font-medium leading-none">{badgeLabel ?? 'Acesso'}</p>
-      <p className="mt-1 max-w-[220px] truncate text-caption text-muted-foreground">
-        {identifier}
-      </p>
+      <p className="mt-1 max-w-[220px] truncate text-caption text-muted-foreground">{identifier}</p>
     </div>
   );
 
@@ -65,21 +69,23 @@ export default function AppHeader({
           </Button>
         </div>
 
-        {/* Hambúrguer — apenas mobile */}
+        {/* Navegação compacta para celular e tablet. */}
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="sm:hidden"
-          onClick={() => setMobileMenuOpen((v) => !v)}
-          aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+          className="lg:hidden"
+          onClick={onOpenNavigation ?? (() => setMobileMenuOpen((value) => !value))}
+          aria-controls={isNavigationMenu ? 'app-navigation-drawer' : undefined}
+          aria-expanded={menuOpen}
+          aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
         >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
       </div>
 
       {/* Painel mobile */}
-      {mobileMenuOpen && (
+      {!isNavigationMenu && mobileMenuOpen && (
         <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:hidden">
           {envBadge}
           <div className="flex gap-2">

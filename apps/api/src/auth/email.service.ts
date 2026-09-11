@@ -1,10 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 type SignedDocumentAttachment = {
   filename: string;
   content: Buffer;
+};
+
+type EmailAttachment = SignedDocumentAttachment;
+
+type SendEmailOptions = {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  attachments?: EmailAttachment[];
 };
 
 type EmailContent = {
@@ -22,23 +33,36 @@ type EmailField = {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: nodemailer.Transporter;
+  private readonly transporter?: nodemailer.Transporter;
+  private readonly resend?: Resend;
+  private readonly from: string;
+  private readonly replyTo?: string;
 
   constructor(private readonly config: ConfigService) {
+    const isProduction = config.get<string>('NODE_ENV') === 'production';
+    this.from = isProduction
+      ? config.getOrThrow<string>('EMAIL_RESEND_FROM')
+      : config.getOrThrow<string>('SMTP_FROM');
+    this.replyTo = config.get<string>('EMAIL_RESEND_REPLY_TO');
+
+    if (isProduction) {
+      this.resend = new Resend(config.getOrThrow<string>('EMAIL_RESEND_API_KEY'));
+      return;
+    }
+
     this.transporter = nodemailer.createTransport({
-      host: config.get<string>('SMTP_HOST'),
-      port: config.get<number>('SMTP_PORT'),
+      host: config.getOrThrow<string>('SMTP_HOST'),
+      port: config.getOrThrow<number>('SMTP_PORT'),
       secure: config.get<string>('SMTP_SECURE') === 'true',
       auth: {
-        user: config.get<string>('SMTP_USER'),
-        pass: config.get<string>('SMTP_PASS'),
+        user: config.getOrThrow<string>('SMTP_USER'),
+        pass: config.getOrThrow<string>('SMTP_PASS'),
       },
     });
   }
 
   async sendOtp(email: string, code: string): Promise<void> {
-    await this.transporter.sendMail({
-      from: this.config.get<string>('SMTP_FROM'),
+    await this.sendEmail({
       to: email,
       subject: 'Admissão Digital - Supermercado Coelho Diniz',
       text: [
@@ -79,8 +103,7 @@ export class EmailService {
     const portalText = portalLink
       ? `\nVocê também pode acessar os documentos a qualquer momento em:\n${portalLink}`
       : '';
-    await this.transporter.sendMail({
-      from: this.config.get<string>('SMTP_FROM'),
+    await this.sendEmail({
       to: email,
       subject: 'Documentos assinados - Supermercado Coelho Diniz',
       text: [
@@ -113,8 +136,7 @@ export class EmailService {
     signingLink: string,
   ): Promise<void> {
     const browserLink = this.createBrowserOpenLink(signingLink);
-    await this.transporter.sendMail({
-      from: this.config.get<string>('SMTP_FROM'),
+    await this.sendEmail({
       to: email,
       subject: 'Documentos prontos para assinatura - Supermercado Coelho Diniz',
       text: [
@@ -145,8 +167,7 @@ export class EmailService {
     const link = `${baseUrl}/responsavel/assinaturas/${accessToken}`;
     const browserLink = this.createBrowserOpenLink(link);
 
-    await this.transporter.sendMail({
-      from: this.config.get<string>('SMTP_FROM'),
+    await this.sendEmail({
       to: email,
       subject: 'Assinatura de responsável legal - Supermercado Coelho Diniz',
       text: [
@@ -186,8 +207,7 @@ export class EmailService {
       })
       .join('');
 
-    await this.transporter.sendMail({
-      from: this.config.get<string>('SMTP_FROM'),
+    await this.sendEmail({
       to: 'vagas@coelhodiniz.com.br',
       subject: `Candidatura salva - ${candidatoNome}`,
       text: `Uma candidatura foi salva para ${candidatoNome}. Consulte a plataforma para ver os dados completos.`,
@@ -203,6 +223,42 @@ export class EmailService {
     this.logger.log(
       `Notificação de candidatura enviada para vagas@coelhodiniz.com.br: ${candidatoNome}`,
     );
+  }
+
+  private async sendEmail(options: SendEmailOptions): Promise<void> {
+    if (this.resend) {
+      const { error } = await this.resend.emails.send({
+        from: this.from,
+        to: options.to,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+        replyTo: this.replyTo,
+        attachments: options.attachments?.map((attachment) => ({
+          filename: attachment.filename,
+          content: attachment.content,
+        })),
+      });
+
+      if (error) throw new Error(`Falha ao enviar e-mail pelo Resend: ${error.message}`);
+      return;
+    }
+
+    if (!this.transporter) throw new Error('Transporte de e-mail não configurado.');
+
+    await this.transporter.sendMail({
+      from: this.from,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+      replyTo: this.replyTo,
+      attachments: options.attachments?.map((attachment) => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: 'application/pdf',
+      })),
+    });
   }
 
   private renderEmail(content: EmailContent, highlight?: string): string {

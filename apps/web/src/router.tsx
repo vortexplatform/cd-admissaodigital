@@ -18,6 +18,7 @@ import CandidatoFormPage from '@/pages/processos/CandidatoFormPage';
 import DocumentosRhPage from '@/pages/processos/DocumentosRhPage';
 import AssinaturasPendentesPage from '@/pages/processos/AssinaturasPendentesPage';
 import AssinaturasRhPage from '@/pages/processos/AssinaturasRhPage';
+import AssinaturaPresencialPage from '@/pages/processos/AssinaturaPresencialPage';
 import ColaboradoresAdmitidosPage from '@/pages/relatorios/ColaboradoresAdmitidosPage';
 import RelatoriosPage from '@/pages/relatorios/RelatoriosPage';
 // Configurações
@@ -199,6 +200,7 @@ export default function Router() {
         <Route path="/documentos" element={<DocumentosRhPage />} />
         <Route path="/assinaturas" element={<AssinaturasPendentesPage />} />
         <Route path="/assinaturas/:candidatoId" element={<AssinaturasRhPage />} />
+        <Route path="/assinaturas/presencial/:envelopeId" element={<AssinaturaPresencialPage />} />
         <Route path="/relatorios" element={<RelatoriosPage />} />
         <Route path="/relatorios/candidatos-admitidos" element={<ColaboradoresAdmitidosPage />} />
         <Route element={<AdminRoute />}>

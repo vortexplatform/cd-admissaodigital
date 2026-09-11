@@ -36,12 +36,7 @@ export function getResponsavelLegalParaAssinatura(
   return idade < 18 ? responsavelNome : undefined;
 }
 
-export function drawHeader(
-  page: PDFPage,
-  logo: PDFImage,
-  title?: string,
-  bold?: PDFFont,
-): number {
+export function drawHeader(page: PDFPage, logo: PDFImage, title?: string, bold?: PDFFont): number {
   const { height } = page.getSize();
   const logoWidth = 150;
   const logoHeight = (73 / 403) * logoWidth;
@@ -67,11 +62,11 @@ export function drawHeader(
 }
 
 export interface DrawParagraphsOptions {
-  lineHeight?: number;       // espaçamento entre linhas (padrão: 13)
+  lineHeight?: number; // espaçamento entre linhas (padrão: 13)
   paragraphSpacing?: number; // espaço extra ao fim de cada parágrafo (padrão: 6)
-  blankLineHeight?: number;  // altura de uma linha vazia (padrão: 10)
-  x?: number;                // margem esquerda (padrão: 70)
-  maxWidth?: number;         // largura máxima do texto (padrão: 455)
+  blankLineHeight?: number; // altura de uma linha vazia (padrão: 10)
+  x?: number; // margem esquerda (padrão: 70)
+  maxWidth?: number; // largura máxima do texto (padrão: 455)
 }
 
 export function drawParagraphs(
@@ -128,7 +123,12 @@ export function drawAssinaturas(
     y = 740;
   }
 
-  page.drawLine({ start: { x: 130, y }, end: { x: 465, y }, thickness: 0.6, color: rgb(0.4, 0.4, 0.4) });
+  page.drawLine({
+    start: { x: 130, y },
+    end: { x: 465, y },
+    thickness: 0.6,
+    color: rgb(0.4, 0.4, 0.4),
+  });
   const empText = empregadora.toUpperCase();
   page.drawText(empText, {
     x: (PAGE_WIDTH - bold.widthOfTextAtSize(empText, 10)) / 2,
@@ -138,7 +138,12 @@ export function drawAssinaturas(
   });
   y -= 58;
 
-  page.drawLine({ start: { x: 130, y }, end: { x: 465, y }, thickness: 0.6, color: rgb(0.4, 0.4, 0.4) });
+  page.drawLine({
+    start: { x: 130, y },
+    end: { x: 465, y },
+    thickness: 0.6,
+    color: rgb(0.4, 0.4, 0.4),
+  });
   const candText = empregado.toUpperCase();
   page.drawText(candText, {
     x: (PAGE_WIDTH - bold.widthOfTextAtSize(candText, 10)) / 2,
@@ -151,9 +156,19 @@ export function drawAssinaturas(
   page.drawText('Testemunhas:', { x: 70, y, size: 10, font: regular });
   y -= 26;
   page.drawText('1.', { x: 70, y, size: 10, font: regular });
-  page.drawLine({ start: { x: 82, y }, end: { x: 270, y }, thickness: 0.6, color: rgb(0.4, 0.4, 0.4) });
+  page.drawLine({
+    start: { x: 82, y },
+    end: { x: 270, y },
+    thickness: 0.6,
+    color: rgb(0.4, 0.4, 0.4),
+  });
   page.drawText('2.', { x: 320, y, size: 10, font: regular });
-  page.drawLine({ start: { x: 332, y }, end: { x: 520, y }, thickness: 0.6, color: rgb(0.4, 0.4, 0.4) });
+  page.drawLine({
+    start: { x: 332, y },
+    end: { x: 520, y },
+    thickness: 0.6,
+    color: rgb(0.4, 0.4, 0.4),
+  });
   y -= 14;
   page.drawText('Nome completo:', { x: 70, y, size: 9, font: regular });
   page.drawText('Nome completo:', { x: 320, y, size: 9, font: regular });
@@ -174,7 +189,16 @@ export function drawAssinaturasEletronicas(
   responsavel?: string,
 ): void {
   if (responsavel) {
-    drawAssinaturasEletronicasMenor(pdf, page, regular, bold, startY, empregadora, empregado, responsavel);
+    drawAssinaturasEletronicasMenor(
+      pdf,
+      page,
+      regular,
+      bold,
+      startY,
+      empregadora,
+      empregado,
+      responsavel,
+    );
     return;
   }
 
@@ -196,41 +220,81 @@ export function drawAssinaturasEletronicas(
   // — Bloco EMPREGADORA —
   const empBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: empregadoraX, y: empBlockY, width: blockWidth, height: blockHeight,
-    color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
+    x: empregadoraX,
+    y: empBlockY,
+    width: blockWidth,
+    height: blockHeight,
+    color: rgb(0.98, 0.98, 0.98),
+    borderColor: rgb(0.82, 0.82, 0.82),
+    borderWidth: 0.7,
   });
   currentPage.drawRectangle({
-    x: empregadoraX, y: empBlockY, width: 3, height: blockHeight,
+    x: empregadoraX,
+    y: empBlockY,
+    width: 3,
+    height: blockHeight,
     color: rgb(0.13, 0.37, 0.69),
   });
   currentPage.drawText('EMPREGADORA  •  Assinado eletronicamente', {
-    x: empregadoraX + 12, y: y - 11, size: 6, font: regular, color: rgb(0.45, 0.45, 0.45),
+    x: empregadoraX + 12,
+    y: y - 11,
+    size: 6,
+    font: regular,
+    color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(empregadora.toUpperCase(), {
-    x: empregadoraX + 12, y: y - 23, size: 7, font: bold, color: rgb(0.12, 0.12, 0.12),
+    x: empregadoraX + 12,
+    y: y - 23,
+    size: 7,
+    font: bold,
+    color: rgb(0.12, 0.12, 0.12),
   });
   currentPage.drawText('Certificado ICP-Brasil  •  Admissão Digital', {
-    x: empregadoraX + 12, y: y - 34, size: 5.5, font: regular, color: rgb(0.6, 0.6, 0.6),
+    x: empregadoraX + 12,
+    y: y - 34,
+    size: 5.5,
+    font: regular,
+    color: rgb(0.6, 0.6, 0.6),
   });
 
   // — Bloco EMPREGADO —
   const candBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: empregadoX, y: candBlockY, width: blockWidth, height: blockHeight,
-    color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
+    x: empregadoX,
+    y: candBlockY,
+    width: blockWidth,
+    height: blockHeight,
+    color: rgb(0.98, 0.98, 0.98),
+    borderColor: rgb(0.82, 0.82, 0.82),
+    borderWidth: 0.7,
   });
   currentPage.drawRectangle({
-    x: empregadoX, y: candBlockY, width: 3, height: blockHeight,
+    x: empregadoX,
+    y: candBlockY,
+    width: 3,
+    height: blockHeight,
     color: rgb(0.18, 0.55, 0.34),
   });
   currentPage.drawText('EMPREGADO  •  Assinado eletronicamente', {
-    x: empregadoX + 12, y: y - 11, size: 6, font: regular, color: rgb(0.45, 0.45, 0.45),
+    x: empregadoX + 12,
+    y: y - 11,
+    size: 6,
+    font: regular,
+    color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(empregado.toUpperCase(), {
-    x: empregadoX + 12, y: y - 23, size: 7, font: bold, color: rgb(0.12, 0.12, 0.12),
+    x: empregadoX + 12,
+    y: y - 23,
+    size: 7,
+    font: bold,
+    color: rgb(0.12, 0.12, 0.12),
   });
   currentPage.drawText('OTP / Biometria / Reconhecimento facial', {
-    x: empregadoX + 12, y: y - 34, size: 5.5, font: regular, color: rgb(0.6, 0.6, 0.6),
+    x: empregadoX + 12,
+    y: y - 34,
+    size: 5.5,
+    font: regular,
+    color: rgb(0.6, 0.6, 0.6),
   });
 }
 
@@ -266,59 +330,119 @@ export function drawAssinaturasEletronicasMenor(
 
   const empBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: leftX, y: empBlockY, width: blockWidth, height: blockHeight,
-    color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
+    x: leftX,
+    y: empBlockY,
+    width: blockWidth,
+    height: blockHeight,
+    color: rgb(0.98, 0.98, 0.98),
+    borderColor: rgb(0.82, 0.82, 0.82),
+    borderWidth: 0.7,
   });
   currentPage.drawRectangle({
-    x: leftX, y: empBlockY, width: 3, height: blockHeight,
+    x: leftX,
+    y: empBlockY,
+    width: 3,
+    height: blockHeight,
     color: rgb(0.13, 0.37, 0.69),
   });
   currentPage.drawText('EMPREGADORA  •  Assinado eletronicamente', {
-    x: leftX + 8, y: y - 11, size: 4.7, font: regular, color: rgb(0.45, 0.45, 0.45),
+    x: leftX + 8,
+    y: y - 11,
+    size: 4.7,
+    font: regular,
+    color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(empregadora.toUpperCase(), {
-    x: leftX + 8, y: y - 23, size: 5.5, font: bold, color: rgb(0.12, 0.12, 0.12),
+    x: leftX + 8,
+    y: y - 23,
+    size: 5.5,
+    font: bold,
+    color: rgb(0.12, 0.12, 0.12),
   });
   currentPage.drawText('Certificado ICP-Brasil  •  Admissão Digital', {
-    x: leftX + 8, y: y - 34, size: 4.4, font: regular, color: rgb(0.6, 0.6, 0.6),
+    x: leftX + 8,
+    y: y - 34,
+    size: 4.4,
+    font: regular,
+    color: rgb(0.6, 0.6, 0.6),
   });
 
   const candBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: middleX, y: candBlockY, width: blockWidth, height: blockHeight,
-    color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
+    x: middleX,
+    y: candBlockY,
+    width: blockWidth,
+    height: blockHeight,
+    color: rgb(0.98, 0.98, 0.98),
+    borderColor: rgb(0.82, 0.82, 0.82),
+    borderWidth: 0.7,
   });
   currentPage.drawRectangle({
-    x: middleX, y: candBlockY, width: 3, height: blockHeight,
+    x: middleX,
+    y: candBlockY,
+    width: 3,
+    height: blockHeight,
     color: rgb(0.18, 0.55, 0.34),
   });
   currentPage.drawText('EMPREGADO  •  Assinado eletronicamente', {
-    x: middleX + 8, y: y - 11, size: 4.7, font: regular, color: rgb(0.45, 0.45, 0.45),
+    x: middleX + 8,
+    y: y - 11,
+    size: 4.7,
+    font: regular,
+    color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(empregado.toUpperCase(), {
-    x: middleX + 8, y: y - 23, size: 5.5, font: bold, color: rgb(0.12, 0.12, 0.12),
+    x: middleX + 8,
+    y: y - 23,
+    size: 5.5,
+    font: bold,
+    color: rgb(0.12, 0.12, 0.12),
   });
   currentPage.drawText('OTP / Biometria / Reconhecimento facial', {
-    x: middleX + 8, y: y - 34, size: 4.4, font: regular, color: rgb(0.6, 0.6, 0.6),
+    x: middleX + 8,
+    y: y - 34,
+    size: 4.4,
+    font: regular,
+    color: rgb(0.6, 0.6, 0.6),
   });
 
   const respBlockY = y - blockHeight;
   currentPage.drawRectangle({
-    x: rightX, y: respBlockY, width: blockWidth, height: blockHeight,
-    color: rgb(0.98, 0.98, 0.98), borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.7,
+    x: rightX,
+    y: respBlockY,
+    width: blockWidth,
+    height: blockHeight,
+    color: rgb(0.98, 0.98, 0.98),
+    borderColor: rgb(0.82, 0.82, 0.82),
+    borderWidth: 0.7,
   });
   currentPage.drawRectangle({
-    x: rightX, y: respBlockY, width: 3, height: blockHeight,
+    x: rightX,
+    y: respBlockY,
+    width: 3,
+    height: blockHeight,
     color: rgb(0.55, 0.27, 0.07),
   });
   currentPage.drawText('RESPONSÁVEL LEGAL  •  Assinado eletronicamente', {
-    x: rightX + 8, y: y - 11, size: 4.7, font: regular, color: rgb(0.45, 0.45, 0.45),
+    x: rightX + 8,
+    y: y - 11,
+    size: 4.7,
+    font: regular,
+    color: rgb(0.45, 0.45, 0.45),
   });
   currentPage.drawText(responsavel.toUpperCase(), {
-    x: rightX + 8, y: y - 23, size: 5.5, font: bold, color: rgb(0.12, 0.12, 0.12),
+    x: rightX + 8,
+    y: y - 23,
+    size: 5.5,
+    font: bold,
+    color: rgb(0.12, 0.12, 0.12),
   });
   currentPage.drawText('OTP  •  Assistente do menor  •  Admissão Digital', {
-    x: rightX + 8, y: y - 34, size: 4.4, font: regular, color: rgb(0.6, 0.6, 0.6),
+    x: rightX + 8,
+    y: y - 34,
+    size: 4.4,
+    font: regular,
+    color: rgb(0.6, 0.6, 0.6),
   });
 }
 

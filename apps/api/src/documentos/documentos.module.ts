@@ -7,6 +7,8 @@ import { EmpresasModule } from '../empresas/empresas.module';
 import { AceiteRegulamentoController } from './aceite-regulamento.controller';
 import { AceiteRegulamentoService } from './aceite-regulamento.service';
 import { AssinaturasService } from './assinaturas.service';
+import { AssinaturaPresencialController } from './assinatura-presencial.controller';
+import { AssinaturaPresencialService } from './assinatura-presencial.service';
 import {
   DocumentoTemplateDefaultsController,
   DocumentoTemplatesController,
@@ -32,6 +34,7 @@ import { VerificacaoController } from './verificacao.controller';
     AceiteRegulamentoController,
     ResponsavelAssinaturasController,
     PortalDocumentosController,
+    AssinaturaPresencialController,
   ],
   providers: [
     DocumentosService,
@@ -40,6 +43,7 @@ import { VerificacaoController } from './verificacao.controller';
     OcrService,
     S3StorageService,
     AssinaturasService,
+    AssinaturaPresencialService,
     PdfDigitalSignatureService,
     OtpService,
     EmailService,

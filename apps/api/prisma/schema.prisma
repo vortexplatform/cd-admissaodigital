@@ -35,6 +35,7 @@ model User {
   envelopesGerados             EnvelopeAssinatura[]   @relation("EnvelopeGeradoPor")
   certificadosA1Criados        EmpresaCertificadoA1[] @relation("CertificadoA1CriadoPor")
   biometriaSolicitacoesCriadas BiometriaSolicitacao[] @relation("BiometriaSolicitadaPor")
+  assinaturasPresenciaisIniciadas AssinaturaPresencial[] @relation("AssinaturaPresencialIniciadaPor")
   refreshTokens                RefreshToken[]
 
   @@map("users")
@@ -514,6 +515,14 @@ enum StatusDocumentoAssinatura {
 enum MetodoAssinatura {
   OTP
   BIOMETRIA
+  PRESENCIAL
+}
+
+enum StatusAssinaturaPresencial {
+  EM_ANDAMENTO
+  FINALIZANDO
+  CONCLUIDA
+  EXPIRADA
 }
 
 enum TipoSignatario {
@@ -528,6 +537,10 @@ enum TipoEventoAssinatura {
   DOCUMENTO_VISUALIZADO
   DOCUMENTO_ASSINADO
   DOCUMENTO_ASSINADO_BIOMETRIA
+  ASSINATURA_PRESENCIAL_INICIADA
+  DOCUMENTO_ASSINADO_PRESENCIAL
+  FOTO_ASSINATURA_PRESENCIAL_CAPTURADA
+  ASSINATURA_PRESENCIAL_CONCLUIDA
   DOCUMENTO_CERTIFICADO_EMPRESA
   ENVELOPE_CONCLUIDO
 }
@@ -582,6 +595,7 @@ model EnvelopeAssinatura {
   documentos            DocumentoAssinatura[]
   eventos               EventoAssinatura[]
   biometriaSolicitacoes BiometriaSolicitacao[]
+  assinaturasPresenciais AssinaturaPresencial[]
 
   @@unique([candidaturaId, setor, tipoSignatario])
   @@index([userId])
@@ -598,6 +612,9 @@ model DocumentoAssinatura {
   ordem                          Int                       @default(0)
   conteudo                       String?
   conteudoStoragePath            String?                   @map("conteudo_storage_path")
+  presencialPdfStoragePath       String?                   @map("presencial_pdf_storage_path")
+  presencialFotoStoragePath      String?                   @map("presencial_foto_storage_path")
+  responsavelPresencialFotoStoragePath String?              @map("responsavel_presencial_foto_storage_path")
   hashOriginal                   String                    @map("hash_original")
   hashAssinado                   String?                   @map("hash_assinado")
   status                         StatusDocumentoAssinatura @default(PENDENTE)
@@ -641,11 +658,56 @@ model DocumentoAssinatura {
   envelope             EnvelopeAssinatura    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
   biometriaSolicitacao BiometriaSolicitacao? @relation(fields: [biometriaSolicitacaoId], references: [id], onDelete: SetNull)
   empresaCertificado   EmpresaCertificadoA1? @relation(fields: [empresaCertificadoId], references: [id], onDelete: SetNull)
+  assinaturasPresenciais AssinaturaPresencialDocumento[]
 
   @@unique([envelopeId, codigo])
   @@index([status])
   @@index([biometriaSolicitacaoId])
   @@map("documento_assinatura")
+}
+
+model AssinaturaPresencial {
+  id                 Int                        @id @default(autoincrement())
+  envelopeId         Int                        @map("envelope_id")
+  iniciadaPorId      Int                        @map("iniciada_por_id")
+  tipoSignatario     TipoSignatario             @map("tipo_signatario")
+  status             StatusAssinaturaPresencial @default(EM_ANDAMENTO)
+  expiraEm           DateTime                   @map("expira_em")
+  fotoStoragePath    String?                    @map("foto_storage_path")
+  fotoMimeType       String?                    @map("foto_mime_type")
+  fotoCapturadaEm    DateTime?                  @map("foto_capturada_em")
+  ip                 String?
+  userAgent          String?                    @map("user_agent")
+  concluidaEm        DateTime?                  @map("concluida_em")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  envelope       EnvelopeAssinatura                    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  iniciadaPor    User                                  @relation("AssinaturaPresencialIniciadaPor", fields: [iniciadaPorId], references: [id], onDelete: Restrict)
+  documentos     AssinaturaPresencialDocumento[]
+
+  @@index([envelopeId, status])
+  @@map("assinatura_presencial")
+}
+
+model AssinaturaPresencialDocumento {
+  id                 Int                  @id @default(autoincrement())
+  assinaturaId       Int                  @map("assinatura_id")
+  documentoId        Int                  @map("documento_id")
+  assinaturaStoragePath String             @map("assinatura_storage_path")
+  pagina             Int
+  x                  Float
+  y                  Float
+  largura            Float
+  altura             Float
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  assinatura AssinaturaPresencial @relation(fields: [assinaturaId], references: [id], onDelete: Cascade)
+  documento  DocumentoAssinatura  @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+
+  @@unique([assinaturaId, documentoId])
+  @@map("assinatura_presencial_documento")
 }
 
 model BiometriaDispositivo {
