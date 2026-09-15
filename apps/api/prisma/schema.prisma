@@ -47,6 +47,7 @@ model Candidato {
   cpf                           String          @unique
   dataNascimento                DateTime        @db.Date
   nome                          String?
+  nomeSocial                    String?         @map("nome_social") @db.VarChar(70)
   email                         String?
   telefone                      String?
   genero                        String?
