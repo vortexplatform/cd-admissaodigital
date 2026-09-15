@@ -6,6 +6,7 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  MaxLength,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -212,11 +213,13 @@ export class CreateCandidatoDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
+  @MaxLength(16)
   numeroRg?: string;
 
   @IsString()
   @IsNotEmpty()
   @IsOptional()
+  @MaxLength(20)
   orgaoEmissorRg?: string;
 
   @IsDateString()
@@ -227,22 +230,26 @@ export class CreateCandidatoDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
+  @MaxLength(13)
   numeroTituloEleitor?: string;
 
   @IsString()
   @IsNotEmpty()
   @IsOptional()
+  @MaxLength(3)
   zonaTituloEleitor?: string;
 
   @IsString()
   @IsNotEmpty()
   @IsOptional()
+  @MaxLength(4)
   secaoTituloEleitor?: string;
 
   // Reservista
   @IsString()
   @IsNotEmpty()
   @IsOptional()
+  @MaxLength(13)
   numeroCertReservista?: string;
 
   // Certidão civil

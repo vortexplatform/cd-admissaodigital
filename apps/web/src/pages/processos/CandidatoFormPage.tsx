@@ -368,17 +368,33 @@ const candidatoSchema = z
   numeroTelefone2: z.string().trim().optional(),
 
   // RG
-  numeroRg: z.string().trim().optional(),
-  orgaoEmissorRg: z.string().trim().optional(),
+  numeroRg: z.string().trim().max(16, 'Número de identidade deve ter no máximo 16 caracteres').optional(),
+  orgaoEmissorRg: z
+    .string()
+    .trim()
+    .max(20, 'Órgão emissor deve ter no máximo 20 caracteres')
+    .optional(),
   dataExpedicaoRg: z.string().trim().optional(),
 
   // Título de eleitor
-  numeroTituloEleitor: z.string().trim().optional(),
-  zonaTituloEleitor: z.string().trim().optional(),
-  secaoTituloEleitor: z.string().trim().optional(),
+  numeroTituloEleitor: z
+    .string()
+    .trim()
+    .max(13, 'Número do título de eleitor deve ter no máximo 13 caracteres')
+    .optional(),
+  zonaTituloEleitor: z.string().trim().max(3, 'Zona de eleitor deve ter no máximo 3 caracteres').optional(),
+  secaoTituloEleitor: z
+    .string()
+    .trim()
+    .max(4, 'Seção de eleitor deve ter no máximo 4 caracteres')
+    .optional(),
 
   // Reservista
-  numeroCertReservista: z.string().trim().optional(),
+  numeroCertReservista: z
+    .string()
+    .trim()
+    .max(13, 'Certificado de reservista deve ter no máximo 13 caracteres')
+    .optional(),
 
   // Certidão civil
   tipoCertidaoCivil: z.string().trim().optional(),
@@ -2059,8 +2075,12 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       });
       reloadCandidato();
       setAdmissaoSuccess(true);
-    } catch {
-      setAdmissaoError('Erro ao gerar admissão. Verifique os dados e tente novamente.');
+    } catch (error) {
+      const message =
+        isAxiosError(error) && typeof error.response?.data?.message === 'string'
+          ? error.response.data.message
+          : 'Erro ao gerar admissão. Verifique os dados e tente novamente.';
+      setAdmissaoError(message);
     } finally {
       setIsGerandoAdmissao(false);
     }
@@ -2965,12 +2985,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       <TextField
                         id="numeroRg"
                         label="Número"
+                        maxLength={16}
                         disabled={isViewMode}
                         {...register('numeroRg')}
                       />
                       <TextField
                         id="orgaoEmissorRg"
                         label="Órgão emissor"
+                        maxLength={20}
                         disabled={isViewMode}
                         placeholder="SSP/MG"
                         {...register('orgaoEmissorRg')}
@@ -2993,18 +3015,21 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       <TextField
                         id="numeroTituloEleitor"
                         label="Número"
+                        maxLength={13}
                         disabled={isViewMode}
                         {...register('numeroTituloEleitor')}
                       />
                       <TextField
                         id="zonaTituloEleitor"
                         label="Zona"
+                        maxLength={3}
                         disabled={isViewMode}
                         {...register('zonaTituloEleitor')}
                       />
                       <TextField
                         id="secaoTituloEleitor"
                         label="Seção"
+                        maxLength={4}
                         disabled={isViewMode}
                         {...register('secaoTituloEleitor')}
                       />
@@ -3018,6 +3043,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     <TextField
                       id="numeroCertReservista"
                       label="Número do certificado"
+                      maxLength={13}
                       disabled={isViewMode}
                       {...register('numeroCertReservista')}
                     />
