@@ -45,6 +45,11 @@ interface SelectOption {
   label: string;
 }
 
+interface FilialOption {
+  CODFIL: number;
+  NOMFIL: string;
+}
+
 interface CandidatoSearchOption extends SelectOption {
   candidato: {
     id: number;
@@ -88,19 +93,12 @@ const selectStyles: StylesConfig<SelectOption, false> = {
   input: (base) => ({ ...base, color: 'hsl(var(--foreground))' }),
 };
 
-const uniqueOptions = (values: Array<string | null | undefined>) =>
-  Array.from(new Set(values.filter((value): value is string => Boolean(value?.trim()))))
-    .sort((first, second) => first.localeCompare(second, 'pt-BR'))
-    .map((value) => ({ value, label: value }));
-
 const pageSize = 20;
 
 const fetchPaginatedRequisicoes = (
   currentPage: number,
   filters: {
     filial: string | null;
-    cargo: string | null;
-    setor: string | null;
     status: string | null;
   },
 ) =>
@@ -109,8 +107,6 @@ const fetchPaginatedRequisicoes = (
       page: currentPage,
       limit: pageSize,
       ...(filters.filial ? { filial: filters.filial } : {}),
-      ...(filters.cargo ? { cargo: filters.cargo } : {}),
-      ...(filters.setor ? { setor: filters.setor } : {}),
       ...(filters.status ? { status: filters.status } : {}),
     },
   });
@@ -123,14 +119,7 @@ export default function RequisicoesPage() {
     const v = searchParams.get('filial');
     return v ? { value: v, label: v } : null;
   });
-  const [cargoFilter, setCargoFilter] = useState<SelectOption | null>(() => {
-    const v = searchParams.get('cargo');
-    return v ? { value: v, label: v } : null;
-  });
-  const [setorFilter, setSetorFilter] = useState<SelectOption | null>(() => {
-    const v = searchParams.get('setor');
-    return v ? { value: v, label: v } : null;
-  });
+  const [filiais, setFiliais] = useState<FilialOption[]>([]);
   const [statusFilter, setStatusFilter] = useState<SelectOption | null>(() => {
     const v = searchParams.get('status');
     const match = statusList.find((s) => s === v);
@@ -153,26 +142,22 @@ export default function RequisicoesPage() {
 
   const activeFilters = {
     filial: filialFilter?.value ?? null,
-    cargo: cargoFilter?.value ?? null,
-    setor: setorFilter?.value ?? null,
     status: statusFilter?.value ?? null,
   };
-  const hasActiveFilters = Boolean(filialFilter || cargoFilter || setorFilter || statusFilter);
+  const hasActiveFilters = Boolean(filialFilter || statusFilter);
 
   // Sincroniza estado → URL
   useEffect(() => {
     const params = new URLSearchParams();
     if (filialFilter?.value) params.set('filial', filialFilter.value);
-    if (cargoFilter?.value) params.set('cargo', cargoFilter.value);
-    if (setorFilter?.value) params.set('setor', setorFilter.value);
     if (statusFilter?.value) params.set('status', statusFilter.value);
     if (page > 1) params.set('pagina', String(page));
     setSearchParams(params, { replace: true });
-  }, [filialFilter?.value, cargoFilter?.value, setorFilter?.value, statusFilter?.value, page, setSearchParams]);
+  }, [filialFilter?.value, statusFilter?.value, page, setSearchParams]);
 
-  const filialOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.filialNome));
-  const cargoOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.cargoNome));
-  const setorOptions = uniqueOptions(requisicoes.map((requisicao) => requisicao.ccustoNome));
+  const filialOptions = filiais
+    .map((filial) => ({ value: filial.NOMFIL, label: filial.NOMFIL }))
+    .sort((first, second) => first.label.localeCompare(second.label, 'pt-BR'));
   const statusOptions = statusList.map((status) => ({ value: status, label: labels[status] }));
 
   const loadData = async (currentPage: number, filters = activeFilters) => {
@@ -184,7 +169,14 @@ export default function RequisicoesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filialFilter?.value, cargoFilter?.value, setorFilter?.value, statusFilter?.value]);
+  }, [filialFilter?.value, statusFilter?.value]);
+
+  useEffect(() => {
+    api
+      .get<FilialOption[]>('/general/filial')
+      .then(({ data }) => setFiliais(data))
+      .catch(() => setFiliais([]));
+  }, []);
 
   useEffect(() => {
     if (page > pagination.totalPages && pagination.totalPages > 0) {
@@ -198,8 +190,6 @@ export default function RequisicoesPage() {
     setError('');
     fetchPaginatedRequisicoes(page, {
       filial: filialFilter?.value ?? null,
-      cargo: cargoFilter?.value ?? null,
-      setor: setorFilter?.value ?? null,
       status: statusFilter?.value ?? null,
     })
       .then(({ data }) => {
@@ -217,7 +207,7 @@ export default function RequisicoesPage() {
     return () => {
       isCurrentRequest = false;
     };
-  }, [page, filialFilter?.value, cargoFilter?.value, setorFilter?.value, statusFilter?.value]);
+  }, [page, filialFilter?.value, statusFilter?.value]);
 
   useEffect(
     () => () => {
@@ -372,15 +362,14 @@ export default function RequisicoesPage() {
             />
           </div>
 
-          {pagination.total > 0 && (
-            <div className="mb-5 rounded-2xl border bg-background/80 p-4">
+           <div className="mb-5 rounded-2xl border bg-background/80 p-4">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                     Filtros de operação
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Refine a fila por filial, cargo e setor.
+                    Refine a fila por filial e status.
                   </p>
                 </div>
                 {hasActiveFilters && (
@@ -390,8 +379,6 @@ export default function RequisicoesPage() {
                     size="sm"
                     onClick={() => {
                       setFilialFilter(null);
-                      setCargoFilter(null);
-                      setSetorFilter(null);
                       setStatusFilter(null);
                     }}
                   >
@@ -400,24 +387,12 @@ export default function RequisicoesPage() {
                   </Button>
                 )}
               </div>
-              <div className="grid gap-3 lg:grid-cols-4">
+              <div className="grid gap-3 lg:grid-cols-2">
                 <FilterSelect
                   label="Filial"
                   options={filialOptions}
                   value={filialFilter}
                   onChange={setFilialFilter}
-                />
-                <FilterSelect
-                  label="Cargo"
-                  options={cargoOptions}
-                  value={cargoFilter}
-                  onChange={setCargoFilter}
-                />
-                <FilterSelect
-                  label="Setor"
-                  options={setorOptions}
-                  value={setorFilter}
-                  onChange={setSetorFilter}
                 />
                 <FilterSelect
                   label="Status"
@@ -429,8 +404,7 @@ export default function RequisicoesPage() {
               <p className="mt-3 text-xs text-muted-foreground">
                 Exibindo {requisicoes.length} de {pagination.total} requisição(ões).
               </p>
-            </div>
-          )}
+           </div>
 
           {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
