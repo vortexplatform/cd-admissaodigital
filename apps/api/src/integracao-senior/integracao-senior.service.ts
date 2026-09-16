@@ -5,6 +5,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SeniorApiService } from '../general/senior-api.service';
 import { GerarAdmissaoDto } from './gerar-admissao.dto';
 
+interface ColaboradorSeniorResponse {
+  NUMEMP?: number;
+  TIPCOL?: number;
+  NUMCAD?: number;
+  DATADM?: string;
+  CODFIL?: number;
+  DESSIT?: string;
+}
+
 @Injectable()
 export class IntegracaoSeniorService {
   private readonly rhApiBase: string;
@@ -186,6 +195,24 @@ export class IntegracaoSeniorService {
     );
 
     return { numcad: data.numcad ?? null };
+  }
+
+  async consultarColaboradorPorCpf(cpf: string) {
+    const normalizedCpf = cpf.replace(/\D/g, '');
+    const candidato = await this.prisma.candidato.findUnique({ where: { cpf: normalizedCpf } });
+    if (!candidato) throw new NotFoundException('Candidato não encontrado');
+
+    const data = await this.seniorApi.get<ColaboradorSeniorResponse>(
+      `/admissao/colaborador/cpf/${normalizedCpf}`,
+    );
+
+    return {
+      matricula: data.NUMCAD ?? null,
+      nome: candidato.nome,
+      admissao: data.DATADM ?? null,
+      filial: data.CODFIL ?? null,
+      situacao: data.DESSIT ?? null,
+    };
   }
 
   async cancelarEfetivacao(candidaturaId: number): Promise<void> {

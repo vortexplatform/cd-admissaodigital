@@ -21,6 +21,11 @@ export class IntegracaoSeniorController {
     return this.integracaoSenior.consultarMatriculaAtiva(id);
   }
 
+  @Get('colaborador/cpf/:cpf')
+  consultarColaboradorPorCpf(@Param('cpf') cpf: string) {
+    return this.integracaoSenior.consultarColaboradorPorCpf(cpf);
+  }
+
   @Post('candidaturas/:id/cancelar-efetivacao')
   cancelarEfetivacao(@Param('id', ParseIntPipe) id: number) {
     return this.integracaoSenior.cancelarEfetivacao(id);

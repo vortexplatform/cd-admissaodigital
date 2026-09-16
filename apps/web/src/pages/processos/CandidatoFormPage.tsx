@@ -195,6 +195,13 @@ interface CandidaturaResumo {
   requisicao: RequisicaoResumo;
   createdAt: string;
 }
+interface ColaboradorSenior {
+  matricula: number | null;
+  nome: string | null;
+  admissao: string | null;
+  filial: number | null;
+  situacao: string | null;
+}
 interface RequisicaoDisponivel {
   id: number;
   quantidadeVagas: number;
@@ -1170,6 +1177,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
   // Matrícula ativa por candidatura: undefined=não checado, null=sem matrícula ativa, number=tem matrícula
   const [matriculaAtiva, setMatriculaAtiva] = useState<Record<number, number | null | undefined>>({});
+  const [colaboradorSenior, setColaboradorSenior] = useState<ColaboradorSenior | null>(null);
   // Cancelamento de efetivação
   const [cancelandoId, setCancelandoId] = useState<number | null>(null);
   const [cancelError, setCancelError] = useState<Record<number, string>>({});
@@ -2051,6 +2059,16 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidato]);
 
+  useEffect(() => {
+    if (!candidato?.cpf) return;
+
+    setColaboradorSenior(null);
+    api
+      .get<ColaboradorSenior>(`/integracao-senior/colaborador/cpf/${candidato.cpf}`)
+      .then(({ data }) => setColaboradorSenior(data))
+      .catch(() => setColaboradorSenior(null));
+  }, [candidato?.cpf]);
+
   const handleCancelarEfetivacao = async (candidaturaId: number) => {
     setCancelandoId(candidaturaId);
     setCancelError((prev) => ({ ...prev, [candidaturaId]: '' }));
@@ -2152,6 +2170,44 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         </Card>
       ) : (
         <form id="candidato-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {mode !== 'create' && colaboradorSenior && (
+            <Card className="border-report-blue/40 bg-report-blue/10">
+              <CardContent className="flex flex-col gap-3 p-4">
+                <BriefcaseBusiness className="h-5 w-5 shrink-0 text-report-blue" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold text-foreground">Este candidato já foi colaborador.</p>
+                  <div className="mt-2 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+                    <p>
+                      <span className="font-medium">Nome:</span>{' '}
+                      <span className="text-foreground">{colaboradorSenior.nome ?? 'Não informado'}</span>
+                    </p>
+                    <p>
+                      <span className="font-medium">Matrícula:</span>{' '}
+                      <span className="font-mono font-semibold text-foreground">
+                        {colaboradorSenior.matricula ?? 'Não informado'}
+                      </span>
+                    </p>
+                    <p>
+                      <span className="font-medium">Admissão:</span>{' '}
+                      <span className="text-foreground">
+                        {colaboradorSenior.admissao
+                          ? toDateInputValue(colaboradorSenior.admissao).split('-').reverse().join('/')
+                          : 'Não informado'}
+                      </span>
+                    </p>
+                    <p>
+                      <span className="font-medium">Filial:</span>{' '}
+                      <span className="text-foreground">{colaboradorSenior.filial ?? 'Não informado'}</span>
+                    </p>
+                    <p>
+                      <span className="font-medium">Situação:</span>{' '}
+                      <span className="text-foreground">{colaboradorSenior.situacao ?? 'Não informado'}</span>
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <Card className="">
             <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
               <div>
