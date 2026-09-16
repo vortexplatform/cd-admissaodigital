@@ -847,13 +847,20 @@ export class CandidatosService {
   private buildCandidateTabExpression() {
     return Prisma.sql`
       CASE
+        WHEN c."situacao" = 'ADMITIDO'
+        AND EXISTS (
+          SELECT 1
+          FROM "candidatura" admitted_candidatura
+          WHERE admitted_candidatura."candidato_id" = c."id"
+            AND admitted_candidatura."status" = 'EFETIVADO'
+            AND NULLIF(BTRIM(admitted_candidatura."matricula"), '') IS NOT NULL
+        ) THEN 'efetivados'
         WHEN EXISTS (
           SELECT 1
           FROM "candidatura" approved_candidatura
-          INNER JOIN "requisicao_vaga" approved_requisicao
-            ON approved_requisicao."id" = approved_candidatura."requisicao_id"
           WHERE approved_candidatura."candidato_id" = c."id"
-            AND approved_requisicao."status" IN ('ABERTA', 'EM_ADMISSAO')
+            AND approved_candidatura."status" <> 'EFETIVADO'
+            AND NULLIF(BTRIM(approved_candidatura."matricula"), '') IS NULL
         ) THEN 'aprovados'
         WHEN EXISTS (
           SELECT 1
