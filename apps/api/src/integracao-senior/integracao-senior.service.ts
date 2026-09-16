@@ -150,6 +150,10 @@ export class IntegracaoSeniorService {
       where: { id: candidatura.id },
       data: { admissao: dataAdmissao, admissaoGeradaPorUserId, matricula, status: 'EFETIVADO' },
     });
+    await this.prisma.candidato.update({
+      where: { id: candidato.id },
+      data: { situacao: 'ADMITIDO' },
+    });
 
     // 6. Atualiza status da requisição
     await this.prisma.requisicaoVaga.update({
@@ -214,6 +218,10 @@ export class IntegracaoSeniorService {
         matricula: null,
         admissaoGeradaPorUserId: null,
       },
+    });
+    await this.prisma.candidato.update({
+      where: { id: candidatura.candidatoId },
+      data: { situacao: 'ATIVO_PROCESSO' },
     });
 
     await this.prisma.requisicaoVaga.update({
