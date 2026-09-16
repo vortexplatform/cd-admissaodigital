@@ -1653,7 +1653,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
       })
       .catch(() => setError('Não foi possível carregar o candidato.'))
       .finally(() => setIsLoading(false));
-  }, [id, mode, reset, estadosCert]);
+  }, [id, mode, reset]);
 
   const onSubmit = async (values: CandidatoForm) => {
     if (isViewMode) return;
