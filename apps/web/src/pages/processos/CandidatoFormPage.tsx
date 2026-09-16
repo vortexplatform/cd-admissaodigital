@@ -7,17 +7,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, BriefcaseBusiness, Edit3, FileSignature, Save, UserRoundPlus, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Control, Controller, FieldValues, Path, useForm } from 'react-hook-form';
 import { isAxiosError } from 'axios';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import ReactSelect from 'react-select';
-import type { StylesConfig } from 'react-select';
-import AsyncSelect from 'react-select/async';
-import DatePicker, { registerLocale } from 'react-datepicker';
 import { ptBR } from 'date-fns/locale/pt-BR';
+import {
+  ArrowLeft,
+  BriefcaseBusiness,
+  Edit3,
+  FileSignature,
+  Save,
+  UserRoundPlus,
+  X,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import DatePicker, { registerLocale } from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import { Control, Controller, FieldValues, Path, useForm } from 'react-hook-form';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import type { StylesConfig } from 'react-select';
+import ReactSelect from 'react-select';
+import AsyncSelect from 'react-select/async';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -196,11 +204,14 @@ interface CandidaturaResumo {
   createdAt: string;
 }
 interface ColaboradorSenior {
+  numemp: number | null;
+  tipcol: number | null;
   matricula: number | null;
   nome: string | null;
   admissao: string | null;
   filial: number | null;
   situacao: string | null;
+  desligamento: string | null;
 }
 interface RequisicaoDisponivel {
   id: number;
@@ -326,175 +337,218 @@ const normalizeCandidato = (data: CandidatoResponse): CandidatoData => ({
 // ---------------------------------------------------------------------------
 const candidatoSchema = z
   .object({
-  cpf: z
-    .string()
-    .trim()
-    .refine((v) => v.replace(/\D/g, '').length === 11, 'Informe um CPF com 11 dígitos'),
-  dataNascimento: z.string().trim().min(1, 'Informe a data de nascimento'),
-  nome: z.string().trim().min(1, 'Informe o nome'),
-  email: z.string().trim().email('Informe um e-mail válido').optional().or(z.literal('')),
-  telefone: z.string().trim().optional(),
-  genero: z.enum(['', 'M', 'F']),
-  situacao: z.enum(['CANDIDATO', 'ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO']),
-  justificativaReprovacao: z.string().trim().optional(),
-  cidadeVagaId: z.string().trim().min(1, 'Informe a cidade da vaga'),
+    cpf: z
+      .string()
+      .trim()
+      .refine((v) => v.replace(/\D/g, '').length === 11, 'Informe um CPF com 11 dígitos'),
+    dataNascimento: z.string().trim().min(1, 'Informe a data de nascimento'),
+    nome: z.string().trim().min(1, 'Informe o nome'),
+    email: z.string().trim().email('Informe um e-mail válido').optional().or(z.literal('')),
+    telefone: z.string().trim().optional(),
+    genero: z.enum(['', 'M', 'F']),
+    situacao: z.enum(['CANDIDATO', 'ATIVO_PROCESSO', 'ELIMINADO', 'DESISTENTE', 'ADMITIDO']),
+    justificativaReprovacao: z.string().trim().optional(),
+    cidadeVagaId: z.string().trim().min(1, 'Informe a cidade da vaga'),
 
-  // Admissão
-  tipoAdmissao: z.enum(['', 'PRIMEIRO_EMPREGO', 'REEMPREGO']),
-  deficiente: z.enum(['true', 'false']),
-  preencheCotaDeficiencia: z.enum(['true', 'false']),
-  tipoAposentadoria: z.enum(['0', '1', '2', '3', '4', '5', '6', '7', '8']),
-  dataAposentadoria: z.string().trim().optional(),
+    // Admissão
+    tipoAdmissao: z.enum(['', 'PRIMEIRO_EMPREGO', 'REEMPREGO']),
+    deficiente: z.enum(['true', 'false']),
+    preencheCotaDeficiencia: z.enum(['true', 'false']),
+    tipoAposentadoria: z.enum(['0', '1', '2', '3', '4', '5', '6', '7', '8']),
+    dataAposentadoria: z.string().trim().optional(),
 
-  // Dados pessoais adicionais
-  estadoCivil: z.string().trim().optional(),
-  grauInstrucao: z.string().trim().optional(),
-  raccor: z.string().trim().optional(),
+    // Dados pessoais adicionais
+    estadoCivil: z.string().trim().optional(),
+    grauInstrucao: z.string().trim().optional(),
+    raccor: z.string().trim().optional(),
 
-  // Naturalidade
-  nacionalidade: z.string().trim().optional(),
-  paisNascimento: z.string().trim().optional(),
-  estadoNascimento: z.string().trim().optional(),
-  cidadeNascimentoCod: z.string().trim().optional(),
-  cidadeNascimentoNome: z.string().trim().optional(),
+    // Naturalidade
+    nacionalidade: z.string().trim().optional(),
+    paisNascimento: z.string().trim().optional(),
+    estadoNascimento: z.string().trim().optional(),
+    cidadeNascimentoCod: z.string().trim().optional(),
+    cidadeNascimentoNome: z.string().trim().optional(),
 
-  // Endereço
-  pais: z.string().trim().optional(),
-  cep: z.string().trim().optional(),
-  estadoEndereco: z.string().trim().optional(),
-  cidadeCod: z.string().trim().optional(),
-  cidadeNome: z.string().trim().optional(),
-  bairroCod: z.string().trim().optional(),
-  bairroNome: z.string().trim().optional(),
-  tipoLogradouro: z.string().trim().optional(),
-  endereco: z.string().trim().optional(),
-  numero: z.string().trim().optional(),
-  complemento: z.string().trim().optional(),
+    // Endereço
+    pais: z.string().trim().optional(),
+    cep: z.string().trim().optional(),
+    estadoEndereco: z.string().trim().optional(),
+    cidadeCod: z.string().trim().optional(),
+    cidadeNome: z.string().trim().optional(),
+    bairroCod: z.string().trim().optional(),
+    bairroNome: z.string().trim().optional(),
+    tipoLogradouro: z.string().trim().optional(),
+    endereco: z.string().trim().optional(),
+    numero: z.string().trim().optional(),
+    complemento: z.string().trim().optional(),
 
-  // Contatos
-  ddiTelefone: z.string().trim().optional(),
-  dddTelefone: z.string().trim().optional(),
-  numeroTelefone: z.string().trim().optional(),
-  ddiTelefone2: z.string().trim().optional(),
-  dddTelefone2: z.string().trim().optional(),
-  numeroTelefone2: z.string().trim().optional(),
+    // Contatos
+    ddiTelefone: z.string().trim().optional(),
+    dddTelefone: z.string().trim().optional(),
+    numeroTelefone: z.string().trim().optional(),
+    ddiTelefone2: z.string().trim().optional(),
+    dddTelefone2: z.string().trim().optional(),
+    numeroTelefone2: z.string().trim().optional(),
 
-  // RG
-  numeroRg: z.string().trim().max(16, 'Número de identidade deve ter no máximo 16 caracteres').optional(),
-  orgaoEmissorRg: z
-    .string()
-    .trim()
-    .max(20, 'Órgão emissor deve ter no máximo 20 caracteres')
-    .optional(),
-  dataExpedicaoRg: z.string().trim().optional(),
+    // RG
+    numeroRg: z
+      .string()
+      .trim()
+      .max(16, 'Número de identidade deve ter no máximo 16 caracteres')
+      .optional(),
+    orgaoEmissorRg: z
+      .string()
+      .trim()
+      .max(20, 'Órgão emissor deve ter no máximo 20 caracteres')
+      .optional(),
+    dataExpedicaoRg: z.string().trim().optional(),
 
-  // Título de eleitor
-  numeroTituloEleitor: z
-    .string()
-    .trim()
-    .max(13, 'Número do título de eleitor deve ter no máximo 13 caracteres')
-    .optional(),
-  zonaTituloEleitor: z.string().trim().max(3, 'Zona de eleitor deve ter no máximo 3 caracteres').optional(),
-  secaoTituloEleitor: z
-    .string()
-    .trim()
-    .max(4, 'Seção de eleitor deve ter no máximo 4 caracteres')
-    .optional(),
+    // Título de eleitor
+    numeroTituloEleitor: z
+      .string()
+      .trim()
+      .max(13, 'Número do título de eleitor deve ter no máximo 13 caracteres')
+      .optional(),
+    zonaTituloEleitor: z
+      .string()
+      .trim()
+      .max(3, 'Zona de eleitor deve ter no máximo 3 caracteres')
+      .optional(),
+    secaoTituloEleitor: z
+      .string()
+      .trim()
+      .max(4, 'Seção de eleitor deve ter no máximo 4 caracteres')
+      .optional(),
 
-  // Reservista
-  numeroCertReservista: z
-    .string()
-    .trim()
-    .max(13, 'Certificado de reservista deve ter no máximo 13 caracteres')
-    .optional(),
+    // Reservista
+    numeroCertReservista: z
+      .string()
+      .trim()
+      .max(13, 'Certificado de reservista deve ter no máximo 13 caracteres')
+      .optional(),
 
-  // Certidão civil
-  tipoCertidaoCivil: z.string().trim().optional(),
-  dataEmissaoCertidaoCivil: z.string().trim().optional(),
-  matriculaCertidaoCivil: z.string().trim().optional(),
-  termoMatriculaCertidao: z.string().trim().optional(),
-  livroCertidaoCivil: z.string().trim().optional(),
-  folhaCertidaoCivil: z.string().trim().optional(),
-  estadoCertidaoCivil: z.string().trim().optional(),
-  cidadeCertidaoCivilCod: z.string().trim().optional(),
-  cidadeCertidaoCivilNome: z.string().trim().optional(),
+    // Certidão civil
+    tipoCertidaoCivil: z.string().trim().optional(),
+    dataEmissaoCertidaoCivil: z.string().trim().optional(),
+    matriculaCertidaoCivil: z.string().trim().optional(),
+    termoMatriculaCertidao: z.string().trim().optional(),
+    livroCertidaoCivil: z.string().trim().optional(),
+    folhaCertidaoCivil: z.string().trim().optional(),
+    estadoCertidaoCivil: z.string().trim().optional(),
+    cidadeCertidaoCivilCod: z.string().trim().optional(),
+    cidadeCertidaoCivilNome: z.string().trim().optional(),
 
-  // Uniforme
-  tamanhoCamisa: z.string().trim().optional(),
-  tamanhoCalca: z.string().trim().optional(),
-  tamanhoCalcado: z.string().trim().optional(),
+    // Uniforme
+    tamanhoCamisa: z.string().trim().optional(),
+    tamanhoCalca: z.string().trim().optional(),
+    tamanhoCalcado: z.string().trim().optional(),
 
-  // Responsável legal
-  responsavelNome: z.string().trim().optional(),
-  responsavelCpf: z.string().trim().optional(),
-  responsavelEmail: z.string().trim().email('Informe um e-mail válido').optional().or(z.literal('')),
-  responsavelTelefone: z.string().trim().optional(),
-}).superRefine((values, ctx) => {
-  if (
-    (values.situacao === 'ELIMINADO' || values.situacao === 'DESISTENTE') &&
-    !values.justificativaReprovacao?.trim()
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['justificativaReprovacao'],
-      message: 'Informe a justificativa',
-    });
-  }
-
-  if (values.tipoAposentadoria !== '0' && !values.dataAposentadoria) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['dataAposentadoria'],
-      message: 'Informe a data de aposentadoria',
-    });
-  }
-
-  // Campos obrigatórios quando situação NÃO é CANDIDATO
-  if (values.situacao !== 'CANDIDATO') {
-    const requiredText = (field: string, path: string, msg: string) => {
-      if (!(values as Record<string, unknown>)[field]?.toString().trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: msg });
-      }
-    };
-    if (values.genero === '') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['genero'], message: 'Informe o gênero' });
-    if (values.tipoAdmissao === '') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['tipoAdmissao'], message: 'Informe o tipo de admissão' });
-    requiredText('estadoCivil', 'estadoCivil', 'Informe o estado civil');
-    requiredText('grauInstrucao', 'grauInstrucao', 'Informe o grau de instrução');
-    requiredText('raccor', 'raccor', 'Informe a raça');
-    requiredText('nacionalidade', 'nacionalidade', 'Informe a nacionalidade');
-    requiredText('paisNascimento', 'paisNascimento', 'Informe o país de nascimento');
-    requiredText('estadoNascimento', 'estadoNascimento', 'Informe o estado de nascimento');
-    requiredText('cidadeNascimentoCod', 'cidadeNascimentoCod', 'Informe a cidade de nascimento');
-    requiredText('pais', 'pais', 'Informe o país do endereço');
-    if (!values.cep || values.cep.replace(/\D/g, '').length !== 8) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['cep'], message: 'Informe um CEP com 8 dígitos' });
+    // Responsável legal
+    responsavelNome: z.string().trim().optional(),
+    responsavelCpf: z.string().trim().optional(),
+    responsavelEmail: z
+      .string()
+      .trim()
+      .email('Informe um e-mail válido')
+      .optional()
+      .or(z.literal('')),
+    responsavelTelefone: z.string().trim().optional(),
+  })
+  .superRefine((values, ctx) => {
+    if (
+      (values.situacao === 'ELIMINADO' || values.situacao === 'DESISTENTE') &&
+      !values.justificativaReprovacao?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['justificativaReprovacao'],
+        message: 'Informe a justificativa',
+      });
     }
-    requiredText('estadoEndereco', 'estadoEndereco', 'Informe o estado do endereço');
-    requiredText('cidadeCod', 'cidadeCod', 'Informe a cidade do endereço');
-    requiredText('bairroNome', 'bairroNome', 'Informe o bairro');
-    requiredText('tipoLogradouro', 'tipoLogradouro', 'Informe o tipo de logradouro');
-    requiredText('endereco', 'endereco', 'Informe o logradouro');
-    requiredText('numero', 'numero', 'Informe o número');
-    requiredText('ddiTelefone', 'ddiTelefone', 'Informe o DDI do telefone principal');
-  }
 
-  // Exigir responsável legal apenas ao avançar um candidato menor de idade no processo.
-  if (values.situacao !== 'CANDIDATO' && values.dataNascimento) {
-    const idade = getAge(values.dataNascimento);
+    if (values.tipoAposentadoria !== '0' && !values.dataAposentadoria) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dataAposentadoria'],
+        message: 'Informe a data de aposentadoria',
+      });
+    }
 
-    if (idade !== null && idade < 18) {
-      if (!values.responsavelNome?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelNome'], message: 'Informe o nome do responsável legal' });
+    // Campos obrigatórios quando situação NÃO é CANDIDATO
+    if (values.situacao !== 'CANDIDATO') {
+      const requiredText = (field: string, path: string, msg: string) => {
+        if (!(values as Record<string, unknown>)[field]?.toString().trim()) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: msg });
+        }
+      };
+      if (values.genero === '')
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['genero'],
+          message: 'Informe o gênero',
+        });
+      if (values.tipoAdmissao === '')
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['tipoAdmissao'],
+          message: 'Informe o tipo de admissão',
+        });
+      requiredText('estadoCivil', 'estadoCivil', 'Informe o estado civil');
+      requiredText('grauInstrucao', 'grauInstrucao', 'Informe o grau de instrução');
+      requiredText('raccor', 'raccor', 'Informe a raça');
+      requiredText('nacionalidade', 'nacionalidade', 'Informe a nacionalidade');
+      requiredText('paisNascimento', 'paisNascimento', 'Informe o país de nascimento');
+      requiredText('estadoNascimento', 'estadoNascimento', 'Informe o estado de nascimento');
+      requiredText('cidadeNascimentoCod', 'cidadeNascimentoCod', 'Informe a cidade de nascimento');
+      requiredText('pais', 'pais', 'Informe o país do endereço');
+      if (!values.cep || values.cep.replace(/\D/g, '').length !== 8) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['cep'],
+          message: 'Informe um CEP com 8 dígitos',
+        });
       }
-      if (!values.responsavelCpf?.trim() || values.responsavelCpf.replace(/\D/g, '').length !== 11) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelCpf'], message: 'Informe o CPF do responsável legal' });
-      }
-      if (!values.responsavelEmail?.trim() && !values.responsavelTelefone?.trim()) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['responsavelEmail'], message: 'Informe pelo menos o e-mail ou telefone do responsável' });
+      requiredText('estadoEndereco', 'estadoEndereco', 'Informe o estado do endereço');
+      requiredText('cidadeCod', 'cidadeCod', 'Informe a cidade do endereço');
+      requiredText('bairroNome', 'bairroNome', 'Informe o bairro');
+      requiredText('tipoLogradouro', 'tipoLogradouro', 'Informe o tipo de logradouro');
+      requiredText('endereco', 'endereco', 'Informe o logradouro');
+      requiredText('numero', 'numero', 'Informe o número');
+      requiredText('ddiTelefone', 'ddiTelefone', 'Informe o DDI do telefone principal');
+    }
+
+    // Exigir responsável legal apenas ao avançar um candidato menor de idade no processo.
+    if (values.situacao !== 'CANDIDATO' && values.dataNascimento) {
+      const idade = getAge(values.dataNascimento);
+
+      if (idade !== null && idade < 18) {
+        if (!values.responsavelNome?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['responsavelNome'],
+            message: 'Informe o nome do responsável legal',
+          });
+        }
+        if (
+          !values.responsavelCpf?.trim() ||
+          values.responsavelCpf.replace(/\D/g, '').length !== 11
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['responsavelCpf'],
+            message: 'Informe o CPF do responsável legal',
+          });
+        }
+        if (!values.responsavelEmail?.trim() && !values.responsavelTelefone?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['responsavelEmail'],
+            message: 'Informe pelo menos o e-mail ou telefone do responsável',
+          });
+        }
       }
     }
-  }
-});
+  });
 
 const dependenteSchema = z
   .object({
@@ -516,7 +570,9 @@ const dependenteSchema = z
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['cpf'],
-      message: values.dependenteIr ? 'Informe o CPF do dependente IR' : 'Informe um CPF com 11 dígitos',
+      message: values.dependenteIr
+        ? 'Informe o CPF do dependente IR'
+        : 'Informe um CPF com 11 dígitos',
     });
   });
 
@@ -743,7 +799,7 @@ const buildDependentePayload = (values: DependenteForm): DependentePayload => ({
   sexo: values.sexo as DependentePayload['sexo'],
   dependenteIr: Boolean(values.dependenteIr),
   dataNascimento: values.dataNascimento || null,
-  cpf: values.dependenteIr ? values.cpf?.replace(/\D/g, '') ?? '' : '',
+  cpf: values.dependenteIr ? (values.cpf?.replace(/\D/g, '') ?? '') : '',
 });
 
 const buildPayloadDependentes = (dependentes?: CandidatoDependenteData[]) =>
@@ -823,7 +879,8 @@ const buildPayload = (
   deficiente: values.deficiente === 'true',
   preencheCotaDeficiencia: values.preencheCotaDeficiencia === 'true',
   tipoAposentadoria: Number(values.tipoAposentadoria),
-  dataAposentadoria: values.tipoAposentadoria === '0' ? null : optionalString(values.dataAposentadoria),
+  dataAposentadoria:
+    values.tipoAposentadoria === '0' ? null : optionalString(values.dataAposentadoria),
   estadoCivil: optionalString(values.estadoCivil),
   grauInstrucao: optionalString(values.grauInstrucao),
   raccor: values.raccor ? parseInt(values.raccor) : undefined,
@@ -1043,10 +1100,10 @@ function MaskedTextField<TForm extends FieldValues>({
             placeholder={placeholder}
             value={(field.value as string) ?? ''}
             onChange={(event) => field.onChange(mask(event.target.value))}
-             onBlur={(event) => {
-               field.onBlur();
-               onBlurProp?.(event);
-             }}
+            onBlur={(event) => {
+              field.onBlur();
+              onBlurProp?.(event);
+            }}
             ref={field.ref}
           />
         )}
@@ -1176,8 +1233,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [admissaoSuccess, setAdmissaoSuccess] = useState(false);
 
   // Matrícula ativa por candidatura: undefined=não checado, null=sem matrícula ativa, number=tem matrícula
-  const [matriculaAtiva, setMatriculaAtiva] = useState<Record<number, number | null | undefined>>({});
-  const [colaboradorSenior, setColaboradorSenior] = useState<ColaboradorSenior | null>(null);
+  const [matriculaAtiva, setMatriculaAtiva] = useState<Record<number, number | null | undefined>>(
+    {},
+  );
+  const [colaboradorSenior, setColaboradorSenior] = useState<ColaboradorSenior[]>([]);
   // Cancelamento de efetivação
   const [cancelandoId, setCancelandoId] = useState<number | null>(null);
   const [cancelError, setCancelError] = useState<Record<number, string>>({});
@@ -1198,12 +1257,17 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [tiposDependenteEsocial, setTiposDependenteEsocial] = useState<TipoDependenteEsocial[]>([]);
   const [dependentesDraft, setDependentesDraft] = useState<CandidatoDependenteData[]>([]);
   const [dependenteModalOpen, setDependenteModalOpen] = useState(false);
-  const [dependenteEditando, setDependenteEditando] = useState<CandidatoDependenteData | null>(null);
+  const [dependenteEditando, setDependenteEditando] = useState<CandidatoDependenteData | null>(
+    null,
+  );
   const [isSavingDependente, setIsSavingDependente] = useState(false);
   const [dependenteError, setDependenteError] = useState('');
-  const [valeTransportesDraft, setValeTransportesDraft] = useState<CandidatoValeTransporteData[]>([]);
+  const [valeTransportesDraft, setValeTransportesDraft] = useState<CandidatoValeTransporteData[]>(
+    [],
+  );
   const [valeTransporteModalOpen, setValeTransporteModalOpen] = useState(false);
-  const [valeTransporteEditando, setValeTransporteEditando] = useState<CandidatoValeTransporteData | null>(null);
+  const [valeTransporteEditando, setValeTransporteEditando] =
+    useState<CandidatoValeTransporteData | null>(null);
   const [isSavingValeTransporte, setIsSavingValeTransporte] = useState(false);
   const [valeTransporteError, setValeTransporteError] = useState('');
   const [etapasSenior, setEtapasSenior] = useState<EtapaSenior[]>([]);
@@ -1228,8 +1292,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const [cidadesVaga, setCidadesVaga] = useState<CidadeVaga[]>([]);
 
   useEffect(() => {
-    api.get<CidadeVaga[]>('/cidades-vaga').then(({ data }) => setCidadesVaga(data)).catch(() => setCidadesVaga([]));
-    api.get<Filial[]>('/general/filial').then(({ data }) => setFiliais(data)).catch(() => setFiliais([]));
+    api
+      .get<CidadeVaga[]>('/cidades-vaga')
+      .then(({ data }) => setCidadesVaga(data))
+      .catch(() => setCidadesVaga([]));
+    api
+      .get<Filial[]>('/general/filial')
+      .then(({ data }) => setFiliais(data))
+      .catch(() => setFiliais([]));
   }, []);
 
   useEffect(
@@ -1307,7 +1377,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
   const formValues = watch();
   const podeGerarAdmissao = useMemo(() => {
-    if (situacaoSelecionada !== 'ATIVO_PROCESSO' && situacaoSelecionada !== 'ADMITIDO') return false;
+    if (situacaoSelecionada !== 'ATIVO_PROCESSO' && situacaoSelecionada !== 'ADMITIDO')
+      return false;
     const v = formValues;
     return !!(
       v.nome?.trim() &&
@@ -1376,7 +1447,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         .catch(() => {}),
       api
         .get<OpcaoChave[]>('/general/tipos-grau-parentesco')
-        .then((r) => setTiposGrauParentesco(r.data.sort((a, b) => Number(a.KEYNAM) - Number(b.KEYNAM))))
+        .then((r) =>
+          setTiposGrauParentesco(r.data.sort((a, b) => Number(a.KEYNAM) - Number(b.KEYNAM))),
+        )
         .catch(() => {}),
       api
         .get<TipoDependenteEsocial[]>('/general/tipos-dependente-esocial')
@@ -1516,7 +1589,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
         // Inicializa status editável por candidatura
         const statusInit: Record<number, string> = {};
-        candidatoData.candidaturas.forEach((c) => { statusInit[c.id] = c.status; });
+        candidatoData.candidaturas.forEach((c) => {
+          statusInit[c.id] = c.status;
+        });
         setStatusEdit(statusInit);
 
         // Pré-carregar dados de cascata com base nos valores existentes
@@ -1603,9 +1678,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           preencheCotaDeficiencia: String(
             data.preencheCotaDeficiencia,
           ) as CandidatoForm['preencheCotaDeficiencia'],
-          tipoAposentadoria: String(
-            data.tipoAposentadoria,
-          ) as CandidatoForm['tipoAposentadoria'],
+          tipoAposentadoria: String(data.tipoAposentadoria) as CandidatoForm['tipoAposentadoria'],
           dataAposentadoria: toDateInputValue(data.dataAposentadoria),
           estadoCivil: toText(data.estadoCivil),
           grauInstrucao: toText(data.grauInstrucao),
@@ -1687,8 +1760,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         isAxiosError(error) &&
         error.response?.status === 409 &&
         typeof error.response?.data?.message === 'string'
-        ? error.response.data.message
-        : 'Não foi possível salvar o candidato. Verifique os dados e tente novamente.';
+          ? error.response.data.message
+          : 'Não foi possível salvar o candidato. Verifique os dados e tente novamente.';
       setError(message);
     } finally {
       setIsSaving(false);
@@ -1930,7 +2003,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         });
       } else if (id) {
         if (valeTransporteEditando) {
-          await api.patch(`/candidatos/${id}/vale-transportes/${valeTransporteEditando.id}`, payload);
+          await api.patch(
+            `/candidatos/${id}/vale-transportes/${valeTransporteEditando.id}`,
+            payload,
+          );
         } else {
           await api.post(`/candidatos/${id}/vale-transportes`, payload);
         }
@@ -1954,7 +2030,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         setValeTransportesDraft((current) =>
           current.filter((item) => item.draftId !== valeTransporte.draftId),
         );
-        if (valeTransporteEditando?.draftId === valeTransporte.draftId) handleCancelarValeTransporte();
+        if (valeTransporteEditando?.draftId === valeTransporte.draftId)
+          handleCancelarValeTransporte();
         return;
       }
       if (!id) return;
@@ -2048,7 +2125,8 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   useEffect(() => {
     if (!candidato) return;
     candidato.candidaturas.forEach((c) => {
-      const deveConsultar = c.status === 'EFETIVADO' || (c.admissao !== null && isWithin7Days(c.admissao));
+      const deveConsultar =
+        c.status === 'EFETIVADO' || (c.admissao !== null && isWithin7Days(c.admissao));
       if (!deveConsultar) return;
       if (matriculaAtiva[c.id] !== undefined) return; // já consultado
       api
@@ -2056,17 +2134,17 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         .then(({ data }) => setMatriculaAtiva((prev) => ({ ...prev, [c.id]: data.numcad })))
         .catch(() => setMatriculaAtiva((prev) => ({ ...prev, [c.id]: null })));
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidato]);
 
   useEffect(() => {
     if (!candidato?.cpf) return;
 
-    setColaboradorSenior(null);
+    setColaboradorSenior([]);
     api
-      .get<ColaboradorSenior>(`/integracao-senior/colaborador/cpf/${candidato.cpf}`)
+      .get<ColaboradorSenior[]>(`/integracao-senior/colaborador/cpf/${candidato.cpf}`)
       .then(({ data }) => setColaboradorSenior(data))
-      .catch(() => setColaboradorSenior(null));
+      .catch(() => setColaboradorSenior([]));
   }, [candidato?.cpf]);
 
   const handleCancelarEfetivacao = async (candidaturaId: number) => {
@@ -2074,7 +2152,11 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     setCancelError((prev) => ({ ...prev, [candidaturaId]: '' }));
     try {
       await api.post(`/integracao-senior/candidaturas/${candidaturaId}/cancelar-efetivacao`);
-      setMatriculaAtiva((prev) => { const n = { ...prev }; delete n[candidaturaId]; return n; });
+      setMatriculaAtiva((prev) => {
+        const n = { ...prev };
+        delete n[candidaturaId];
+        return n;
+      });
       reloadCandidato();
     } catch (err: unknown) {
       const msg =
@@ -2147,13 +2229,22 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               Voltar
             </Button>
             {isViewMode && id && (
-              <Button type="button" onClick={() => navigate(`/candidatos/${id}/editar`)} className="w-full sm:w-auto">
+              <Button
+                type="button"
+                onClick={() => navigate(`/candidatos/${id}/editar`)}
+                className="w-full sm:w-auto"
+              >
                 <Edit3 className="h-4 w-4" />
                 Editar
               </Button>
             )}
             {!isViewMode && (
-              <Button type="submit" form="candidato-form" disabled={isSaving} className="w-full sm:w-auto">
+              <Button
+                type="submit"
+                form="candidato-form"
+                disabled={isSaving}
+                className="w-full sm:w-auto"
+              >
                 <Save className="h-4 w-4" />
                 {isSaving ? 'Salvando...' : 'Salvar'}
               </Button>
@@ -2170,40 +2261,66 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         </Card>
       ) : (
         <form id="candidato-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {mode !== 'create' && colaboradorSenior && (
+          {mode !== 'create' && colaboradorSenior.length > 0 && (
             <Card className="border-report-blue/40 bg-report-blue/10">
-              <CardContent className="p-4">
+              <CardContent className="space-y-4 p-4">
                 <div className="flex items-center gap-2">
-                  <BriefcaseBusiness className="h-5 w-5 shrink-0 text-report-blue" aria-hidden="true" />
-                  <p className="font-semibold text-foreground">Este candidato já foi colaborador.</p>
+                  <BriefcaseBusiness
+                    className="h-5 w-5 shrink-0 text-report-blue"
+                    aria-hidden="true"
+                  />
+                  <p className="font-semibold text-foreground">Dados de colaborador do candidato</p>
                 </div>
-                <div className="mt-3 grid grid-cols-1 gap-2 text-left text-sm text-muted-foreground sm:grid-cols-2">
-                  <p>
-                    <span className="font-medium">Nome:</span>{' '}
-                    <span className="text-foreground">{colaboradorSenior.nome ?? 'Não informado'}</span>
-                  </p>
-                  <p>
-                    <span className="font-medium">Matrícula:</span>{' '}
-                    <span className="font-mono font-semibold text-foreground">
-                      {colaboradorSenior.matricula ?? 'Não informado'}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="font-medium">Admissão:</span>{' '}
-                    <span className="text-foreground">
-                      {colaboradorSenior.admissao
-                        ? toDateInputValue(colaboradorSenior.admissao).split('-').reverse().join('/')
-                        : 'Não informado'}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="font-medium">Filial:</span>{' '}
-                    <span className="text-foreground">{colaboradorSenior.filial ?? 'Não informado'}</span>
-                  </p>
-                  <p>
-                    <span className="font-medium">Situação:</span>{' '}
-                    <span className="text-foreground">{colaboradorSenior.situacao ?? 'Não informado'}</span>
-                  </p>
+                <div className="overflow-x-auto rounded-md border border-report-blue/20 bg-background/70">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="border-b border-report-blue/20 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Matrícula</th>
+                        <th className="px-3 py-2 font-medium">Admissão</th>
+                        <th className="px-3 py-2 font-medium">Filial</th>
+                        <th className="px-3 py-2 font-medium">Situação</th>
+                        <th className="px-3 py-2 font-medium">Afastamento</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-report-blue/10">
+                      {colaboradorSenior.map((colaborador, index) => (
+                        <tr key={`${colaborador.matricula ?? 'sem-matricula'}-${index}`}>
+                          <td className="px-3 py-3 font-mono font-semibold text-foreground">
+                            {colaborador.matricula ?? '—'}
+                          </td>
+                          <td className="px-3 py-3 text-foreground">
+                            {colaborador.admissao
+                              ? toDateInputValue(colaborador.admissao)
+                                  .split('-')
+                                  .reverse()
+                                  .join('/')
+                              : '—'}
+                          </td>
+                          <td className="px-3 py-3 text-foreground">{colaborador.filial ?? '—'}</td>
+                          <td className="px-3 py-3">
+                            <span
+                              className={cn(
+                                'inline-flex rounded-full px-2 py-1 text-xs font-medium',
+                                colaborador.situacao?.toLowerCase() === 'ativo'
+                                  ? 'bg-report-green/15 text-foreground'
+                                  : 'bg-muted text-muted-foreground',
+                              )}
+                            >
+                              {colaborador.situacao ?? 'Não informado'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-foreground">
+                            {colaborador.desligamento
+                              ? toDateInputValue(colaborador.desligamento)
+                                  .split('-')
+                                  .reverse()
+                                  .join('/')
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
@@ -2211,17 +2328,27 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           <Card className="">
             <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
               <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Nome</p>
-                <p className="mt-1 font-semibold">{watch('nome') || candidato?.nome || 'Não informado'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">CPF</p>
-                <p className="mt-1 font-semibold">{watch('cpf') || candidato?.cpf || 'Não informado'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Data de nascimento</p>
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  Nome
+                </p>
                 <p className="mt-1 font-semibold">
-                  {(watch('dataNascimento') || candidato?.dataNascimento)
+                  {watch('nome') || candidato?.nome || 'Não informado'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  CPF
+                </p>
+                <p className="mt-1 font-semibold">
+                  {watch('cpf') || candidato?.cpf || 'Não informado'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                  Data de nascimento
+                </p>
+                <p className="mt-1 font-semibold">
+                  {watch('dataNascimento') || candidato?.dataNascimento
                     ? toDateInputValue(watch('dataNascimento') || candidato?.dataNascimento || '')
                         .split('-')
                         .reverse()
@@ -2237,22 +2364,22 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
           ================================================================= */}
           {mode !== 'create' && (
             <Card className="">
-                <CardHeader>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <CardTitle>Candidaturas vinculadas</CardTitle>
-                      <CardDescription>
-                        {candidato?.candidaturas.length ?? 0} vínculo(s) encontrado(s).
-                      </CardDescription>
-                    </div>
-                    {mode === 'edit' && (
-                      <Button type="button" variant="outline" onClick={() => setLinkModalOpen(true)}>
-                        <UserRoundPlus className="h-4 w-4" />
-                        Vincular requisição
-                      </Button>
-                    )}
+              <CardHeader>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle>Candidaturas vinculadas</CardTitle>
+                    <CardDescription>
+                      {candidato?.candidaturas.length ?? 0} vínculo(s) encontrado(s).
+                    </CardDescription>
                   </div>
-                </CardHeader>
+                  {mode === 'edit' && (
+                    <Button type="button" variant="outline" onClick={() => setLinkModalOpen(true)}>
+                      <UserRoundPlus className="h-4 w-4" />
+                      Vincular requisição
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
               <CardContent>
                 {!candidato || candidato.candidaturas.length === 0 ? (
                   <div className="rounded-xl border border-dashed bg-background p-6 text-center">
@@ -2289,7 +2416,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                                 : candidatura.status === 'APROVADO'
                                   ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                  : candidatura.status === 'REPROVADO' || candidatura.status === 'CANCELADO' || candidatura.status === 'DESISTIU'
+                                  : candidatura.status === 'REPROVADO' ||
+                                      candidatura.status === 'CANCELADO' ||
+                                      candidatura.status === 'DESISTIU'
                                     ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                                     : 'bg-muted text-muted-foreground',
                             )}
@@ -2298,26 +2427,38 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                           </span>
                           {candidatura.requisicao.postoTrabalhoNome && (
                             <span className="text-xs text-muted-foreground">
-                              <span className="font-medium">Posto:</span> {candidatura.requisicao.postoTrabalhoNome}
+                              <span className="font-medium">Posto:</span>{' '}
+                              {candidatura.requisicao.postoTrabalhoNome}
                             </span>
                           )}
-                          {(candidatura.requisicao.escala || candidatura.requisicao.descricaoEscala) && (
+                          {(candidatura.requisicao.escala ||
+                            candidatura.requisicao.descricaoEscala) && (
                             <span className="text-xs text-muted-foreground">
                               <span className="font-medium">Horário:</span>{' '}
-                              {[candidatura.requisicao.escala, candidatura.requisicao.descricaoEscala].filter(Boolean).join(' — ')}
+                              {[
+                                candidatura.requisicao.escala,
+                                candidatura.requisicao.descricaoEscala,
+                              ]
+                                .filter(Boolean)
+                                .join(' — ')}
                             </span>
                           )}
                           {candidatura.matricula && (
                             <span className="text-xs text-muted-foreground">
                               <span className="font-medium">Matrícula:</span>{' '}
-                              <span className="font-semibold text-foreground">{candidatura.matricula}</span>
+                              <span className="font-semibold text-foreground">
+                                {candidatura.matricula}
+                              </span>
                             </span>
                           )}
                           {candidatura.admissao && (
                             <span className="text-xs text-muted-foreground">
                               <span className="font-medium">Admissão:</span>{' '}
                               <span className="font-semibold text-foreground">
-                                {toDateInputValue(candidatura.admissao).split('-').reverse().join('/')}
+                                {toDateInputValue(candidatura.admissao)
+                                  .split('-')
+                                  .reverse()
+                                  .join('/')}
                               </span>
                             </span>
                           )}
@@ -2330,7 +2471,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                                 className="h-8 rounded-md border bg-background px-2 text-xs"
                                 value={statusEdit[candidatura.id] ?? candidatura.status}
                                 onChange={(e) =>
-                                  setStatusEdit((prev) => ({ ...prev, [candidatura.id]: e.target.value }))
+                                  setStatusEdit((prev) => ({
+                                    ...prev,
+                                    [candidatura.id]: e.target.value,
+                                  }))
                                 }
                               >
                                 {statusCandidaturaList.map((s) => (
@@ -2345,14 +2489,17 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                                 variant="outline"
                                 disabled={
                                   isSavingStatus[candidatura.id] ||
-                                  (statusEdit[candidatura.id] ?? candidatura.status) === candidatura.status
+                                  (statusEdit[candidatura.id] ?? candidatura.status) ===
+                                    candidatura.status
                                 }
                                 onClick={() => handleUpdateStatus(candidatura.id)}
                               >
                                 {isSavingStatus[candidatura.id] ? 'Salvando...' : 'Atualizar'}
                               </Button>
                               {statusSaveError[candidatura.id] && (
-                                <p className="text-xs text-destructive">{statusSaveError[candidatura.id]}</p>
+                                <p className="text-xs text-destructive">
+                                  {statusSaveError[candidatura.id]}
+                                </p>
                               )}
                               {!candidatura.admissao && (
                                 <Button
@@ -2378,57 +2525,64 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                             </Link>
                           </Button>
 
-                          {candidatura.status === 'APROVADO' && !candidatura.admissao && podeGerarAdmissao && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="text-white hover:text-white"
-                              onClick={() => {
-                                setAdmissaoCandidaturaId(candidatura.id);
-                                setAdmissaoSuccess(false);
-                                setAdmissaoError('');
-                                setAdmissaoData('');
-                              }}
-                            >
-                              Gerar admissão
-                            </Button>
-                          )}
-
-                          {candidatura.status === 'EFETIVADO' && matriculaAtiva[candidatura.id] === null && (
-                            <>
+                          {candidatura.status === 'APROVADO' &&
+                            !candidatura.admissao &&
+                            podeGerarAdmissao && (
                               <Button
                                 type="button"
                                 size="sm"
-                                variant="outline"
-                                className="border-destructive text-destructive hover:bg-destructive/10"
-                                disabled={cancelandoId === candidatura.id}
-                                onClick={() => handleCancelarEfetivacao(candidatura.id)}
+                                className="text-white hover:text-white"
+                                onClick={() => {
+                                  setAdmissaoCandidaturaId(candidatura.id);
+                                  setAdmissaoSuccess(false);
+                                  setAdmissaoError('');
+                                  setAdmissaoData('');
+                                }}
                               >
-                                {cancelandoId === candidatura.id ? 'Cancelando...' : 'Cancelar efetivação'}
+                                Gerar admissão
                               </Button>
-                              {cancelError[candidatura.id] && (
-                                <p className="text-xs text-destructive">{cancelError[candidatura.id]}</p>
-                              )}
-                            </>
-                          )}
+                            )}
+
+                          {candidatura.status === 'EFETIVADO' &&
+                            matriculaAtiva[candidatura.id] === null && (
+                              <>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-destructive text-destructive hover:bg-destructive/10"
+                                  disabled={cancelandoId === candidatura.id}
+                                  onClick={() => handleCancelarEfetivacao(candidatura.id)}
+                                >
+                                  {cancelandoId === candidatura.id
+                                    ? 'Cancelando...'
+                                    : 'Cancelar efetivação'}
+                                </Button>
+                                {cancelError[candidatura.id] && (
+                                  <p className="text-xs text-destructive">
+                                    {cancelError[candidatura.id]}
+                                  </p>
+                                )}
+                              </>
+                            )}
 
                           {candidatura.admissao !== null &&
                             isWithin7Days(candidatura.admissao) &&
                             matriculaAtiva[candidatura.id] === null &&
                             podeGerarAdmissao && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => {
-                                setAdmissaoCandidaturaId(candidatura.id);
-                                setAdmissaoSuccess(false);
-                                setAdmissaoError('');
-                                setAdmissaoData('');
-                              }}
-                            >
-                              Gerar nova admissão
-                            </Button>
-                          )}
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                  setAdmissaoCandidaturaId(candidatura.id);
+                                  setAdmissaoSuccess(false);
+                                  setAdmissaoError('');
+                                  setAdmissaoData('');
+                                }}
+                              >
+                                Gerar nova admissão
+                              </Button>
+                            )}
                         </div>
                       </div>
                     ))}
@@ -2455,786 +2609,796 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   Grade do formulário — 2 colunas em telas grandes
               ================================================================= */}
               <div className="grid gap-4 xl:grid-cols-2">
-
-            {/* ---- Coluna A ---- */}
-            <div className="space-y-4">
-
-              {/* ---- Dados pessoais ---- */}
-              <Card className="">
-                <CardHeader>
-                  <CardTitle>Dados pessoais</CardTitle>
-                  <CardDescription>Identificação e características do candidato.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <TextField
-                    id="nome"
-                    label="Nome completo"
-                    required
-                    disabled={isViewMode}
-                    placeholder=""
-                    error={errors.nome?.message}
-                    {...register('nome')}
-                  />
-
-                  <SelectField
-                    id="cidadeVagaId"
-                    label="Cidade da vaga"
-                    required
-                    disabled={isViewMode}
-                    error={errors.cidadeVagaId?.message}
-                    {...register('cidadeVagaId')}
-                  >
-                    <option value="">Selecione</option>
-                    {cidadesVaga.map((cidade) => (
-                      <option key={cidade.id} value={cidade.id}>
-                        {cidade.nome}
-                      </option>
-                    ))}
-                  </SelectField>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <MaskedTextField
-                      id="cpf"
-                      label="CPF"
-                      required
-                      control={control}
-                      name="cpf"
-                      mask={formatCpf}
-                      disabled={isViewMode}
-                      placeholder="000.000.000-00"
-                      error={errors.cpf?.message}
-                      onBlur={verificarCpfExistente}
-                    />
-                    <TextField
-                      id="dataNascimento"
-                      label="Data de nascimento"
-                      required
-                      type="date"
-                      disabled={isViewMode}
-                      error={errors.dataNascimento?.message}
-                      {...register('dataNascimento')}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SelectField
-                      id="genero"
-                      label="Gênero"
-                      required={!isCandidato}
-                      disabled={isViewMode}
-                      error={errors.genero?.message}
-                      {...register('genero')}
-                    >
-                      <option value="">Selecione</option>
-                      <option value="M">Masculino</option>
-                      <option value="F">Feminino</option>
-                    </SelectField>
-
-                    <SelectField
-                      id="estadoCivil"
-                      label="Estado civil"
-                      required={!isCandidato}
-                      disabled={isViewMode}
-                      error={errors.estadoCivil?.message}
-                      {...register('estadoCivil')}
-                    >
-                      <option value="">Selecione</option>
-                      {estadosCivis.map((e) => (
-                        <option key={e.KEYNAM} value={e.KEYNAM}>
-                          {e.VALKEY}
-                        </option>
-                      ))}
-                    </SelectField>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SelectField
-                      id="situacao"
-                      label="Situação"
-                      required
-                      disabled={isViewMode}
-                      error={errors.situacao?.message}
-                      {...register('situacao')}
-                    >
-                      <option value="CANDIDATO">Candidato</option>
-                      <option value="ATIVO_PROCESSO">Ativo no processo</option>
-                      <option value="ELIMINADO">Eliminado</option>
-                      <option value="DESISTENTE">Desistente</option>
-                      <option value="ADMITIDO">Admitido</option>
-                    </SelectField>
-                    <SelectField
-                      id="tipoAdmissao"
-                      label="Tipo de admissão"
-                      required={!isCandidato}
-                      disabled={isViewMode}
-                      error={errors.tipoAdmissao?.message}
-                      {...register('tipoAdmissao')}
-                    >
-                      <option value="">Selecione</option>
-                      <option value="PRIMEIRO_EMPREGO">Primeiro emprego</option>
-                      <option value="REEMPREGO">Reemprego</option>
-                    </SelectField>
-                  </div>
-
-                  {exigeJustificativaReprovacao && (
-                    <TextField
-                      id="justificativaReprovacao"
-                      label="Justificativa"
-                      required
-                      disabled={isViewMode}
-                      error={errors.justificativaReprovacao?.message}
-                      {...register('justificativaReprovacao')}
-                    />
-                  )}
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SelectField
-                      id="grauInstrucao"
-                      label="Grau de instrução"
-                      required={!isCandidato}
-                      disabled={isViewMode}
-                      error={errors.grauInstrucao?.message}
-                      {...register('grauInstrucao')}
-                    >
-                      <option value="">Selecione</option>
-                      {GRAUS_INSTRUCAO.map((g) => (
-                        <option key={g.cod} value={g.cod}>
-                          {g.cod} - {g.desc}
-                        </option>
-                      ))}
-                    </SelectField>
-
-                    <ReactSelectField
-                      id="raccor"
-                      label="Raça/Cor"
-                      required={!isCandidato}
-                      control={control}
-                      name="raccor"
-                      error={errors.raccor?.message}
-                      isDisabled={isViewMode}
-                      options={etnia.map((e) => ({ value: String(e.CODETN), label: e.DESETN }))}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SelectField
-                      id="deficiente"
-                      label="Deficiente?"
-                      required
-                      disabled={isViewMode}
-                      error={errors.deficiente?.message}
-                      {...register('deficiente')}
-                    >
-                      <option value="false">Não</option>
-                      <option value="true">Sim</option>
-                    </SelectField>
-                    <SelectField
-                      id="preencheCotaDeficiencia"
-                      label="Preenche Cota Deficiência"
-                      required
-                      disabled={isViewMode}
-                      error={errors.preencheCotaDeficiencia?.message}
-                      {...register('preencheCotaDeficiencia')}
-                    >
-                      <option value="false">Não</option>
-                      <option value="true">Sim</option>
-                    </SelectField>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SelectField
-                      id="tipoAposentadoria"
-                      label="Tipo de aposentadoria"
-                      required
-                      disabled={isViewMode}
-                      error={errors.tipoAposentadoria?.message}
-                      {...register('tipoAposentadoria')}
-                    >
-                      {TIPOS_APOSENTADORIA.map((tipo) => (
-                        <option key={tipo.cod} value={tipo.cod}>
-                          {tipo.cod} - {tipo.desc}
-                        </option>
-                      ))}
-                    </SelectField>
-
-                    {tipoAposentadoriaSelecionado !== '0' && (
-                      <TextField
-                        id="dataAposentadoria"
-                        label="Data aposentadoria"
-                        required
-                        type="date"
-                        disabled={isViewMode}
-                        error={errors.dataAposentadoria?.message}
-                        {...register('dataAposentadoria')}
-                      />
-                    )}
-                  </div>
-
-                </CardContent>
-              </Card>
-
-              {/* ---- Naturalidade ---- */}
-              <Card className="">
-                <CardHeader>
-                  <CardTitle>Naturalidade</CardTitle>
-                  <CardDescription>País, estado e cidade de nascimento.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <ReactSelectField
-                      id="nacionalidade"
-                      label="Nacionalidade"
-                      required={!isCandidato}
-                      control={control}
-                      name="nacionalidade"
-                      error={errors.nacionalidade?.message}
-                      isDisabled={isViewMode}
-                      options={nacionalidades.map((n) => ({
-                        value: String(n.CODNAC),
-                        label: n.DESNAC,
-                      }))}
-                    />
-
-                    <ReactSelectField
-                      id="paisNascimento"
-                      label="País de nascimento"
-                      required={!isCandidato}
-                      control={control}
-                      name="paisNascimento"
-                      error={errors.paisNascimento?.message}
-                      isDisabled={isViewMode}
-                      options={paisesToOptions(paises)}
-                      onChange={handlePaisNascChange}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <ReactSelectField
-                      id="estadoNascimento"
-                      label="Estado de nascimento"
-                      required={!isCandidato}
-                      control={control}
-                      name="estadoNascimento"
-                      error={errors.estadoNascimento?.message}
-                      isDisabled={isViewMode || estadosNasc.length === 0}
-                      options={estadosToOptions(estadosNasc)}
-                      placeholder={
-                        estadosNasc.length === 0 ? 'Selecione um país primeiro' : 'Selecione...'
-                      }
-                      onChange={handleEstadoNascChange}
-                    />
-
-                    <div className="space-y-2">
-                      <ReactSelectField
-                        id="cidadeNascimentoCod"
-                        label="Cidade de nascimento"
-                        required={!isCandidato}
-                        control={control}
-                        name="cidadeNascimentoCod"
-                        error={errors.cidadeNascimentoCod?.message}
-                        isDisabled={isViewMode || cidadesNasc.length === 0}
-                        options={cidadesToOptions(cidadesNasc)}
-                        placeholder={
-                          cidadesNasc.length === 0 ? 'Selecione um estado primeiro' : 'Selecione...'
-                        }
-                        onChange={handleCidadeNascChange}
-                      />
-                      <input type="hidden" {...register('cidadeNascimentoNome')} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* ---- Certidão civil ---- */}
-              <Card className="">
-                <CardHeader>
-                  <CardTitle>Certidão civil</CardTitle>
-                  <CardDescription>Dados do registro civil do candidato.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SelectField
-                      id="tipoCertidaoCivil"
-                      label="Tipo de certidão"
-                      disabled={isViewMode}
-                      {...register('tipoCertidaoCivil')}
-                    >
-                      <option value="">Selecione</option>
-                      {tiposCertidao.map((t) => (
-                        <option key={t.KEYNAM} value={t.KEYNAM}>
-                          {t.VALKEY}
-                        </option>
-                      ))}
-                    </SelectField>
-                    <TextField
-                      id="dataEmissaoCertidaoCivil"
-                      label="Data de emissão"
-                      type="date"
-                      disabled={isViewMode}
-                      {...register('dataEmissaoCertidaoCivil')}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <TextField
-                      id="matriculaCertidaoCivil"
-                      label="Matrícula"
-                      disabled={isViewMode}
-                      {...register('matriculaCertidaoCivil')}
-                    />
-                    <TextField
-                      id="termoMatriculaCertidao"
-                      label="Termo/Matrícula"
-                      disabled={isViewMode}
-                      {...register('termoMatriculaCertidao')}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <TextField
-                      id="livroCertidaoCivil"
-                      label="Livro"
-                      disabled={isViewMode}
-                      {...register('livroCertidaoCivil')}
-                    />
-                    <TextField
-                      id="folhaCertidaoCivil"
-                      label="Folha"
-                      disabled={isViewMode}
-                      {...register('folhaCertidaoCivil')}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <ReactSelectField
-                      id="estadoCertidaoCivil"
-                      label="Estado"
-                      control={control}
-                      name="estadoCertidaoCivil"
-                      isDisabled={isViewMode || estadosCert.length === 0}
-                      options={estadosToOptions(estadosCert)}
-                      placeholder={
-                         estadosCert.length === 0
-                            ? 'Selecione o país de nascimento'
-                           : 'Selecione...'
-                       }
-                      onChange={handleEstadoCertChange}
-                    />
-
-                    <div className="space-y-2">
-                      <ReactSelectField
-                        id="cidadeCertidaoCivilCod"
-                        label="Cidade"
-                        control={control}
-                        name="cidadeCertidaoCivilCod"
-                        isDisabled={isViewMode || cidadesCert.length === 0}
-                        options={cidadesToOptions(cidadesCert)}
-                        placeholder={
-                          cidadesCert.length === 0 ? 'Selecione um estado primeiro' : 'Selecione...'
-                        }
-                        onChange={handleCidadeCertChange}
-                      />
-                      <input type="hidden" {...register('cidadeCertidaoCivilNome')} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-            </div>
-
-            {/* ---- Coluna B ---- */}
-            <div className="space-y-4">
-
-              {/* ---- Contatos ---- */}
-              <Card className="">
-                <CardHeader>
-                  <CardTitle>Contatos</CardTitle>
-                  <CardDescription>E-mail e telefones para comunicação.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <TextField
-                    id="email"
-                    label="E-mail"
-                    required={!isCandidato}
-                    disabled={isViewMode}
-                    type="email"
-                    placeholder="candidato@email.com"
-                    error={errors.email?.message}
-                    {...register('email')}
-                  />
-
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">
-                      Telefone principal {!isCandidato && <span className="text-destructive">*</span>}
-                    </p>
-                    <div className="grid grid-cols-[4rem_5rem_1fr] gap-2">
-                      <TextField
-                        id="ddiTelefone"
-                        label="DDI"
-                        required={!isCandidato}
-                        disabled={isViewMode}
-                        placeholder="55"
-                        {...register('ddiTelefone')}
-                      />
-                      <TextField
-                        id="dddTelefone"
-                        label="DDD"
-                        required={!isCandidato}
-                        disabled={isViewMode}
-                        placeholder="33"
-                        {...register('dddTelefone')}
-                      />
-                      <TextField
-                        id="numeroTelefone"
-                        label="Número"
-                        required={!isCandidato}
-                        disabled={isViewMode}
-                        placeholder="999999999"
-                        {...register('numeroTelefone')}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Telefone secundário</p>
-                    <div className="grid grid-cols-[4rem_5rem_1fr] gap-2">
-                      <TextField
-                        id="ddiTelefone2"
-                        label="DDI"
-                        disabled={isViewMode}
-                        placeholder="55"
-                        {...register('ddiTelefone2')}
-                      />
-                      <TextField
-                        id="dddTelefone2"
-                        label="DDD"
-                        disabled={isViewMode}
-                        placeholder="33"
-                        {...register('dddTelefone2')}
-                      />
-                      <TextField
-                        id="numeroTelefone2"
-                        label="Número"
-                        disabled={isViewMode}
-                        placeholder="999999999"
-                        {...register('numeroTelefone2')}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* ---- Endereço ---- */}
-              <Card className="">
-                <CardHeader>
-                  <CardTitle>Endereço</CardTitle>
-                  <CardDescription>Localização residencial atual.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <ReactSelectField
-                      id="pais"
-                      label="País"
-                      required={!isCandidato}
-                      control={control}
-                      name="pais"
-                      error={errors.pais?.message}
-                      isDisabled={isViewMode}
-                      options={paisesToOptions(paises)}
-                      onChange={handlePaisEndChange}
-                    />
-
-                    <MaskedTextField
-                      id="cep"
-                      label="CEP"
-                      required={!isCandidato}
-                      control={control}
-                      name="cep"
-                      mask={formatCep}
-                      disabled={isViewMode}
-                      placeholder="00000-000"
-                      error={errors.cep?.message}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <ReactSelectField
-                      id="estadoEndereco"
-                      label="Estado"
-                      required={!isCandidato}
-                      control={control}
-                      name="estadoEndereco"
-                      error={errors.estadoEndereco?.message}
-                      isDisabled={isViewMode || estadosEnd.length === 0}
-                      options={estadosToOptions(estadosEnd)}
-                      placeholder={
-                        estadosEnd.length === 0 ? 'Selecione um país primeiro' : 'Selecione...'
-                      }
-                      onChange={handleEstadoEndChange}
-                    />
-
-                    <div className="space-y-2">
-                      <ReactSelectField
-                        id="cidadeCod"
-                        label="Cidade"
-                        required={!isCandidato}
-                        control={control}
-                        name="cidadeCod"
-                        error={errors.cidadeCod?.message}
-                        isDisabled={isViewMode || cidadesEnd.length === 0}
-                        options={cidadesToOptions(cidadesEnd)}
-                        placeholder={
-                          cidadesEnd.length === 0 ? 'Selecione um estado primeiro' : 'Selecione...'
-                        }
-                        onChange={handleCidadeEndChange}
-                      />
-                      <input type="hidden" {...register('cidadeNome')} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <ReactSelectField
-                      id="bairroCod"
-                      label="Bairro"
-                      required={!isCandidato}
-                      control={control}
-                      name="bairroCod"
-                      error={errors.bairroNome?.message}
-                      isDisabled={isViewMode || bairrosEnd.length === 0}
-                      options={bairrosToOptions(bairrosEnd)}
-                      placeholder={
-                        bairrosEnd.length === 0 ? 'Selecione uma cidade primeiro' : 'Selecione...'
-                      }
-                      onChange={handleBairroEndChange}
-                    />
-                    <input type="hidden" {...register('bairroNome')} />
-                  </div>
-
-                  <div>
-                    <ReactSelectField
-                      id="tipoLogradouro"
-                      label="Logradouro"
-                      required={!isCandidato}
-                      control={control}
-                      name="tipoLogradouro"
-                      isDisabled={isViewMode}
-                      error={errors.tipoLogradouro?.message}
-                      options={tiposLogradouro.map((t) => ({ value: t.KEYNAM, label: t.VALKEY }))}
-                    />
-                  </div>
-
-                  <div>
-                    <TextField
-                      id="endereco"
-                      label="Endereço"
-                      required={!isCandidato}
-                      disabled={isViewMode}
-                      placeholder="Nome da rua/av."
-                      error={errors.endereco?.message}
-                      {...register('endereco')}
-                    />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-[6rem_1fr]">
-                    <TextField
-                      id="numero"
-                      label="Número"
-                      required={!isCandidato}
-                      disabled={isViewMode}
-                      placeholder="123"
-                      error={errors.numero?.message}
-                      {...register('numero')}
-                    />
-                    <TextField
-                      id="complemento"
-                      label="Complemento"
-                      disabled={isViewMode}
-                      placeholder="Apto, bloco..."
-                      {...register('complemento')}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* ---- Documentos ---- */}
-              <Card className="">
-                <CardHeader>
-                  <CardTitle>Documentos</CardTitle>
-                  <CardDescription>RG, título de eleitor e reservista.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Carteira de identidade (RG)
-                    </p>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <TextField
-                        id="numeroRg"
-                        label="Número"
-                        maxLength={16}
-                        disabled={isViewMode}
-                        {...register('numeroRg')}
-                      />
-                      <TextField
-                        id="orgaoEmissorRg"
-                        label="Órgão emissor"
-                        maxLength={20}
-                        disabled={isViewMode}
-                        placeholder="SSP/MG"
-                        {...register('orgaoEmissorRg')}
-                      />
-                      <TextField
-                        id="dataExpedicaoRg"
-                        label="Expedição"
-                        type="date"
-                        disabled={isViewMode}
-                        {...register('dataExpedicaoRg')}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Título de eleitor
-                    </p>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <TextField
-                        id="numeroTituloEleitor"
-                        label="Número"
-                        maxLength={13}
-                        disabled={isViewMode}
-                        {...register('numeroTituloEleitor')}
-                      />
-                      <TextField
-                        id="zonaTituloEleitor"
-                        label="Zona"
-                        maxLength={3}
-                        disabled={isViewMode}
-                        {...register('zonaTituloEleitor')}
-                      />
-                      <TextField
-                        id="secaoTituloEleitor"
-                        label="Seção"
-                        maxLength={4}
-                        disabled={isViewMode}
-                        {...register('secaoTituloEleitor')}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Reservista
-                    </p>
-                    <TextField
-                      id="numeroCertReservista"
-                      label="Número do certificado"
-                      maxLength={13}
-                      disabled={isViewMode}
-                      {...register('numeroCertReservista')}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* ---- Uniforme ---- */}
-              <Card className="">
-                <CardHeader>
-                  <CardTitle>Uniforme</CardTitle>
-                  <CardDescription>Medidas para fornecimento de uniforme.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <TextField
-                      id="tamanhoCamisa"
-                      label="Tamanho da camisa"
-                      placeholder="Ex: P, M, G, GG"
-                      disabled={isViewMode}
-                      {...register('tamanhoCamisa')}
-                    />
-                    <TextField
-                      id="tamanhoCalca"
-                      label="Tamanho da calça"
-                      placeholder="Ex: P, M, 42, 44"
-                      disabled={isViewMode}
-                      {...register('tamanhoCalca')}
-                    />
-                    <TextField
-                      id="tamanhoCalcado"
-                      label="Número do calçado"
-                      placeholder="Ex: 38, 39, 40"
-                      disabled={isViewMode}
-                      {...register('tamanhoCalcado')}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* ---- Responsável Legal ---- */}
-              {(() => {
-                const dataNasc = watch('dataNascimento');
-                const temDadosResponsavel = [
-                  watch('responsavelNome'),
-                  watch('responsavelCpf'),
-                  watch('responsavelEmail'),
-                  watch('responsavelTelefone'),
-                ].some((value) => value?.trim());
-                const idade = dataNasc ? getAge(dataNasc) : null;
-                if ((idade === null || idade >= 18) && !temDadosResponsavel) return null;
-                return (
-                  <Card className="border-amber-200 dark:border-amber-800">
+                {/* ---- Coluna A ---- */}
+                <div className="space-y-4">
+                  {/* ---- Dados pessoais ---- */}
+                  <Card className="">
                     <CardHeader>
-                      <CardTitle>Responsável Legal</CardTitle>
+                      <CardTitle>Dados pessoais</CardTitle>
                       <CardDescription>
-                        Candidato menor de 18 anos. Informe os dados do responsável legal para assinatura dos documentos.
+                        Identificação e características do candidato.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <TextField
+                        id="nome"
+                        label="Nome completo"
+                        required
+                        disabled={isViewMode}
+                        placeholder=""
+                        error={errors.nome?.message}
+                        {...register('nome')}
+                      />
+
+                      <SelectField
+                        id="cidadeVagaId"
+                        label="Cidade da vaga"
+                        required
+                        disabled={isViewMode}
+                        error={errors.cidadeVagaId?.message}
+                        {...register('cidadeVagaId')}
+                      >
+                        <option value="">Selecione</option>
+                        {cidadesVaga.map((cidade) => (
+                          <option key={cidade.id} value={cidade.id}>
+                            {cidade.nome}
+                          </option>
+                        ))}
+                      </SelectField>
+
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <TextField
-                          id="responsavelNome"
-                          label="Nome completo *"
-                          placeholder="Nome do responsável legal"
+                        <MaskedTextField
+                          id="cpf"
+                          label="CPF"
+                          required
+                          control={control}
+                          name="cpf"
+                          mask={formatCpf}
                           disabled={isViewMode}
-                          error={errors.responsavelNome?.message}
-                          {...register('responsavelNome')}
+                          placeholder="000.000.000-00"
+                          error={errors.cpf?.message}
+                          onBlur={verificarCpfExistente}
                         />
                         <TextField
-                          id="responsavelCpf"
-                          label="CPF *"
-                          placeholder="00000000000"
+                          id="dataNascimento"
+                          label="Data de nascimento"
+                          required
+                          type="date"
                           disabled={isViewMode}
-                          error={errors.responsavelCpf?.message}
-                          {...register('responsavelCpf')}
+                          error={errors.dataNascimento?.message}
+                          {...register('dataNascimento')}
                         />
                       </div>
+
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <TextField
-                          id="responsavelEmail"
-                          label="E-mail"
-                          placeholder="email@exemplo.com"
+                        <SelectField
+                          id="genero"
+                          label="Gênero"
+                          required={!isCandidato}
                           disabled={isViewMode}
-                          error={errors.responsavelEmail?.message}
-                          {...register('responsavelEmail')}
+                          error={errors.genero?.message}
+                          {...register('genero')}
+                        >
+                          <option value="">Selecione</option>
+                          <option value="M">Masculino</option>
+                          <option value="F">Feminino</option>
+                        </SelectField>
+
+                        <SelectField
+                          id="estadoCivil"
+                          label="Estado civil"
+                          required={!isCandidato}
+                          disabled={isViewMode}
+                          error={errors.estadoCivil?.message}
+                          {...register('estadoCivil')}
+                        >
+                          <option value="">Selecione</option>
+                          {estadosCivis.map((e) => (
+                            <option key={e.KEYNAM} value={e.KEYNAM}>
+                              {e.VALKEY}
+                            </option>
+                          ))}
+                        </SelectField>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <SelectField
+                          id="situacao"
+                          label="Situação"
+                          required
+                          disabled={isViewMode}
+                          error={errors.situacao?.message}
+                          {...register('situacao')}
+                        >
+                          <option value="CANDIDATO">Candidato</option>
+                          <option value="ATIVO_PROCESSO">Ativo no processo</option>
+                          <option value="ELIMINADO">Eliminado</option>
+                          <option value="DESISTENTE">Desistente</option>
+                          <option value="ADMITIDO">Admitido</option>
+                        </SelectField>
+                        <SelectField
+                          id="tipoAdmissao"
+                          label="Tipo de admissão"
+                          required={!isCandidato}
+                          disabled={isViewMode}
+                          error={errors.tipoAdmissao?.message}
+                          {...register('tipoAdmissao')}
+                        >
+                          <option value="">Selecione</option>
+                          <option value="PRIMEIRO_EMPREGO">Primeiro emprego</option>
+                          <option value="REEMPREGO">Reemprego</option>
+                        </SelectField>
+                      </div>
+
+                      {exigeJustificativaReprovacao && (
+                        <TextField
+                          id="justificativaReprovacao"
+                          label="Justificativa"
+                          required
+                          disabled={isViewMode}
+                          error={errors.justificativaReprovacao?.message}
+                          {...register('justificativaReprovacao')}
                         />
-                        <TextField
-                          id="responsavelTelefone"
-                          label="Telefone"
-                          placeholder="+5531999999999"
+                      )}
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <SelectField
+                          id="grauInstrucao"
+                          label="Grau de instrução"
+                          required={!isCandidato}
                           disabled={isViewMode}
-                          error={errors.responsavelTelefone?.message}
-                          {...register('responsavelTelefone')}
+                          error={errors.grauInstrucao?.message}
+                          {...register('grauInstrucao')}
+                        >
+                          <option value="">Selecione</option>
+                          {GRAUS_INSTRUCAO.map((g) => (
+                            <option key={g.cod} value={g.cod}>
+                              {g.cod} - {g.desc}
+                            </option>
+                          ))}
+                        </SelectField>
+
+                        <ReactSelectField
+                          id="raccor"
+                          label="Raça/Cor"
+                          required={!isCandidato}
+                          control={control}
+                          name="raccor"
+                          error={errors.raccor?.message}
+                          isDisabled={isViewMode}
+                          options={etnia.map((e) => ({ value: String(e.CODETN), label: e.DESETN }))}
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Pelo menos um contato (e-mail ou telefone) é obrigatório para envio do código de assinatura.
-                      </p>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <SelectField
+                          id="deficiente"
+                          label="Deficiente?"
+                          required
+                          disabled={isViewMode}
+                          error={errors.deficiente?.message}
+                          {...register('deficiente')}
+                        >
+                          <option value="false">Não</option>
+                          <option value="true">Sim</option>
+                        </SelectField>
+                        <SelectField
+                          id="preencheCotaDeficiencia"
+                          label="Preenche Cota Deficiência"
+                          required
+                          disabled={isViewMode}
+                          error={errors.preencheCotaDeficiencia?.message}
+                          {...register('preencheCotaDeficiencia')}
+                        >
+                          <option value="false">Não</option>
+                          <option value="true">Sim</option>
+                        </SelectField>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <SelectField
+                          id="tipoAposentadoria"
+                          label="Tipo de aposentadoria"
+                          required
+                          disabled={isViewMode}
+                          error={errors.tipoAposentadoria?.message}
+                          {...register('tipoAposentadoria')}
+                        >
+                          {TIPOS_APOSENTADORIA.map((tipo) => (
+                            <option key={tipo.cod} value={tipo.cod}>
+                              {tipo.cod} - {tipo.desc}
+                            </option>
+                          ))}
+                        </SelectField>
+
+                        {tipoAposentadoriaSelecionado !== '0' && (
+                          <TextField
+                            id="dataAposentadoria"
+                            label="Data aposentadoria"
+                            required
+                            type="date"
+                            disabled={isViewMode}
+                            error={errors.dataAposentadoria?.message}
+                            {...register('dataAposentadoria')}
+                          />
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
-                );
-              })()}
 
-              </div>
+                  {/* ---- Naturalidade ---- */}
+                  <Card className="">
+                    <CardHeader>
+                      <CardTitle>Naturalidade</CardTitle>
+                      <CardDescription>País, estado e cidade de nascimento.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ReactSelectField
+                          id="nacionalidade"
+                          label="Nacionalidade"
+                          required={!isCandidato}
+                          control={control}
+                          name="nacionalidade"
+                          error={errors.nacionalidade?.message}
+                          isDisabled={isViewMode}
+                          options={nacionalidades.map((n) => ({
+                            value: String(n.CODNAC),
+                            label: n.DESNAC,
+                          }))}
+                        />
+
+                        <ReactSelectField
+                          id="paisNascimento"
+                          label="País de nascimento"
+                          required={!isCandidato}
+                          control={control}
+                          name="paisNascimento"
+                          error={errors.paisNascimento?.message}
+                          isDisabled={isViewMode}
+                          options={paisesToOptions(paises)}
+                          onChange={handlePaisNascChange}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ReactSelectField
+                          id="estadoNascimento"
+                          label="Estado de nascimento"
+                          required={!isCandidato}
+                          control={control}
+                          name="estadoNascimento"
+                          error={errors.estadoNascimento?.message}
+                          isDisabled={isViewMode || estadosNasc.length === 0}
+                          options={estadosToOptions(estadosNasc)}
+                          placeholder={
+                            estadosNasc.length === 0 ? 'Selecione um país primeiro' : 'Selecione...'
+                          }
+                          onChange={handleEstadoNascChange}
+                        />
+
+                        <div className="space-y-2">
+                          <ReactSelectField
+                            id="cidadeNascimentoCod"
+                            label="Cidade de nascimento"
+                            required={!isCandidato}
+                            control={control}
+                            name="cidadeNascimentoCod"
+                            error={errors.cidadeNascimentoCod?.message}
+                            isDisabled={isViewMode || cidadesNasc.length === 0}
+                            options={cidadesToOptions(cidadesNasc)}
+                            placeholder={
+                              cidadesNasc.length === 0
+                                ? 'Selecione um estado primeiro'
+                                : 'Selecione...'
+                            }
+                            onChange={handleCidadeNascChange}
+                          />
+                          <input type="hidden" {...register('cidadeNascimentoNome')} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* ---- Certidão civil ---- */}
+                  <Card className="">
+                    <CardHeader>
+                      <CardTitle>Certidão civil</CardTitle>
+                      <CardDescription>Dados do registro civil do candidato.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <SelectField
+                          id="tipoCertidaoCivil"
+                          label="Tipo de certidão"
+                          disabled={isViewMode}
+                          {...register('tipoCertidaoCivil')}
+                        >
+                          <option value="">Selecione</option>
+                          {tiposCertidao.map((t) => (
+                            <option key={t.KEYNAM} value={t.KEYNAM}>
+                              {t.VALKEY}
+                            </option>
+                          ))}
+                        </SelectField>
+                        <TextField
+                          id="dataEmissaoCertidaoCivil"
+                          label="Data de emissão"
+                          type="date"
+                          disabled={isViewMode}
+                          {...register('dataEmissaoCertidaoCivil')}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <TextField
+                          id="matriculaCertidaoCivil"
+                          label="Matrícula"
+                          disabled={isViewMode}
+                          {...register('matriculaCertidaoCivil')}
+                        />
+                        <TextField
+                          id="termoMatriculaCertidao"
+                          label="Termo/Matrícula"
+                          disabled={isViewMode}
+                          {...register('termoMatriculaCertidao')}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <TextField
+                          id="livroCertidaoCivil"
+                          label="Livro"
+                          disabled={isViewMode}
+                          {...register('livroCertidaoCivil')}
+                        />
+                        <TextField
+                          id="folhaCertidaoCivil"
+                          label="Folha"
+                          disabled={isViewMode}
+                          {...register('folhaCertidaoCivil')}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ReactSelectField
+                          id="estadoCertidaoCivil"
+                          label="Estado"
+                          control={control}
+                          name="estadoCertidaoCivil"
+                          isDisabled={isViewMode || estadosCert.length === 0}
+                          options={estadosToOptions(estadosCert)}
+                          placeholder={
+                            estadosCert.length === 0
+                              ? 'Selecione o país de nascimento'
+                              : 'Selecione...'
+                          }
+                          onChange={handleEstadoCertChange}
+                        />
+
+                        <div className="space-y-2">
+                          <ReactSelectField
+                            id="cidadeCertidaoCivilCod"
+                            label="Cidade"
+                            control={control}
+                            name="cidadeCertidaoCivilCod"
+                            isDisabled={isViewMode || cidadesCert.length === 0}
+                            options={cidadesToOptions(cidadesCert)}
+                            placeholder={
+                              cidadesCert.length === 0
+                                ? 'Selecione um estado primeiro'
+                                : 'Selecione...'
+                            }
+                            onChange={handleCidadeCertChange}
+                          />
+                          <input type="hidden" {...register('cidadeCertidaoCivilNome')} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* ---- Coluna B ---- */}
+                <div className="space-y-4">
+                  {/* ---- Contatos ---- */}
+                  <Card className="">
+                    <CardHeader>
+                      <CardTitle>Contatos</CardTitle>
+                      <CardDescription>E-mail e telefones para comunicação.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <TextField
+                        id="email"
+                        label="E-mail"
+                        required={!isCandidato}
+                        disabled={isViewMode}
+                        type="email"
+                        placeholder="candidato@email.com"
+                        error={errors.email?.message}
+                        {...register('email')}
+                      />
+
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                          Telefone principal{' '}
+                          {!isCandidato && <span className="text-destructive">*</span>}
+                        </p>
+                        <div className="grid grid-cols-[4rem_5rem_1fr] gap-2">
+                          <TextField
+                            id="ddiTelefone"
+                            label="DDI"
+                            required={!isCandidato}
+                            disabled={isViewMode}
+                            placeholder="55"
+                            {...register('ddiTelefone')}
+                          />
+                          <TextField
+                            id="dddTelefone"
+                            label="DDD"
+                            required={!isCandidato}
+                            disabled={isViewMode}
+                            placeholder="33"
+                            {...register('dddTelefone')}
+                          />
+                          <TextField
+                            id="numeroTelefone"
+                            label="Número"
+                            required={!isCandidato}
+                            disabled={isViewMode}
+                            placeholder="999999999"
+                            {...register('numeroTelefone')}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Telefone secundário</p>
+                        <div className="grid grid-cols-[4rem_5rem_1fr] gap-2">
+                          <TextField
+                            id="ddiTelefone2"
+                            label="DDI"
+                            disabled={isViewMode}
+                            placeholder="55"
+                            {...register('ddiTelefone2')}
+                          />
+                          <TextField
+                            id="dddTelefone2"
+                            label="DDD"
+                            disabled={isViewMode}
+                            placeholder="33"
+                            {...register('dddTelefone2')}
+                          />
+                          <TextField
+                            id="numeroTelefone2"
+                            label="Número"
+                            disabled={isViewMode}
+                            placeholder="999999999"
+                            {...register('numeroTelefone2')}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* ---- Endereço ---- */}
+                  <Card className="">
+                    <CardHeader>
+                      <CardTitle>Endereço</CardTitle>
+                      <CardDescription>Localização residencial atual.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ReactSelectField
+                          id="pais"
+                          label="País"
+                          required={!isCandidato}
+                          control={control}
+                          name="pais"
+                          error={errors.pais?.message}
+                          isDisabled={isViewMode}
+                          options={paisesToOptions(paises)}
+                          onChange={handlePaisEndChange}
+                        />
+
+                        <MaskedTextField
+                          id="cep"
+                          label="CEP"
+                          required={!isCandidato}
+                          control={control}
+                          name="cep"
+                          mask={formatCep}
+                          disabled={isViewMode}
+                          placeholder="00000-000"
+                          error={errors.cep?.message}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ReactSelectField
+                          id="estadoEndereco"
+                          label="Estado"
+                          required={!isCandidato}
+                          control={control}
+                          name="estadoEndereco"
+                          error={errors.estadoEndereco?.message}
+                          isDisabled={isViewMode || estadosEnd.length === 0}
+                          options={estadosToOptions(estadosEnd)}
+                          placeholder={
+                            estadosEnd.length === 0 ? 'Selecione um país primeiro' : 'Selecione...'
+                          }
+                          onChange={handleEstadoEndChange}
+                        />
+
+                        <div className="space-y-2">
+                          <ReactSelectField
+                            id="cidadeCod"
+                            label="Cidade"
+                            required={!isCandidato}
+                            control={control}
+                            name="cidadeCod"
+                            error={errors.cidadeCod?.message}
+                            isDisabled={isViewMode || cidadesEnd.length === 0}
+                            options={cidadesToOptions(cidadesEnd)}
+                            placeholder={
+                              cidadesEnd.length === 0
+                                ? 'Selecione um estado primeiro'
+                                : 'Selecione...'
+                            }
+                            onChange={handleCidadeEndChange}
+                          />
+                          <input type="hidden" {...register('cidadeNome')} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <ReactSelectField
+                          id="bairroCod"
+                          label="Bairro"
+                          required={!isCandidato}
+                          control={control}
+                          name="bairroCod"
+                          error={errors.bairroNome?.message}
+                          isDisabled={isViewMode || bairrosEnd.length === 0}
+                          options={bairrosToOptions(bairrosEnd)}
+                          placeholder={
+                            bairrosEnd.length === 0
+                              ? 'Selecione uma cidade primeiro'
+                              : 'Selecione...'
+                          }
+                          onChange={handleBairroEndChange}
+                        />
+                        <input type="hidden" {...register('bairroNome')} />
+                      </div>
+
+                      <div>
+                        <ReactSelectField
+                          id="tipoLogradouro"
+                          label="Logradouro"
+                          required={!isCandidato}
+                          control={control}
+                          name="tipoLogradouro"
+                          isDisabled={isViewMode}
+                          error={errors.tipoLogradouro?.message}
+                          options={tiposLogradouro.map((t) => ({
+                            value: t.KEYNAM,
+                            label: t.VALKEY,
+                          }))}
+                        />
+                      </div>
+
+                      <div>
+                        <TextField
+                          id="endereco"
+                          label="Endereço"
+                          required={!isCandidato}
+                          disabled={isViewMode}
+                          placeholder="Nome da rua/av."
+                          error={errors.endereco?.message}
+                          {...register('endereco')}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-[6rem_1fr]">
+                        <TextField
+                          id="numero"
+                          label="Número"
+                          required={!isCandidato}
+                          disabled={isViewMode}
+                          placeholder="123"
+                          error={errors.numero?.message}
+                          {...register('numero')}
+                        />
+                        <TextField
+                          id="complemento"
+                          label="Complemento"
+                          disabled={isViewMode}
+                          placeholder="Apto, bloco..."
+                          {...register('complemento')}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* ---- Documentos ---- */}
+                  <Card className="">
+                    <CardHeader>
+                      <CardTitle>Documentos</CardTitle>
+                      <CardDescription>RG, título de eleitor e reservista.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          Carteira de identidade (RG)
+                        </p>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <TextField
+                            id="numeroRg"
+                            label="Número"
+                            maxLength={16}
+                            disabled={isViewMode}
+                            {...register('numeroRg')}
+                          />
+                          <TextField
+                            id="orgaoEmissorRg"
+                            label="Órgão emissor"
+                            maxLength={20}
+                            disabled={isViewMode}
+                            placeholder="SSP/MG"
+                            {...register('orgaoEmissorRg')}
+                          />
+                          <TextField
+                            id="dataExpedicaoRg"
+                            label="Expedição"
+                            type="date"
+                            disabled={isViewMode}
+                            {...register('dataExpedicaoRg')}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          Título de eleitor
+                        </p>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <TextField
+                            id="numeroTituloEleitor"
+                            label="Número"
+                            maxLength={13}
+                            disabled={isViewMode}
+                            {...register('numeroTituloEleitor')}
+                          />
+                          <TextField
+                            id="zonaTituloEleitor"
+                            label="Zona"
+                            maxLength={3}
+                            disabled={isViewMode}
+                            {...register('zonaTituloEleitor')}
+                          />
+                          <TextField
+                            id="secaoTituloEleitor"
+                            label="Seção"
+                            maxLength={4}
+                            disabled={isViewMode}
+                            {...register('secaoTituloEleitor')}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          Reservista
+                        </p>
+                        <TextField
+                          id="numeroCertReservista"
+                          label="Número do certificado"
+                          maxLength={13}
+                          disabled={isViewMode}
+                          {...register('numeroCertReservista')}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* ---- Uniforme ---- */}
+                  <Card className="">
+                    <CardHeader>
+                      <CardTitle>Uniforme</CardTitle>
+                      <CardDescription>Medidas para fornecimento de uniforme.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <TextField
+                          id="tamanhoCamisa"
+                          label="Tamanho da camisa"
+                          placeholder="Ex: P, M, G, GG"
+                          disabled={isViewMode}
+                          {...register('tamanhoCamisa')}
+                        />
+                        <TextField
+                          id="tamanhoCalca"
+                          label="Tamanho da calça"
+                          placeholder="Ex: P, M, 42, 44"
+                          disabled={isViewMode}
+                          {...register('tamanhoCalca')}
+                        />
+                        <TextField
+                          id="tamanhoCalcado"
+                          label="Número do calçado"
+                          placeholder="Ex: 38, 39, 40"
+                          disabled={isViewMode}
+                          {...register('tamanhoCalcado')}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* ---- Responsável Legal ---- */}
+                  {(() => {
+                    const dataNasc = watch('dataNascimento');
+                    const temDadosResponsavel = [
+                      watch('responsavelNome'),
+                      watch('responsavelCpf'),
+                      watch('responsavelEmail'),
+                      watch('responsavelTelefone'),
+                    ].some((value) => value?.trim());
+                    const idade = dataNasc ? getAge(dataNasc) : null;
+                    if ((idade === null || idade >= 18) && !temDadosResponsavel) return null;
+                    return (
+                      <Card className="border-amber-200 dark:border-amber-800">
+                        <CardHeader>
+                          <CardTitle>Responsável Legal</CardTitle>
+                          <CardDescription>
+                            Candidato menor de 18 anos. Informe os dados do responsável legal para
+                            assinatura dos documentos.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <TextField
+                              id="responsavelNome"
+                              label="Nome completo *"
+                              placeholder="Nome do responsável legal"
+                              disabled={isViewMode}
+                              error={errors.responsavelNome?.message}
+                              {...register('responsavelNome')}
+                            />
+                            <TextField
+                              id="responsavelCpf"
+                              label="CPF *"
+                              placeholder="00000000000"
+                              disabled={isViewMode}
+                              error={errors.responsavelCpf?.message}
+                              {...register('responsavelCpf')}
+                            />
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <TextField
+                              id="responsavelEmail"
+                              label="E-mail"
+                              placeholder="email@exemplo.com"
+                              disabled={isViewMode}
+                              error={errors.responsavelEmail?.message}
+                              {...register('responsavelEmail')}
+                            />
+                            <TextField
+                              id="responsavelTelefone"
+                              label="Telefone"
+                              placeholder="+5531999999999"
+                              disabled={isViewMode}
+                              error={errors.responsavelTelefone?.message}
+                              {...register('responsavelTelefone')}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Pelo menos um contato (e-mail ou telefone) é obrigatório para envio do
+                            código de assinatura.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+                </div>
               </div>
             </TabsContent>
 
@@ -3290,10 +3454,18 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                           </div>
                           {!isViewMode && (
                             <div className="flex gap-2">
-                              <Button type="button" variant="outline" onClick={() => handleEditarDependente(dependente)}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleEditarDependente(dependente)}
+                              >
                                 Editar
                               </Button>
-                              <Button type="button" variant="outline" onClick={() => handleExcluirDependente(dependente)}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleExcluirDependente(dependente)}
+                              >
                                 Excluir
                               </Button>
                             </div>
@@ -3308,132 +3480,143 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
 
             {mode !== 'create' && (
               <TabsContent value="valeTransporte" className="space-y-4">
-              <Card className="">
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle>Trajetos cadastrados</CardTitle>
-                    <CardDescription>
-                      {valeTransportesList.length} trajeto(s) vinculado(s).
-                    </CardDescription>
-                  </div>
-                  {!isViewMode && (
-                    <Button type="button" onClick={handleNovoValeTransporte}>
-                      Novo vale transporte
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {valeTransportesList.length === 0 ? (
-                    <div className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
-                      Nenhum trajeto cadastrado.
+                <Card className="">
+                  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle>Trajetos cadastrados</CardTitle>
+                      <CardDescription>
+                        {valeTransportesList.length} trajeto(s) vinculado(s).
+                      </CardDescription>
                     </div>
-                  ) : (
-                    valeTransportesList.map((valeTransporte) => (
-                      <div
-                        key={valeTransporte.draftId ?? valeTransporte.id}
-                        className="flex flex-col gap-3 rounded-xl border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
-                      >
-                        <div>
-                          <p className="font-semibold">{valeTransporte.transporteUsado}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {valeTransporte.tipoTransporte} • {valeTransporte.tipoTrajeto}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Tarifa R$ {String(valeTransporte.tarifaUnitaria).replace('.', ',')} • {valeTransporte.valesPorDia} vale(s)/dia
-                          </p>
-                        </div>
-                        {!isViewMode && (
-                          <div className="flex gap-2">
-                            <Button type="button" variant="outline" onClick={() => handleEditarValeTransporte(valeTransporte)}>
-                              Editar
-                            </Button>
-                            <Button type="button" variant="outline" onClick={() => handleExcluirValeTransporte(valeTransporte)}>
-                              Excluir
-                            </Button>
-                          </div>
-                        )}
+                    {!isViewMode && (
+                      <Button type="button" onClick={handleNovoValeTransporte}>
+                        Novo vale transporte
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {valeTransportesList.length === 0 ? (
+                      <div className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
+                        Nenhum trajeto cadastrado.
                       </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                    ) : (
+                      valeTransportesList.map((valeTransporte) => (
+                        <div
+                          key={valeTransporte.draftId ?? valeTransporte.id}
+                          className="flex flex-col gap-3 rounded-xl border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
+                        >
+                          <div>
+                            <p className="font-semibold">{valeTransporte.transporteUsado}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {valeTransporte.tipoTransporte} • {valeTransporte.tipoTrajeto}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Tarifa R$ {String(valeTransporte.tarifaUnitaria).replace('.', ',')} •{' '}
+                              {valeTransporte.valesPorDia} vale(s)/dia
+                            </p>
+                          </div>
+                          {!isViewMode && (
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleEditarValeTransporte(valeTransporte)}
+                              >
+                                Editar
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleExcluirValeTransporte(valeTransporte)}
+                              >
+                                Excluir
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
               </TabsContent>
             )}
 
             {mode !== 'create' && (
               <TabsContent value="etapas" className="space-y-4">
-              <Card className="">
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle>Etapas do processo</CardTitle>
-                    <CardDescription>{etapasList.length} etapa(s) vinculada(s).</CardDescription>
-                  </div>
-                  {!isViewMode && (
-                    <Button type="button" onClick={handleNovaEtapa}>
-                      Nova etapa
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  {etapasList.length === 0 ? (
-                    <div className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
-                      Nenhuma etapa cadastrada.
+                <Card className="">
+                  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle>Etapas do processo</CardTitle>
+                      <CardDescription>{etapasList.length} etapa(s) vinculada(s).</CardDescription>
                     </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-xl border">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                          <tr>
-                            <th className="px-4 py-2">Sequência</th>
-                            <th className="px-4 py-2">Etapa</th>
-                            <th className="px-4 py-2">Data</th>
-                            <th className="px-4 py-2">Observação</th>
-                            {!isViewMode && <th className="px-4 py-2 text-right">Ações</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...etapasList]
-                            .sort((a, b) => a.sequencia - b.sequencia)
-                            .map((etapa) => (
-                              <tr key={etapa.draftId ?? etapa.id} className="border-t">
-                                <td className="px-4 py-3">{etapa.sequencia}</td>
-                                <td className="px-4 py-3 font-medium">{etapa.descricaoEtapa}</td>
-                                <td className="px-4 py-3">
-                                  {etapa.data ? toDateInputValue(etapa.data).split('-').reverse().join('/') : '—'}
-                                </td>
-                                <td className="px-4 py-3 text-muted-foreground">
-                                  {etapa.observacao || '—'}
-                                </td>
-                                {!isViewMode && (
+                    {!isViewMode && (
+                      <Button type="button" onClick={handleNovaEtapa}>
+                        Nova etapa
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    {etapasList.length === 0 ? (
+                      <div className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
+                        Nenhuma etapa cadastrada.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                            <tr>
+                              <th className="px-4 py-2">Sequência</th>
+                              <th className="px-4 py-2">Etapa</th>
+                              <th className="px-4 py-2">Data</th>
+                              <th className="px-4 py-2">Observação</th>
+                              {!isViewMode && <th className="px-4 py-2 text-right">Ações</th>}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...etapasList]
+                              .sort((a, b) => a.sequencia - b.sequencia)
+                              .map((etapa) => (
+                                <tr key={etapa.draftId ?? etapa.id} className="border-t">
+                                  <td className="px-4 py-3">{etapa.sequencia}</td>
+                                  <td className="px-4 py-3 font-medium">{etapa.descricaoEtapa}</td>
                                   <td className="px-4 py-3">
-                                    <div className="flex justify-end gap-2">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleEditarEtapa(etapa)}
-                                      >
-                                        Editar
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleExcluirEtapa(etapa)}
-                                      >
-                                        Excluir
-                                      </Button>
-                                    </div>
+                                    {etapa.data
+                                      ? toDateInputValue(etapa.data).split('-').reverse().join('/')
+                                      : '—'}
                                   </td>
-                                )}
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                                  <td className="px-4 py-3 text-muted-foreground">
+                                    {etapa.observacao || '—'}
+                                  </td>
+                                  {!isViewMode && (
+                                    <td className="px-4 py-3">
+                                      <div className="flex justify-end gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleEditarEtapa(etapa)}
+                                        >
+                                          Editar
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleExcluirEtapa(etapa)}
+                                        >
+                                          Excluir
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </TabsContent>
             )}
           </Tabs>
@@ -3469,7 +3652,6 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               </Button>
             )}
           </div>
-
         </form>
       )}
 
@@ -3481,7 +3663,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 <h2 className="text-lg font-semibold">
                   {dependenteEditando ? 'Editar dependente' : 'Novo dependente'}
                 </h2>
-                <p className="text-sm text-muted-foreground">Cadastro dos dependentes vinculados ao candidato.</p>
+                <p className="text-sm text-muted-foreground">
+                  Cadastro dos dependentes vinculados ao candidato.
+                </p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={handleCancelarDependente}>
                 <X className="h-4 w-4" />
@@ -3489,24 +3673,82 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             </div>
             <div className="space-y-4 p-5">
               <div className="grid gap-3 sm:grid-cols-2">
-                <TextField id="dependenteNome" label="Nome" required disabled={isViewMode} error={dependenteErrors.nome?.message} {...registerDependente('nome')} />
+                <TextField
+                  id="dependenteNome"
+                  label="Nome"
+                  required
+                  disabled={isViewMode}
+                  error={dependenteErrors.nome?.message}
+                  {...registerDependente('nome')}
+                />
                 {dependenteIrSelecionado && (
-                  <TextField id="dependenteCpf" label="CPF" required disabled={isViewMode} error={dependenteErrors.cpf?.message} {...registerDependente('cpf')} />
+                  <TextField
+                    id="dependenteCpf"
+                    label="CPF"
+                    required
+                    disabled={isViewMode}
+                    error={dependenteErrors.cpf?.message}
+                    {...registerDependente('cpf')}
+                  />
                 )}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <ReactSelectField id="codigoGrauParentesco" label="Grau de parentesco" required control={dependenteControl} name="codigoGrauParentesco" isDisabled={isViewMode} options={tiposGrauParentesco.map((tipo) => ({ value: tipo.KEYNAM, label: `${tipo.KEYNAM} - ${tipo.VALKEY}` }))} error={dependenteErrors.codigoGrauParentesco?.message} onChange={handleGrauParentescoChange} />
-                <ReactSelectField id="codigoTipoEsocial" label="Tipo eSocial" required control={dependenteControl} name="codigoTipoEsocial" isDisabled={isViewMode} options={tiposDependenteEsocial.map((tipo) => ({ value: String(tipo.codigo), label: `${tipo.codigo} - ${tipo.descricao}` }))} error={dependenteErrors.codigoTipoEsocial?.message} onChange={handleTipoEsocialChange} />
+                <ReactSelectField
+                  id="codigoGrauParentesco"
+                  label="Grau de parentesco"
+                  required
+                  control={dependenteControl}
+                  name="codigoGrauParentesco"
+                  isDisabled={isViewMode}
+                  options={tiposGrauParentesco.map((tipo) => ({
+                    value: tipo.KEYNAM,
+                    label: `${tipo.KEYNAM} - ${tipo.VALKEY}`,
+                  }))}
+                  error={dependenteErrors.codigoGrauParentesco?.message}
+                  onChange={handleGrauParentescoChange}
+                />
+                <ReactSelectField
+                  id="codigoTipoEsocial"
+                  label="Tipo eSocial"
+                  required
+                  control={dependenteControl}
+                  name="codigoTipoEsocial"
+                  isDisabled={isViewMode}
+                  options={tiposDependenteEsocial.map((tipo) => ({
+                    value: String(tipo.codigo),
+                    label: `${tipo.codigo} - ${tipo.descricao}`,
+                  }))}
+                  error={dependenteErrors.codigoTipoEsocial?.message}
+                  onChange={handleTipoEsocialChange}
+                />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <SelectField id="dependenteSexo" label="Sexo" required disabled={isViewMode} error={dependenteErrors.sexo?.message} {...registerDependente('sexo')}>
+                <SelectField
+                  id="dependenteSexo"
+                  label="Sexo"
+                  required
+                  disabled={isViewMode}
+                  error={dependenteErrors.sexo?.message}
+                  {...registerDependente('sexo')}
+                >
                   <option value="">Selecione</option>
                   <option value="MASCULINO">Masculino</option>
                   <option value="FEMININO">Feminino</option>
                 </SelectField>
-                <TextField id="dependenteDataNascimento" label="Data de nascimento" type="date" disabled={isViewMode} error={dependenteErrors.dataNascimento?.message} {...registerDependente('dataNascimento')} />
+                <TextField
+                  id="dependenteDataNascimento"
+                  label="Data de nascimento"
+                  type="date"
+                  disabled={isViewMode}
+                  error={dependenteErrors.dataNascimento?.message}
+                  {...registerDependente('dataNascimento')}
+                />
                 <label className="mt-7 flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm">
-                  <input type="checkbox" disabled={isViewMode} {...registerDependente('dependenteIr')} />
+                  <input
+                    type="checkbox"
+                    disabled={isViewMode}
+                    {...registerDependente('dependenteIr')}
+                  />
                   Dependente IR
                 </label>
               </div>
@@ -3515,8 +3757,19 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               {dependenteError && <p className="text-sm text-destructive">{dependenteError}</p>}
             </div>
             <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={handleCancelarDependente} disabled={isSavingDependente}>Cancelar</Button>
-              <Button type="button" disabled={isSavingDependente} onClick={handleSubmitDependente(onSubmitDependente)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelarDependente}
+                disabled={isSavingDependente}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={isSavingDependente}
+                onClick={handleSubmitDependente(onSubmitDependente)}
+              >
                 {isSavingDependente ? 'Salvando...' : 'Salvar dependente'}
               </Button>
             </div>
@@ -3532,36 +3785,94 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 <h2 className="text-lg font-semibold">
                   {valeTransporteEditando ? 'Editar vale transporte' : 'Novo vale transporte'}
                 </h2>
-                <p className="text-sm text-muted-foreground">Cadastro dos trajetos de vale transporte do candidato.</p>
+                <p className="text-sm text-muted-foreground">
+                  Cadastro dos trajetos de vale transporte do candidato.
+                </p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={handleCancelarValeTransporte}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCancelarValeTransporte}
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="space-y-4 p-5">
               <div className="grid gap-3 sm:grid-cols-2">
-                <SelectField id="tipoTransporte" label="Tipo de transporte" required disabled={isViewMode} error={valeTransporteErrors.tipoTransporte?.message} {...registerValeTransporte('tipoTransporte')}>
+                <SelectField
+                  id="tipoTransporte"
+                  label="Tipo de transporte"
+                  required
+                  disabled={isViewMode}
+                  error={valeTransporteErrors.tipoTransporte?.message}
+                  {...registerValeTransporte('tipoTransporte')}
+                >
                   <option value="">Selecione</option>
                   <option value="ONIBUS">Ônibus</option>
                   <option value="METRO">Metrô</option>
                   <option value="TREM">Trem</option>
                 </SelectField>
-                <SelectField id="tipoTrajeto" label="Tipo de trajeto" required disabled={isViewMode} error={valeTransporteErrors.tipoTrajeto?.message} {...registerValeTransporte('tipoTrajeto')}>
+                <SelectField
+                  id="tipoTrajeto"
+                  label="Tipo de trajeto"
+                  required
+                  disabled={isViewMode}
+                  error={valeTransporteErrors.tipoTrajeto?.message}
+                  {...registerValeTransporte('tipoTrajeto')}
+                >
                   <option value="">Selecione</option>
                   <option value="RESIDENCIA_TRABALHO">Residência para trabalho</option>
                   <option value="TRABALHO_RESIDENCIA">Trabalho para residência</option>
                 </SelectField>
               </div>
               <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
-                <TextField id="transporteUsado" label="Transporte usado" required disabled={isViewMode} error={valeTransporteErrors.transporteUsado?.message} {...registerValeTransporte('transporteUsado')} />
-                <TextField id="tarifaUnitaria" label="Tarifa unitária" required disabled={isViewMode} placeholder="0,00" error={valeTransporteErrors.tarifaUnitaria?.message} {...registerValeTransporte('tarifaUnitaria')} />
-                <TextField id="valesPorDia" label="Vales por dia" required disabled={isViewMode} type="number" min="1" error={valeTransporteErrors.valesPorDia?.message} {...registerValeTransporte('valesPorDia', { valueAsNumber: true })} />
+                <TextField
+                  id="transporteUsado"
+                  label="Transporte usado"
+                  required
+                  disabled={isViewMode}
+                  error={valeTransporteErrors.transporteUsado?.message}
+                  {...registerValeTransporte('transporteUsado')}
+                />
+                <TextField
+                  id="tarifaUnitaria"
+                  label="Tarifa unitária"
+                  required
+                  disabled={isViewMode}
+                  placeholder="0,00"
+                  error={valeTransporteErrors.tarifaUnitaria?.message}
+                  {...registerValeTransporte('tarifaUnitaria')}
+                />
+                <TextField
+                  id="valesPorDia"
+                  label="Vales por dia"
+                  required
+                  disabled={isViewMode}
+                  type="number"
+                  min="1"
+                  error={valeTransporteErrors.valesPorDia?.message}
+                  {...registerValeTransporte('valesPorDia', { valueAsNumber: true })}
+                />
               </div>
-              {valeTransporteError && <p className="text-sm text-destructive">{valeTransporteError}</p>}
+              {valeTransporteError && (
+                <p className="text-sm text-destructive">{valeTransporteError}</p>
+              )}
             </div>
             <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={handleCancelarValeTransporte} disabled={isSavingValeTransporte}>Cancelar</Button>
-              <Button type="button" disabled={isSavingValeTransporte} onClick={handleSubmitValeTransporte(onSubmitValeTransporte)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelarValeTransporte}
+                disabled={isSavingValeTransporte}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={isSavingValeTransporte}
+                onClick={handleSubmitValeTransporte(onSubmitValeTransporte)}
+              >
                 {isSavingValeTransporte ? 'Salvando...' : 'Salvar vale transporte'}
               </Button>
             </div>
@@ -3577,7 +3888,9 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 <h2 className="text-lg font-semibold">
                   {etapaEditando ? 'Editar etapa' : 'Nova etapa'}
                 </h2>
-                <p className="text-sm text-muted-foreground">Etapas do processo seletivo vinculadas ao candidato.</p>
+                <p className="text-sm text-muted-foreground">
+                  Etapas do processo seletivo vinculadas ao candidato.
+                </p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={handleCancelarEtapa}>
                 <X className="h-4 w-4" />
@@ -3585,7 +3898,14 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             </div>
             <div className="space-y-4 p-5">
               <div className="grid gap-3 sm:grid-cols-2">
-                <SelectField id="codigoEtapa" label="Etapa" required disabled={isViewMode} error={etapaErrors.codigoEtapa?.message} {...registerEtapa('codigoEtapa')}>
+                <SelectField
+                  id="codigoEtapa"
+                  label="Etapa"
+                  required
+                  disabled={isViewMode}
+                  error={etapaErrors.codigoEtapa?.message}
+                  {...registerEtapa('codigoEtapa')}
+                >
                   <option value="">Selecione</option>
                   {etapasSenior.map((etapa) => (
                     <option key={etapa.CODETA} value={etapa.CODETA}>
@@ -3621,12 +3941,29 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                   )}
                 </div>
               </div>
-              <TextareaField id="etapaObservacao" label="Observação" disabled={isViewMode} error={etapaErrors.observacao?.message} {...registerEtapa('observacao')} />
+              <TextareaField
+                id="etapaObservacao"
+                label="Observação"
+                disabled={isViewMode}
+                error={etapaErrors.observacao?.message}
+                {...registerEtapa('observacao')}
+              />
               {etapaError && <p className="text-sm text-destructive">{etapaError}</p>}
             </div>
             <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={handleCancelarEtapa} disabled={isSavingEtapa}>Cancelar</Button>
-              <Button type="button" disabled={isSavingEtapa} onClick={handleSubmitEtapa(onSubmitEtapa)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelarEtapa}
+                disabled={isSavingEtapa}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={isSavingEtapa}
+                onClick={handleSubmitEtapa(onSubmitEtapa)}
+              >
                 {isSavingEtapa ? 'Salvando...' : 'Salvar etapa'}
               </Button>
             </div>
@@ -3741,8 +4078,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
             </div>
             <div className="space-y-1 rounded-md border bg-muted/35 p-3 text-sm">
               <p>
-                <span className="font-medium">CPF:</span>{' '}
-                {formatCpf(candidatoEncontradoPorCpf.cpf)}
+                <span className="font-medium">CPF:</span> {formatCpf(candidatoEncontradoPorCpf.cpf)}
               </p>
               <p>
                 <span className="font-medium">Nome:</span>{' '}

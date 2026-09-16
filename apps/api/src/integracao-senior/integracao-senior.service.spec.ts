@@ -4,7 +4,7 @@ import { IntegracaoSeniorService } from './integracao-senior.service';
 jest.mock('axios');
 
 describe('IntegracaoSeniorService', () => {
-  const seniorApi = { post: jest.fn() };
+  const seniorApi = { get: jest.fn(), post: jest.fn() };
   const config = { getOrThrow: jest.fn().mockReturnValue('http://rh-api') };
 
   beforeEach(() => {
@@ -72,5 +72,59 @@ describe('IntegracaoSeniorService', () => {
       where: { id: 2 },
       data: { situacao: 'ATIVO_PROCESSO' },
     });
+  });
+
+  it('retorna todos os cadastros do candidato na Senior', async () => {
+    seniorApi.get.mockResolvedValue([
+      {
+        NUMEMP: 1,
+        TIPCOL: 1,
+        NUMCAD: 801234,
+        DATADM: '2026-09-01T00:00:00.000Z',
+        CODFIL: 8,
+        DESSIT: 'Ativo',
+        DATAFA: '2026-09-10T00:00:00.000Z',
+        SITAFA: 1,
+      },
+      {
+        NUMEMP: 1,
+        TIPCOL: 1,
+        NUMCAD: 701122,
+        DATADM: '2024-03-15T00:00:00.000Z',
+        CODFIL: 2,
+        DESSIT: 'Demitido',
+        DATAFA: '2025-12-20T00:00:00.000Z',
+        SITAFA: 7,
+      },
+    ]);
+    const prisma = {
+      candidato: {
+        findUnique: jest.fn().mockResolvedValue({ id: 2, nome: 'Candidato' }),
+      },
+    };
+    const service = new IntegracaoSeniorService(prisma as never, seniorApi as never, config as never);
+
+    await expect(service.consultarColaboradorPorCpf('123.456.789-09')).resolves.toEqual([
+      {
+        numemp: 1,
+        tipcol: 1,
+        matricula: 801234,
+        nome: 'Candidato',
+        admissao: '2026-09-01T00:00:00.000Z',
+        filial: 8,
+        situacao: 'Ativo',
+        desligamento: null,
+      },
+      {
+        numemp: 1,
+        tipcol: 1,
+        matricula: 701122,
+        nome: 'Candidato',
+        admissao: '2024-03-15T00:00:00.000Z',
+        filial: 2,
+        situacao: 'Demitido',
+        desligamento: '2025-12-20T00:00:00.000Z',
+      },
+    ]);
   });
 });

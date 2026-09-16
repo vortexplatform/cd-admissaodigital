@@ -12,6 +12,8 @@ interface ColaboradorSeniorResponse {
   DATADM?: string;
   CODFIL?: number;
   DESSIT?: string;
+  DATAFA?: string | null;
+  SITAFA?: number;
 }
 
 @Injectable()
@@ -202,17 +204,20 @@ export class IntegracaoSeniorService {
     const candidato = await this.prisma.candidato.findUnique({ where: { cpf: normalizedCpf } });
     if (!candidato) throw new NotFoundException('Candidato não encontrado');
 
-    const data = await this.seniorApi.get<ColaboradorSeniorResponse>(
+    const data = await this.seniorApi.get<ColaboradorSeniorResponse[]>(
       `/admissao/colaborador/cpf/${normalizedCpf}`,
     );
 
-    return {
-      matricula: data.NUMCAD ?? null,
+    return data.map((colaborador) => ({
+      numemp: colaborador.NUMEMP ?? null,
+      tipcol: colaborador.TIPCOL ?? null,
+      matricula: colaborador.NUMCAD ?? null,
       nome: candidato.nome,
-      admissao: data.DATADM ?? null,
-      filial: data.CODFIL ?? null,
-      situacao: data.DESSIT ?? null,
-    };
+      admissao: colaborador.DATADM ?? null,
+      filial: colaborador.CODFIL ?? null,
+      situacao: colaborador.DESSIT ?? null,
+      desligamento: colaborador.SITAFA === 7 ? (colaborador.DATAFA ?? null) : null,
+    }));
   }
 
   async cancelarEfetivacao(candidaturaId: number): Promise<void> {
