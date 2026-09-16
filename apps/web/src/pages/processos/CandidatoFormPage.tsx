@@ -15,8 +15,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import ReactSelect from 'react-select';
 import type { StylesConfig } from 'react-select';
 import AsyncSelect from 'react-select/async';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import { ptBR } from 'date-fns/locale/pt-BR';
+import 'react-datepicker/dist/react-datepicker.css';
 import { toast } from 'sonner';
 import { z } from 'zod';
+
+registerLocale('pt-BR', ptBR);
 
 // ---------------------------------------------------------------------------
 // Tipos dos dados externos (Oracle)
@@ -555,9 +560,17 @@ const valeTransporteDefaultValues: ValeTransporteForm = {
   valesPorDia: 1,
 };
 
+const getTodayInputValue = () => {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+
+  return `${today.getFullYear()}-${month}-${day}`;
+};
+
 const etapaDefaultValues: EtapaForm = {
   codigoEtapa: '',
-  data: '',
+  data: getTodayInputValue(),
   observacao: '',
 };
 
@@ -674,6 +687,21 @@ const defaultValues: CandidatoForm = {
 // Helpers
 // ---------------------------------------------------------------------------
 const toDateInputValue = (value: string | null | undefined) => (value ? value.slice(0, 10) : '');
+
+const parseDateInputValue = (value: string | undefined) => {
+  if (!value) return null;
+
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const formatDateInputValue = (value: Date | null) => {
+  if (!value) return '';
+
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${value.getFullYear()}-${month}-${day}`;
+};
 const toText = (value: string | null | undefined) => value ?? '';
 const getAge = (dateOfBirth: string) => {
   const [year, month, day] = dateOfBirth.split('-').map(Number);
@@ -1237,6 +1265,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   });
 
   const {
+    control: controlEtapa,
     register: registerEtapa,
     handleSubmit: handleSubmitEtapa,
     reset: resetEtapa,
@@ -1352,17 +1381,6 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     ]);
   }, []);
 
-  // Após carregar países, carregar estados do Brasil para seção de certidão
-  useEffect(() => {
-    if (paises.length === 0) return;
-    const brasil = paises.find((p) => /^brasil$/i.test(p.NOMPAI.trim()));
-    if (!brasil) return;
-    api
-      .get<Estado[]>(`/general/paises/${brasil.CODPAI}/estados`)
-      .then((r) => setEstadosCert(r.data))
-      .catch(() => {});
-  }, [paises]);
-
   // ---------------------------------------------------------------------------
   // Handlers de cascata — Naturalidade
   // ---------------------------------------------------------------------------
@@ -1370,12 +1388,20 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     setValue('estadoNascimento', '');
     setValue('cidadeNascimentoCod', '');
     setValue('cidadeNascimentoNome', '');
+    setValue('estadoCertidaoCivil', '');
+    setValue('cidadeCertidaoCivilCod', '');
+    setValue('cidadeCertidaoCivilNome', '');
     setEstadosNasc([]);
     setCidadesNasc([]);
+    setEstadosCert([]);
+    setCidadesCert([]);
     if (!value) return;
     api
       .get<Estado[]>(`/general/paises/${value}/estados`)
-      .then((r) => setEstadosNasc(r.data))
+      .then((r) => {
+        setEstadosNasc(r.data);
+        setEstadosCert(r.data);
+      })
       .catch(() => {});
   };
 
@@ -1455,12 +1481,10 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
     setValue('cidadeCertidaoCivilCod', '');
     setValue('cidadeCertidaoCivilNome', '');
     setCidadesCert([]);
-    if (!value || estadosCert.length === 0) return;
-    // Usar o CODPAI do Brasil (inferido da lista estadosCert)
-    const codPaiBrasil = estadosCert[0]?.CODPAI;
-    if (!codPaiBrasil) return;
+    const paisNascimento = watch('paisNascimento');
+    if (!value || !paisNascimento) return;
     api
-      .get<Cidade[]>(`/general/paises/${codPaiBrasil}/estados/${value}/cidades`)
+      .get<Cidade[]>(`/general/paises/${paisNascimento}/estados/${value}/cidades`)
       .then((r) => setCidadesCert(r.data))
       .catch(() => {});
   };
@@ -1507,6 +1531,23 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                 .catch(() => {}),
             );
           }
+
+          preloads.push(
+            api
+              .get<Estado[]>(`/general/paises/${data.paisNascimento}/estados`)
+              .then((r) => setEstadosCert(r.data))
+              .catch(() => {}),
+          );
+          if (data.estadoCertidaoCivil) {
+            preloads.push(
+              api
+                .get<Cidade[]>(
+                  `/general/paises/${data.paisNascimento}/estados/${data.estadoCertidaoCivil}/cidades`,
+                )
+                .then((r) => setCidadesCert(r.data))
+                .catch(() => {}),
+            );
+          }
         }
 
         if (data.pais) {
@@ -1535,20 +1576,6 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
               .then((r) => setBairrosEnd(r.data))
               .catch(() => {}),
           );
-        }
-
-        if (data.estadoCertidaoCivil && estadosCert.length > 0) {
-          const codPaiBrasil = estadosCert[0]?.CODPAI;
-          if (codPaiBrasil) {
-            preloads.push(
-              api
-                .get<Cidade[]>(
-                  `/general/paises/${codPaiBrasil}/estados/${data.estadoCertidaoCivil}/cidades`,
-                )
-                .then((r) => setCidadesCert(r.data))
-                .catch(() => {}),
-            );
-          }
         }
 
         await Promise.all(preloads);
@@ -1693,7 +1720,6 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         .get<RequisicaoDisponivel[]>('/requisicoes/disponiveis', {
           params: {
             candidatoId: candidato.id,
-            limit: 20,
             q: inputValue.trim() || undefined,
             filial: filialFilter?.value || undefined,
           },
@@ -1937,7 +1963,7 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
   const handleNovaEtapa = () => {
     setEtapaEditando(null);
     setEtapaError('');
-    resetEtapa(etapaDefaultValues);
+    resetEtapa({ ...etapaDefaultValues, data: getTodayInputValue() });
     setEtapaModalOpen(true);
   };
 
@@ -2731,7 +2757,11 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                       name="estadoCertidaoCivil"
                       isDisabled={isViewMode || estadosCert.length === 0}
                       options={estadosToOptions(estadosCert)}
-                      placeholder={estadosCert.length === 0 ? 'Carregando...' : 'Selecione...'}
+                      placeholder={
+                         estadosCert.length === 0
+                            ? 'Selecione o país de nascimento'
+                           : 'Selecione...'
+                       }
                       onChange={handleEstadoCertChange}
                     />
 
@@ -3507,7 +3537,33 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
                     </option>
                   ))}
                 </SelectField>
-                <TextField id="etapaData" label="Data" type="date" disabled={isViewMode} error={etapaErrors.data?.message} {...registerEtapa('data')} />
+                <div className="space-y-2">
+                  <Label htmlFor="etapaData">Data</Label>
+                  <Controller
+                    control={controlEtapa}
+                    name="data"
+                    render={({ field }) => (
+                      <DatePicker
+                        id="etapaData"
+                        selected={parseDateInputValue(field.value)}
+                        onChange={(date: Date | null) => field.onChange(formatDateInputValue(date))}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                        locale="pt-BR"
+                        dateFormat="dd/MM/yyyy"
+                        placeholderText="DD/MM/AAAA"
+                        disabled={isViewMode}
+                        isClearable
+                        wrapperClassName="block w-full"
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                    )}
+                  />
+                  {etapaErrors.data?.message && (
+                    <p className="text-sm text-destructive">{etapaErrors.data.message}</p>
+                  )}
+                </div>
               </div>
               <TextareaField id="etapaObservacao" label="Observação" disabled={isViewMode} error={etapaErrors.observacao?.message} {...registerEtapa('observacao')} />
               {etapaError && <p className="text-sm text-destructive">{etapaError}</p>}

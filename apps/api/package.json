@@ -15,6 +15,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
+    "postinstall": "prisma generate",
     "import:candidatos": "tsx scripts/importar-candidatos.ts",
     "import:etapas": "tsx scripts/importar-etapas.ts"
   },

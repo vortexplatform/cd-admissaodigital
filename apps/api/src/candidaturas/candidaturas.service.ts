@@ -70,7 +70,7 @@ export class CandidaturasService {
     });
   }
 
-  async updateStatus(id: number, dto: UpdateCandidaturaStatusDto) {
+  async updateStatus(id: number, dto: UpdateCandidaturaStatusDto, editadoPorUserId: number) {
     const candidatura = await this.findOne(id);
 
     if (dto.status === StatusCandidatura.APROVADO) {
@@ -79,7 +79,7 @@ export class CandidaturasService {
 
     const updated = await this.prisma.candidatura.update({
       where: { id },
-      data: { status: dto.status },
+      data: { status: dto.status, editadoPorUserId },
       include: candidaturaInclude,
     });
 
@@ -93,6 +93,7 @@ export class CandidaturasService {
   async updateDataAdmissaoPrevista(
     id: number,
     dto: UpdateCandidaturaDataAdmissaoPrevistaDto,
+    editadoPorUserId: number,
   ) {
     await this.findOne(id);
 
@@ -100,6 +101,7 @@ export class CandidaturasService {
       where: { id },
       data: {
         dataAdmissaoPrevista: dto.dataAdmissaoPrevista ? new Date(dto.dataAdmissaoPrevista) : null,
+        editadoPorUserId,
       },
       include: candidaturaInclude,
     });

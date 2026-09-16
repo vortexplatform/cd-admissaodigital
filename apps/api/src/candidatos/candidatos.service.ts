@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { EmailService } from '../auth/email.service';
 import { GeneralService } from '../general/general.service';
-import { Prisma, StatusCandidatura } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreateCandidatoDependenteDto } from './dto/create-candidato-dependente.dto';
@@ -76,30 +76,22 @@ const normalizePage = (value?: string) => {
   return Math.max(Math.trunc(page), 1);
 };
 
-type CandidatoTabKey = 'aguardando' | 'em-analise' | 'aprovados' | 'efetivados' | 'recusados';
+type CandidatoTabKey =
+  | 'candidato'
+  | 'aguardando'
+  | 'em-analise'
+  | 'aprovados'
+  | 'efetivados'
+  | 'recusados';
 
 const candidatoTabKeys = new Set<CandidatoTabKey>([
+  'candidato',
   'aguardando',
   'em-analise',
   'aprovados',
   'efetivados',
   'recusados',
 ]);
-
-// Espelha a classificação de aba usada em apps/web (CandidatosPage.tsx) para que os
-// badges reflitam a mesma regra aplicada à candidatura mais recente do candidato.
-const getTabForStatus = (status?: StatusCandidatura): CandidatoTabKey => {
-  if (!status || status === StatusCandidatura.INSCRITO) return 'aguardando';
-  if (status === StatusCandidatura.APROVADO) return 'aprovados';
-  if (status === StatusCandidatura.EFETIVADO) return 'efetivados';
-  if (
-    status === StatusCandidatura.REPROVADO ||
-    status === StatusCandidatura.CANCELADO ||
-    status === StatusCandidatura.DESISTIU
-  )
-    return 'recusados';
-  return 'em-analise';
-};
 
 const normalizeTab = (value?: string): CandidatoTabKey | undefined =>
   candidatoTabKeys.has(value as CandidatoTabKey) ? (value as CandidatoTabKey) : undefined;
@@ -324,7 +316,7 @@ export class CandidatosService {
     private readonly general: GeneralService,
   ) {}
 
-  async create(dto: CreateCandidatoDto) {
+  async create(dto: CreateCandidatoDto, criadoPorUserId: number) {
     validateSituacaoCandidato(dto);
     await this.ensureCidadeVagaExists(dto.cidadeVagaId);
 
@@ -333,23 +325,24 @@ export class CandidatosService {
       const candidato = await this.prisma.candidato.create({
         data: {
           ...(buildCandidatoData(dto) as Prisma.CandidatoUncheckedCreateInput),
+          criadoPorUserId,
           dependentes: dependentes?.length
             ? {
                 create: dependentes.map(
-                  (dependente) =>
-                    buildDependenteData(
-                      dependente,
-                    ) as Prisma.CandidatoDependenteCreateWithoutCandidatoInput,
+                    (dependente) => ({
+                      ...buildDependenteData(dependente),
+                      criadoPorUserId,
+                    }) as Prisma.CandidatoDependenteCreateWithoutCandidatoInput,
                 ),
               }
             : undefined,
           valeTransportes: valeTransportes?.length
             ? {
                 create: valeTransportes.map(
-                  (valeTransporte) =>
-                    buildValeTransporteData(
-                      valeTransporte,
-                    ) as Prisma.CandidatoValeTransporteCreateWithoutCandidatoInput,
+                    (valeTransporte) => ({
+                      ...buildValeTransporteData(valeTransporte),
+                      criadoPorUserId,
+                    }) as Prisma.CandidatoValeTransporteCreateWithoutCandidatoInput,
                 ),
               }
             : undefined,
@@ -357,7 +350,7 @@ export class CandidatosService {
             ? {
                 create: etapas.map(
                   (etapa) =>
-                    buildEtapaData(etapa) as Prisma.CandidatoEtapaCreateWithoutCandidatoInput,
+                    ({ ...buildEtapaData(etapa), criadoPorUserId }) as Prisma.CandidatoEtapaCreateWithoutCandidatoInput,
                 ),
               }
             : undefined,
@@ -410,6 +403,7 @@ export class CandidatosService {
   async countByTab(nome?: string, filial?: string, cidadeVagaId?: string) {
     const counts: Record<'todos' | CandidatoTabKey, number> = {
       todos: 0,
+      candidato: 0,
       aguardando: 0,
       'em-analise': 0,
       aprovados: 0,
@@ -426,9 +420,7 @@ export class CandidatosService {
       normalizePositiveId(cidadeVagaId),
     );
     counts.todos = candidates.length;
-    for (const candidate of candidates) {
-      counts[getTabForStatus(candidate.status ?? undefined)] += 1;
-    }
+    for (const candidate of candidates) counts[candidate.tab] += 1;
 
     return counts;
   }
@@ -753,15 +745,7 @@ export class CandidatosService {
     if (cidadeVagaId !== undefined) filters.push(Prisma.sql`c."cidade_vaga_id" = ${cidadeVagaId}`);
 
     if (situacao) {
-      const tab = Prisma.sql`
-        CASE
-          WHEN latest."status" IS NULL OR latest."status" = 'INSCRITO' THEN 'aguardando'
-          WHEN latest."status" = 'APROVADO' THEN 'aprovados'
-          WHEN latest."status" = 'EFETIVADO' THEN 'efetivados'
-          WHEN latest."status" IN ('REPROVADO', 'CANCELADO', 'DESISTIU') THEN 'recusados'
-          ELSE 'em-analise'
-        END
-      `;
+      const tab = this.buildCandidateTabExpression();
       filters.push(Prisma.sql`${tab} = ${situacao}`);
     }
 
@@ -838,13 +822,13 @@ export class CandidatosService {
         cidadeVagaId,
         useUnaccent,
       );
-      return this.prisma.$queryRaw<Array<{ status: StatusCandidatura | null }>>(Prisma.sql`
+      return this.prisma.$queryRaw<Array<{ tab: CandidatoTabKey }>>(Prisma.sql`
         WITH latest AS (
           SELECT DISTINCT ON ("candidato_id") "candidato_id", "requisicao_id", "status"
           FROM "candidatura"
           ORDER BY "candidato_id", "created_at" DESC, "id" DESC
         )
-        SELECT latest."status"
+        SELECT ${this.buildCandidateTabExpression()} AS tab
         FROM "candidato" c
         LEFT JOIN latest ON latest."candidato_id" = c."id"
         LEFT JOIN "requisicao_vaga" r ON r."id" = latest."requisicao_id"
@@ -858,6 +842,42 @@ export class CandidatosService {
       if (!term || !this.isMissingUnaccentPreparation(error)) throw error;
       return query(false);
     }
+  }
+
+  private buildCandidateTabExpression() {
+    return Prisma.sql`
+      CASE
+        WHEN EXISTS (
+          SELECT 1
+          FROM "candidatura" approved_candidatura
+          INNER JOIN "requisicao_vaga" approved_requisicao
+            ON approved_requisicao."id" = approved_candidatura."requisicao_id"
+          WHERE approved_candidatura."candidato_id" = c."id"
+            AND approved_requisicao."status" IN ('ABERTA', 'EM_ADMISSAO')
+        ) THEN 'aprovados'
+        WHEN EXISTS (
+          SELECT 1
+          FROM "candidatura" employed_candidatura
+          WHERE employed_candidatura."candidato_id" = c."id"
+            AND NULLIF(BTRIM(employed_candidatura."matricula"), '') IS NOT NULL
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "candidatura" active_candidatura
+          INNER JOIN "requisicao_vaga" active_requisicao
+            ON active_requisicao."id" = active_candidatura."requisicao_id"
+          WHERE active_candidatura."candidato_id" = c."id"
+            AND active_requisicao."status" IN ('ABERTA', 'EM_ADMISSAO')
+        ) THEN 'efetivados'
+        WHEN c."situacao" = 'CANDIDATO' THEN 'candidato'
+        WHEN c."situacao" = 'ATIVO_PROCESSO' THEN 'aguardando'
+        WHEN latest."status" IS NULL OR latest."status" = 'INSCRITO' THEN 'aguardando'
+        WHEN latest."status" = 'APROVADO' THEN 'aprovados'
+        WHEN latest."status" = 'EFETIVADO' THEN 'efetivados'
+        WHEN latest."status" IN ('REPROVADO', 'CANCELADO', 'DESISTIU') THEN 'recusados'
+        ELSE 'em-analise'
+      END
+    `;
   }
 
   private async findCandidatesByOrderedIds(ids: number[]) {
@@ -895,7 +915,7 @@ export class CandidatosService {
     return candidato;
   }
 
-  async update(id: number, dto: UpdateCandidatoDto) {
+  async update(id: number, dto: UpdateCandidatoDto, editadoPorUserId: number) {
     const candidato = await this.findOne(id);
     validateSituacaoCandidato(dto);
     if (dto.cidadeVagaId !== undefined) await this.ensureCidadeVagaExists(dto.cidadeVagaId);
@@ -910,7 +930,7 @@ export class CandidatosService {
       }) as Prisma.CandidatoUncheckedUpdateInput;
       return await this.prisma.candidato.update({
         where: { id },
-        data,
+        data: { ...data, editadoPorUserId },
         include: candidatoInclude,
       });
     } catch (error) {
@@ -918,13 +938,14 @@ export class CandidatosService {
     }
   }
 
-  async createDependente(candidatoId: number, dto: CreateCandidatoDependenteDto) {
+  async createDependente(candidatoId: number, dto: CreateCandidatoDependenteDto, criadoPorUserId: number) {
     await this.ensureCandidatoExists(candidatoId);
 
     return this.prisma.candidatoDependente.create({
       data: {
-        ...(buildDependenteData(dto) as Prisma.CandidatoDependenteUncheckedCreateInput),
-        candidatoId,
+          ...(buildDependenteData(dto) as Prisma.CandidatoDependenteUncheckedCreateInput),
+          candidatoId,
+          criadoPorUserId,
       },
     });
   }
@@ -933,12 +954,13 @@ export class CandidatosService {
     candidatoId: number,
     dependenteId: number,
     dto: UpdateCandidatoDependenteDto,
+    editadoPorUserId: number,
   ) {
     await this.ensureDependenteBelongsToCandidato(candidatoId, dependenteId);
 
     return this.prisma.candidatoDependente.update({
       where: { id: dependenteId },
-      data: buildDependenteData(dto),
+      data: { ...buildDependenteData(dto), editadoPorUserId },
     });
   }
 
@@ -949,13 +971,14 @@ export class CandidatosService {
     return { deleted: true };
   }
 
-  async createValeTransporte(candidatoId: number, dto: CreateCandidatoValeTransporteDto) {
+  async createValeTransporte(candidatoId: number, dto: CreateCandidatoValeTransporteDto, criadoPorUserId: number) {
     await this.ensureCandidatoExists(candidatoId);
 
     return this.prisma.candidatoValeTransporte.create({
       data: {
-        ...(buildValeTransporteData(dto) as Prisma.CandidatoValeTransporteUncheckedCreateInput),
-        candidatoId,
+          ...(buildValeTransporteData(dto) as Prisma.CandidatoValeTransporteUncheckedCreateInput),
+          candidatoId,
+          criadoPorUserId,
       },
     });
   }
@@ -964,12 +987,13 @@ export class CandidatosService {
     candidatoId: number,
     valeTransporteId: number,
     dto: UpdateCandidatoValeTransporteDto,
+    editadoPorUserId: number,
   ) {
     await this.ensureValeTransporteBelongsToCandidato(candidatoId, valeTransporteId);
 
     return this.prisma.candidatoValeTransporte.update({
       where: { id: valeTransporteId },
-      data: buildValeTransporteData(dto),
+      data: { ...buildValeTransporteData(dto), editadoPorUserId },
     });
   }
 
@@ -980,38 +1004,25 @@ export class CandidatosService {
     return { deleted: true };
   }
 
-  async createEtapa(candidatoId: number, dto: CreateCandidatoEtapaDto) {
+  async createEtapa(candidatoId: number, dto: CreateCandidatoEtapaDto, criadoPorUserId: number) {
     await this.ensureCandidatoExists(candidatoId);
 
-    try {
-      return await this.prisma.candidatoEtapa.create({
-        data: {
-          ...(buildEtapaData(dto) as Prisma.CandidatoEtapaUncheckedCreateInput),
-          candidatoId,
-        },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Esta etapa já foi adicionada para este candidato.');
-      }
-      throw error;
-    }
+    return this.prisma.candidatoEtapa.create({
+      data: {
+        ...(buildEtapaData(dto) as Prisma.CandidatoEtapaUncheckedCreateInput),
+        candidatoId,
+        criadoPorUserId,
+      },
+    });
   }
 
-  async updateEtapa(candidatoId: number, etapaId: number, dto: UpdateCandidatoEtapaDto) {
+  async updateEtapa(candidatoId: number, etapaId: number, dto: UpdateCandidatoEtapaDto, editadoPorUserId: number) {
     await this.ensureEtapaBelongsToCandidato(candidatoId, etapaId);
 
-    try {
-      return await this.prisma.candidatoEtapa.update({
-        where: { id: etapaId },
-        data: buildEtapaData(dto),
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Esta etapa já foi adicionada para este candidato.');
-      }
-      throw error;
-    }
+    return this.prisma.candidatoEtapa.update({
+      where: { id: etapaId },
+      data: { ...buildEtapaData(dto), editadoPorUserId },
+    });
   }
 
   async removeEtapa(candidatoId: number, etapaId: number) {

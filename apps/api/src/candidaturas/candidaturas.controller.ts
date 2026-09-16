@@ -41,16 +41,21 @@ export class CandidaturasController {
   }
 
   @Patch('candidaturas/:id/status')
-  updateStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCandidaturaStatusDto) {
-    return this.candidaturas.updateStatus(id, dto);
+  updateStatus(
+    @Request() req: { user: { id: number } },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCandidaturaStatusDto,
+  ) {
+    return this.candidaturas.updateStatus(id, dto, req.user.id);
   }
 
   @Patch('candidaturas/:id/data-admissao-prevista')
   updateDataAdmissaoPrevista(
+    @Request() req: { user: { id: number } },
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCandidaturaDataAdmissaoPrevistaDto,
   ) {
-    return this.candidaturas.updateDataAdmissaoPrevista(id, dto);
+    return this.candidaturas.updateDataAdmissaoPrevista(id, dto, req.user.id);
   }
 
   @Delete('candidaturas/:id')

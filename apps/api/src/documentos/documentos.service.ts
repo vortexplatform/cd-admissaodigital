@@ -114,7 +114,7 @@ export class DocumentosService {
         if (!template) throw new NotFoundException('Template não encontrado.');
         const existing = await this.prisma.documentoAdmissao.findFirst({ where: { candidaturaId, codigo: template.codigo } });
         const doc = existing ?? await this.prisma.documentoAdmissao.create({
-          data: { candidaturaId, templateId, codigo: template.codigo, nome: template.nome, descricao: template.descricao, obrigatorio: template.obrigatorio },
+          data: { candidaturaId, templateId, codigo: template.codigo, nome: template.nome, descricao: template.descricao, obrigatorio: template.obrigatorio, criadoPorUserId: userId },
         });
         docId = doc.id;
       } else if (codigo) {
@@ -122,14 +122,14 @@ export class DocumentosService {
         if (!def) throw new NotFoundException('Documento padrão não encontrado.');
         const existing = await this.prisma.documentoAdmissao.findFirst({ where: { candidaturaId, codigo, templateId: null } });
         const doc = existing ?? await this.prisma.documentoAdmissao.create({
-          data: { candidaturaId, codigo: def.codigo, nome: def.nome, descricao: def.descricao, obrigatorio: def.obrigatorio },
+          data: { candidaturaId, codigo: def.codigo, nome: def.nome, descricao: def.descricao, obrigatorio: def.obrigatorio, criadoPorUserId: userId },
         });
         docId = doc.id;
       } else {
         throw new BadRequestException('templateId ou codigo são obrigatórios para novo documento.');
       }
 
-      return this.saveUpload(docId, file, OrigemDocumentoAdmissao.CANDIDATO, confirmarEnvio, observacaoCandidato);
+      return this.saveUpload(docId, file, OrigemDocumentoAdmissao.CANDIDATO, confirmarEnvio, observacaoCandidato, false, userId);
     }
 
     const documento = await this.findDocumento(documentoId);
@@ -140,14 +140,14 @@ export class DocumentosService {
       throw new BadRequestException('Não é possível substituir um documento aprovado.');
     }
 
-    return this.saveUpload(documentoId, file, OrigemDocumentoAdmissao.CANDIDATO, confirmarEnvio, observacaoCandidato);
+    return this.saveUpload(documentoId, file, OrigemDocumentoAdmissao.CANDIDATO, confirmarEnvio, observacaoCandidato, false, userId);
   }
 
   async uploadRhDocumento(userId: number, documentoId: number, file?: UploadedMemoryFile) {
     await this.ensureRh(userId);
     await this.findDocumento(documentoId);
 
-    return this.saveUpload(documentoId, file, OrigemDocumentoAdmissao.RH, false, undefined, true);
+    return this.saveUpload(documentoId, file, OrigemDocumentoAdmissao.RH, false, undefined, true, userId);
   }
 
   async revisarDocumento(userId: number, documentoId: number, dto: RevisarDocumentoDto) {
@@ -165,6 +165,7 @@ export class DocumentosService {
         observacaoRh: dto.observacaoRh?.trim() || null,
         revisadoEm: new Date(),
         revisadoPorId: userId,
+        editadoPorUserId: userId,
       },
       include: { candidatura: { include: { candidato: true, requisicao: true } }, revisadoPor: true },
     });
@@ -179,14 +180,14 @@ export class DocumentosService {
       throw new BadRequestException('Não é possível remover um documento aprovado.');
     }
 
-    return this.clearDocumento(documentoId);
+    return this.clearDocumento(documentoId, userId);
   }
 
   async deleteRhDocumento(userId: number, documentoId: number) {
     await this.ensureRh(userId);
     await this.findDocumento(documentoId);
 
-    return this.clearDocumento(documentoId);
+    return this.clearDocumento(documentoId, userId);
   }
 
   async getDocumentoFile(userId: number, documentoId: number) {
@@ -331,6 +332,7 @@ export class DocumentosService {
     confirmarEnvio = false,
     observacaoCandidato?: string,
     skipOcrValidation = false,
+    editadoPorUserId?: number,
   ) {
     const documento = await this.findDocumento(documentoId);
     this.validateFile(file, documento.template?.mimeTypesPermitidos ?? []);
@@ -351,6 +353,7 @@ export class DocumentosService {
     const updated = await this.prisma.documentoAdmissao.update({
       where: { id: documentoId },
       data: {
+        editadoPorUserId,
         status: StatusDocumentoAdmissao.ENVIADO,
         origem,
         arquivoNome: file.originalname,
@@ -452,7 +455,7 @@ export class DocumentosService {
     }
   }
 
-  private async clearDocumento(documentoId: number) {
+  private async clearDocumento(documentoId: number, editadoPorUserId: number) {
     const documento = await this.findDocumento(documentoId);
     if (documento.storagePath) {
       await this.s3.delete(documento.storagePath);
@@ -467,6 +470,7 @@ export class DocumentosService {
     return this.prisma.documentoAdmissao.update({
       where: { id: documentoId },
       data: {
+        editadoPorUserId,
         status: StatusDocumentoAdmissao.PENDENTE,
         origem: null,
         arquivoNome: null,

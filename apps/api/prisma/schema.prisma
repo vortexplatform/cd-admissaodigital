@@ -135,6 +135,11 @@ model Candidato {
   responsavelEmail    String? @map("responsavel_email")
   responsavelTelefone String? @map("responsavel_telefone")
 
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  criadoPorUserId Int? @map("criado_por_user_id")
+  editadoPorUserId Int? @map("editado_por_user_id")
+
   user                  User?                     @relation(fields: [userId], references: [id], onDelete: SetNull)
   cidadeVaga            CidadeVaga                @relation(fields: [cidadeVagaId], references: [id], onDelete: Restrict)
   candidaturas          Candidatura[]
@@ -166,6 +171,8 @@ model CandidatoDadosVaga {
   aposentado             Boolean? @map("aposentado")
   aposentadoriaTipo      String?  @map("aposentadoria_tipo")
   conducaoPropria        String?  @map("conducao_propria")
+  criadoPorUserId        Int?     @map("criado_por_user_id")
+  editadoPorUserId       Int?     @map("editado_por_user_id")
 
   candidato Candidato @relation(fields: [idCandidato], references: [id], onDelete: Cascade)
 
@@ -175,6 +182,8 @@ model CandidatoDadosVaga {
 model CandidatoLojaProxima {
   idCandidato Int @map("id_candidato")
   codfil      Int
+  criadoPorUserId  Int? @map("criado_por_user_id")
+  editadoPorUserId Int? @map("editado_por_user_id")
 
   candidato Candidato @relation(fields: [idCandidato], references: [id], onDelete: Cascade)
 
@@ -190,6 +199,8 @@ model CandidatoExperiencia {
   admissao    DateTime? @db.Date
   demissao    DateTime? @db.Date
   motivoSaida String?   @map("motivo_saida")
+  criadoPorUserId Int? @map("criado_por_user_id")
+  editadoPorUserId Int? @map("editado_por_user_id")
 
   candidato Candidato @relation(fields: [idCandidato], references: [id], onDelete: Cascade)
 
@@ -220,6 +231,8 @@ model CandidatoDependente {
   cpf                     String
   createdAt               DateTime  @default(now()) @map("created_at")
   updatedAt               DateTime  @updatedAt @map("updated_at")
+  criadoPorUserId         Int?      @map("criado_por_user_id")
+  editadoPorUserId        Int?      @map("editado_por_user_id")
 
   candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
@@ -237,6 +250,8 @@ model CandidatoValeTransporte {
   valesPorDia     Int      @default(1) @map("vales_por_dia")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
+  criadoPorUserId Int?      @map("criado_por_user_id")
+  editadoPorUserId Int?     @map("editado_por_user_id")
 
   candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
@@ -254,10 +269,11 @@ model CandidatoEtapa {
   observacao     String?
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
+  criadoPorUserId Int?     @map("criado_por_user_id")
+  editadoPorUserId Int?    @map("editado_por_user_id")
 
   candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
-  @@unique([candidatoId, codigoEtapa])
   @@index([candidatoId])
   @@map("candidato_etapas")
 }
@@ -273,6 +289,8 @@ model AceiteRegulamento {
   userAgent             String?  @map("user_agent")
   codigoVerificacao     String   @unique @map("codigo_verificacao")
   createdAt             DateTime @default(now()) @map("created_at")
+  criadoPorUserId       Int?     @map("criado_por_user_id")
+  editadoPorUserId      Int?     @map("editado_por_user_id")
 
   candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
@@ -476,6 +494,7 @@ model Candidatura {
   criadoPorUserId         Int?    @map("criado_por_user_id")
   admissaoGeradaPorUserId Int?    @map("admissao_gerada_por_user_id")
   portalAccessToken       String? @unique @map("portal_access_token")
+  editadoPorUserId        Int?    @map("editado_por_user_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -578,6 +597,8 @@ model EnvelopeAssinatura {
   candidaturaId   Int                      @map("candidatura_id")
   userId          Int                      @map("user_id")
   geradoPorUserId Int?                     @map("gerado_por_user_id")
+  criadoPorUserId Int?                     @map("criado_por_user_id")
+  editadoPorUserId Int?                    @map("editado_por_user_id")
   setor           SetorAssinatura
   tipoSignatario  TipoSignatario           @default(CANDIDATO) @map("tipo_signatario")
   status          StatusEnvelopeAssinatura @default(RASCUNHO)
@@ -655,6 +676,8 @@ model DocumentoAssinatura {
   empresaUserAgent               String?                   @map("empresa_user_agent")
   createdAt                      DateTime                  @default(now()) @map("created_at")
   updatedAt                      DateTime                  @updatedAt @map("updated_at")
+  criadoPorUserId                Int?                      @map("criado_por_user_id")
+  editadoPorUserId               Int?                      @map("editado_por_user_id")
 
   envelope             EnvelopeAssinatura    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
   biometriaSolicitacao BiometriaSolicitacao? @relation(fields: [biometriaSolicitacaoId], references: [id], onDelete: SetNull)
@@ -682,6 +705,8 @@ model AssinaturaPresencial {
   concluidaEm        DateTime?                  @map("concluida_em")
   createdAt          DateTime                   @default(now()) @map("created_at")
   updatedAt          DateTime                   @updatedAt @map("updated_at")
+  criadoPorUserId    Int?                       @map("criado_por_user_id")
+  editadoPorUserId   Int?                       @map("editado_por_user_id")
 
   envelope       EnvelopeAssinatura                    @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
   iniciadaPor    User                                  @relation("AssinaturaPresencialIniciadaPor", fields: [iniciadaPorId], references: [id], onDelete: Restrict)
@@ -697,6 +722,8 @@ model AssinaturaPresencialDocumento {
   documentoId        Int                  @map("documento_id")
   assinaturaStoragePath String             @map("assinatura_storage_path")
   pagina             Int
+  criadoPorUserId    Int?                 @map("criado_por_user_id")
+  editadoPorUserId   Int?                 @map("editado_por_user_id")
   x                  Float
   y                  Float
   largura            Float
@@ -731,6 +758,8 @@ model BiometriaTemplate {
   candidatoId Int      @map("candidato_id")
   template    Bytes    @db.ByteA
   criadoEm    DateTime @default(now()) @map("criado_em")
+  criadoPorUserId Int? @map("criado_por_user_id")
+  editadoPorUserId Int? @map("editado_por_user_id")
 
   candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
 
@@ -760,6 +789,8 @@ model BiometriaSolicitacao {
   ipResultado          String?                        @map("ip_resultado")
   userAgentResultado   String?                        @map("user_agent_resultado")
   payloadHash          String?                        @map("payload_hash")
+  criadoPorUserId      Int?                           @map("criado_por_user_id")
+  editadoPorUserId     Int?                           @map("editado_por_user_id")
   createdAt            DateTime                       @default(now()) @map("created_at")
   updatedAt            DateTime                       @updatedAt @map("updated_at")
 
@@ -785,6 +816,8 @@ model EventoAssinatura {
   ip          String?
   userAgent   String?              @map("user_agent")
   metadata    Json?
+  criadoPorUserId Int?             @map("criado_por_user_id")
+  editadoPorUserId Int?            @map("editado_por_user_id")
   createdAt   DateTime             @default(now()) @map("created_at")
 
   envelope EnvelopeAssinatura @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
@@ -887,6 +920,8 @@ model DocumentoAdmissao {
   dispensadoPorId     Int?                     @map("dispensado_por_id")
   createdAt           DateTime                 @default(now()) @map("created_at")
   updatedAt           DateTime                 @updatedAt @map("updated_at")
+  criadoPorUserId     Int?                     @map("criado_por_user_id")
+  editadoPorUserId    Int?                     @map("editado_por_user_id")
 
   candidatura   Candidatura         @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
   template      DocumentoTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)

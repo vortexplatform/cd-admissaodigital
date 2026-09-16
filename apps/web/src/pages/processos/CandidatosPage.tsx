@@ -48,8 +48,8 @@ const statusLabels: Record<string, string> = {
 
 const tabs = [
   { key: 'todos', label: 'Todos' },
-  { key: 'aguardando', label: 'Aguardando' },
-  { key: 'em-analise', label: 'Em análise' },
+  { key: 'candidato', label: 'Candidato' },
+  { key: 'aguardando', label: 'Ativo no Processo' },
   { key: 'aprovados', label: 'Aprovados' },
   { key: 'efetivados', label: 'Efetivados' },
   { key: 'recusados', label: 'Recusados' },
@@ -122,6 +122,7 @@ interface PaginatedCandidatosResponse {
 
 interface CandidatosCounts {
   todos: number;
+  candidato: number;
   aguardando: number;
   'em-analise': number;
   aprovados: number;
@@ -130,8 +131,8 @@ interface CandidatosCounts {
 }
 
 interface Filial {
-  numero: number;
-  nome: string | null;
+  CODFIL: number;
+  NOMFIL: string;
 }
 
 interface CidadeVaga {
@@ -141,6 +142,7 @@ interface CidadeVaga {
 
 const emptyCounts: CandidatosCounts = {
   todos: 0,
+  candidato: 0,
   aguardando: 0,
   'em-analise': 0,
   aprovados: 0,
@@ -279,7 +281,7 @@ export default function CandidatosPage() {
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const param = searchParams.get('tab');
-    return tabs.some((t) => t.key === param) ? (param as TabKey) : 'aguardando';
+    return tabs.some((t) => t.key === param) ? (param as TabKey) : 'todos';
   });
   const [cidadesVaga, setCidadesVaga] = useState<CidadeVaga[]>([]);
   const [cidadeVagaFilter, setCidadeVagaFilter] = useState<SelectOption | null>(() => {
@@ -291,6 +293,7 @@ export default function CandidatosPage() {
     const v = searchParams.get('filial');
     return v ? { value: v, label: v } : null;
   });
+  const [modalFilialFilter, setModalFilialFilter] = useState<SelectOption | null>(null);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('busca') ?? '');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(() => searchParams.get('busca') ?? '');
   const [page, setPage] = useState(() => {
@@ -310,7 +313,7 @@ export default function CandidatosPage() {
   // Sincroniza estado → URL
   useEffect(() => {
     const params = new URLSearchParams();
-    if (activeTab !== 'aguardando') params.set('tab', activeTab);
+    if (activeTab !== 'todos') params.set('tab', activeTab);
     if (debouncedSearchTerm) params.set('busca', debouncedSearchTerm);
     if (cidadeVagaFilter?.value) params.set('cidade', cidadeVagaFilter.value);
     if (filialFilter?.value) params.set('filial', filialFilter.value);
@@ -328,13 +331,13 @@ export default function CandidatosPage() {
   }, [searchTerm]);
 
   useEffect(() => {
-    api.get<Filial[]>('/candidatos/filiais').then(({ data }) => {
+    api.get<Filial[]>('/general/filial').then(({ data }) => {
       setFiliais(data);
       // Atualiza o label do filtro de filial carregado da URL
       if (filialFilter) {
-        const match = data.find((f) => String(f.numero) === filialFilter.value);
+        const match = data.find((f) => String(f.CODFIL) === filialFilter.value);
         if (match) {
-          const label = match.nome ? `${String(match.numero).padStart(2, '0')} - ${match.nome}` : String(match.numero).padStart(2, '0');
+          const label = `${String(match.CODFIL).padStart(2, '0')} - ${match.NOMFIL}`;
           setFilialFilter({ value: filialFilter.value, label });
         }
       }
@@ -398,8 +401,8 @@ export default function CandidatosPage() {
   );
 
   const filialOptions = filiais.map((filial) => ({
-    value: String(filial.numero),
-    label: filial.nome ? `${String(filial.numero).padStart(2, '0')} - ${filial.nome}` : String(filial.numero).padStart(2, '0'),
+    value: String(filial.CODFIL),
+    label: `${String(filial.CODFIL).padStart(2, '0')} - ${filial.NOMFIL}`,
   }));
   const cidadesVagaOptions = cidadesVaga.map((cidade) => ({ value: String(cidade.id), label: cidade.nome }));
 
@@ -469,12 +472,14 @@ export default function CandidatosPage() {
     if (isSavingAction && !force) return;
 
     setLinkModalCandidato(null);
+    setModalFilialFilter(null);
     setSelectedRequisicao(null);
     setModalError('');
   };
 
   const openLinkModal = (candidato: Candidato) => {
     setLinkModalCandidato(candidato);
+    setModalFilialFilter(null);
     setSelectedRequisicao(null);
     setModalError('');
   };
@@ -495,8 +500,8 @@ export default function CandidatosPage() {
         .get<RequisicaoDisponivel[]>('/requisicoes/disponiveis', {
           params: {
             candidatoId: linkModalCandidato.id,
-            limit: 20,
             q: inputValue.trim() || undefined,
+            filial: modalFilialFilter?.value || undefined,
           },
         })
         .then(({ data }) => callback(data.map(formatRequisicaoOption)))
@@ -816,10 +821,27 @@ export default function CandidatosPage() {
             </div>
             <div className="space-y-4 p-5">
               <label className="space-y-2">
+                <span className="text-sm font-medium">Filial</span>
+                <Select
+                  isClearable
+                  options={filialOptions}
+                  placeholder="Todas as filiais"
+                  noOptionsMessage={() => 'Nenhuma filial encontrada'}
+                  styles={selectStyles}
+                  value={modalFilialFilter}
+                  onChange={(option) => {
+                    setModalFilialFilter(option);
+                    setSelectedRequisicao(null);
+                    setModalError('');
+                  }}
+                />
+              </label>
+              <label className="space-y-2">
                 <span className="text-sm font-medium">Buscar requisição com vaga disponível</span>
                 <AsyncSelect<RequisicaoOption, false>
                   cacheOptions
                   defaultOptions
+                  key={modalFilialFilter?.value ?? 'todas'}
                   loadOptions={loadRequisicaoOptions}
                   loadingMessage={() => 'Buscando requisições...'}
                   noOptionsMessage={({ inputValue }) =>

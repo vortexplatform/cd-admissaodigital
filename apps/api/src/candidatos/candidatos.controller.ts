@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -27,8 +28,8 @@ export class CandidatosController {
   constructor(private readonly candidatos: CandidatosService) {}
 
   @Post()
-  create(@Body() dto: CreateCandidatoDto) {
-    return this.candidatos.create(dto);
+  create(@Request() req: { user: { id: number } }, @Body() dto: CreateCandidatoDto) {
+    return this.candidatos.create(dto, req.user.id);
   }
 
   @Get()
@@ -69,19 +70,21 @@ export class CandidatosController {
 
   @Post(':id/dependentes')
   createDependente(
+    @Request() req: { user: { id: number } },
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CreateCandidatoDependenteDto,
   ) {
-    return this.candidatos.createDependente(id, dto);
+    return this.candidatos.createDependente(id, dto, req.user.id);
   }
 
   @Patch(':id/dependentes/:dependenteId')
   updateDependente(
+    @Request() req: { user: { id: number } },
     @Param('id', ParseIntPipe) id: number,
     @Param('dependenteId', ParseIntPipe) dependenteId: number,
     @Body() dto: UpdateCandidatoDependenteDto,
   ) {
-    return this.candidatos.updateDependente(id, dependenteId, dto);
+    return this.candidatos.updateDependente(id, dependenteId, dto, req.user.id);
   }
 
   @Delete(':id/dependentes/:dependenteId')
@@ -94,19 +97,21 @@ export class CandidatosController {
 
   @Post(':id/vale-transportes')
   createValeTransporte(
+    @Request() req: { user: { id: number } },
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CreateCandidatoValeTransporteDto,
   ) {
-    return this.candidatos.createValeTransporte(id, dto);
+    return this.candidatos.createValeTransporte(id, dto, req.user.id);
   }
 
   @Patch(':id/vale-transportes/:valeTransporteId')
   updateValeTransporte(
+    @Request() req: { user: { id: number } },
     @Param('id', ParseIntPipe) id: number,
     @Param('valeTransporteId', ParseIntPipe) valeTransporteId: number,
     @Body() dto: UpdateCandidatoValeTransporteDto,
   ) {
-    return this.candidatos.updateValeTransporte(id, valeTransporteId, dto);
+    return this.candidatos.updateValeTransporte(id, valeTransporteId, dto, req.user.id);
   }
 
   @Delete(':id/vale-transportes/:valeTransporteId')
@@ -118,17 +123,22 @@ export class CandidatosController {
   }
 
   @Post(':id/etapas')
-  createEtapa(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateCandidatoEtapaDto) {
-    return this.candidatos.createEtapa(id, dto);
+  createEtapa(
+    @Request() req: { user: { id: number } },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateCandidatoEtapaDto,
+  ) {
+    return this.candidatos.createEtapa(id, dto, req.user.id);
   }
 
   @Patch(':id/etapas/:etapaId')
   updateEtapa(
+    @Request() req: { user: { id: number } },
     @Param('id', ParseIntPipe) id: number,
     @Param('etapaId', ParseIntPipe) etapaId: number,
     @Body() dto: UpdateCandidatoEtapaDto,
   ) {
-    return this.candidatos.updateEtapa(id, etapaId, dto);
+    return this.candidatos.updateEtapa(id, etapaId, dto, req.user.id);
   }
 
   @Delete(':id/etapas/:etapaId')
@@ -145,8 +155,12 @@ export class CandidatosController {
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCandidatoDto) {
-    return this.candidatos.update(id, dto);
+  update(
+    @Request() req: { user: { id: number } },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCandidatoDto,
+  ) {
+    return this.candidatos.update(id, dto, req.user.id);
   }
 
   @Delete(':id')

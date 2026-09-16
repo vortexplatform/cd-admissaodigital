@@ -176,7 +176,7 @@ export class RequisicoesService {
       orderBy: [{ dataPrevistaAdmissao: 'asc' }, { createdAt: 'desc' }],
     });
 
-    return requisicoes
+    const requisicoesComVaga = requisicoes
       .map((requisicao) => {
         const vagasOcupadas = requisicao.candidaturas.filter((candidatura) =>
           activeCandidaturaStatuses.has(candidatura.status),
@@ -193,8 +193,11 @@ export class RequisicoesService {
         return !requisicao.candidaturas.some(
           (candidatura) => candidatura.candidatoId === parsedCandidatoId,
         );
-      })
-      .slice(0, clampLimit(limit));
+      });
+
+    return limit === undefined
+      ? requisicoesComVaga
+      : requisicoesComVaga.slice(0, clampLimit(limit));
   }
 
   async findOne(id: number) {
