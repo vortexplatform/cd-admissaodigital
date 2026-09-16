@@ -2172,38 +2172,38 @@ export default function CandidatoFormPage({ mode }: { mode: CandidatoMode }) {
         <form id="candidato-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {mode !== 'create' && colaboradorSenior && (
             <Card className="border-report-blue/40 bg-report-blue/10">
-              <CardContent className="flex flex-col gap-3 p-4">
-                <BriefcaseBusiness className="h-5 w-5 shrink-0 text-report-blue" aria-hidden="true" />
-                <div>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <BriefcaseBusiness className="h-5 w-5 shrink-0 text-report-blue" aria-hidden="true" />
                   <p className="font-semibold text-foreground">Este candidato já foi colaborador.</p>
-                  <div className="mt-2 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
-                    <p>
-                      <span className="font-medium">Nome:</span>{' '}
-                      <span className="text-foreground">{colaboradorSenior.nome ?? 'Não informado'}</span>
-                    </p>
-                    <p>
-                      <span className="font-medium">Matrícula:</span>{' '}
-                      <span className="font-mono font-semibold text-foreground">
-                        {colaboradorSenior.matricula ?? 'Não informado'}
-                      </span>
-                    </p>
-                    <p>
-                      <span className="font-medium">Admissão:</span>{' '}
-                      <span className="text-foreground">
-                        {colaboradorSenior.admissao
-                          ? toDateInputValue(colaboradorSenior.admissao).split('-').reverse().join('/')
-                          : 'Não informado'}
-                      </span>
-                    </p>
-                    <p>
-                      <span className="font-medium">Filial:</span>{' '}
-                      <span className="text-foreground">{colaboradorSenior.filial ?? 'Não informado'}</span>
-                    </p>
-                    <p>
-                      <span className="font-medium">Situação:</span>{' '}
-                      <span className="text-foreground">{colaboradorSenior.situacao ?? 'Não informado'}</span>
-                    </p>
-                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-2 text-left text-sm text-muted-foreground sm:grid-cols-2">
+                  <p>
+                    <span className="font-medium">Nome:</span>{' '}
+                    <span className="text-foreground">{colaboradorSenior.nome ?? 'Não informado'}</span>
+                  </p>
+                  <p>
+                    <span className="font-medium">Matrícula:</span>{' '}
+                    <span className="font-mono font-semibold text-foreground">
+                      {colaboradorSenior.matricula ?? 'Não informado'}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="font-medium">Admissão:</span>{' '}
+                    <span className="text-foreground">
+                      {colaboradorSenior.admissao
+                        ? toDateInputValue(colaboradorSenior.admissao).split('-').reverse().join('/')
+                        : 'Não informado'}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="font-medium">Filial:</span>{' '}
+                    <span className="text-foreground">{colaboradorSenior.filial ?? 'Não informado'}</span>
+                  </p>
+                  <p>
+                    <span className="font-medium">Situação:</span>{' '}
+                    <span className="text-foreground">{colaboradorSenior.situacao ?? 'Não informado'}</span>
+                  </p>
                 </div>
               </CardContent>
             </Card>
