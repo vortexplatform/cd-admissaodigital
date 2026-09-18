@@ -101,6 +101,8 @@ interface RequisicaoDisponivel {
   cargoNome: string | null;
   ccustoNome: string | null;
   dataPrevistaAdmissao: string | null;
+  escala: string | null;
+  descricaoEscala: string | null;
 }
 
 interface SelectOption {
@@ -188,6 +190,7 @@ const selectStyles: StylesConfig<SelectOption, false> = {
 const fetchPaginatedCandidatos = (
   currentPage: number,
   nome: string,
+  cpf: string,
   situacao: TabKey,
   cidadeVagaId?: string,
   filial?: string,
@@ -197,16 +200,18 @@ const fetchPaginatedCandidatos = (
       page: currentPage,
       limit: pageSize,
       ...(nome ? { nome } : {}),
+      ...(cpf ? { cpf } : {}),
       ...(situacao !== 'todos' ? { situacao } : {}),
       ...(cidadeVagaId ? { cidadeVagaId } : {}),
       ...(filial ? { filial } : {}),
     },
   });
 
-const fetchCandidatosCounts = (nome: string, cidadeVagaId?: string, filial?: string) =>
+const fetchCandidatosCounts = (nome: string, cpf: string, cidadeVagaId?: string, filial?: string) =>
   api.get<CandidatosCounts>('/candidatos/counts', {
     params: {
       ...(nome ? { nome } : {}),
+      ...(cpf ? { cpf } : {}),
       ...(cidadeVagaId ? { cidadeVagaId } : {}),
       ...(filial ? { filial } : {}),
     },
@@ -239,9 +244,14 @@ const getCurrentCandidatura = (candidato: Candidato) => candidato.candidaturas[0
 
 const formatRequisicaoOption = (requisicao: RequisicaoDisponivel): RequisicaoOption => ({
   value: String(requisicao.id),
-  label: `#${requisicao.id} - ${requisicao.postoTrabalho ?? 'Posto não informado'} - ${requisicao.postoTrabalhoNome ?? requisicao.cargoNome ?? requisicao.cargo ?? 'Descrição não informada'}`,
+  label: `#${requisicao.id} - ${(
+    requisicao.postoTrabalhoNome ?? requisicao.cargoNome ?? requisicao.cargo ?? 'Descrição não informada'
+  ).replace(/^\d+\s*-\s*/, '')}`,
   requisicao,
 });
+
+const formatHorarioRequisicao = (requisicao: RequisicaoDisponivel) =>
+  [requisicao.escala, requisicao.descricaoEscala].filter(Boolean).join(' — ') || 'Horário não informado';
 
 function AdmissaoPrevistaInput({
   value,
@@ -296,6 +306,8 @@ export default function CandidatosPage() {
   const [modalFilialFilter, setModalFilialFilter] = useState<SelectOption | null>(null);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('busca') ?? '');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(() => searchParams.get('busca') ?? '');
+  const [cpfSearchTerm, setCpfSearchTerm] = useState(() => searchParams.get('cpf') ?? '');
+  const [debouncedCpfSearchTerm, setDebouncedCpfSearchTerm] = useState(() => searchParams.get('cpf') ?? '');
   const [page, setPage] = useState(() => {
     const p = Number(searchParams.get('pagina'));
     return p > 0 ? p : 1;
@@ -306,6 +318,10 @@ export default function CandidatosPage() {
   const [selectedRequisicao, setSelectedRequisicao] = useState<RequisicaoOption | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingAction, setIsSavingAction] = useState(false);
+  const [candidatoExclusao, setCandidatoExclusao] = useState<Candidato | null>(null);
+  const [confirmacaoExclusao, setConfirmacaoExclusao] = useState(false);
+  const [isExcluindoCandidato, setIsExcluindoCandidato] = useState(false);
+  const [exclusaoError, setExclusaoError] = useState('');
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
   const requisicaoSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -315,11 +331,20 @@ export default function CandidatosPage() {
     const params = new URLSearchParams();
     if (activeTab !== 'todos') params.set('tab', activeTab);
     if (debouncedSearchTerm) params.set('busca', debouncedSearchTerm);
+    if (debouncedCpfSearchTerm) params.set('cpf', debouncedCpfSearchTerm);
     if (cidadeVagaFilter?.value) params.set('cidade', cidadeVagaFilter.value);
     if (filialFilter?.value) params.set('filial', filialFilter.value);
     if (page > 1) params.set('pagina', String(page));
     setSearchParams(params, { replace: true });
-  }, [activeTab, debouncedSearchTerm, cidadeVagaFilter?.value, filialFilter?.value, page, setSearchParams]);
+  }, [
+    activeTab,
+    debouncedSearchTerm,
+    debouncedCpfSearchTerm,
+    cidadeVagaFilter?.value,
+    filialFilter?.value,
+    page,
+    setSearchParams,
+  ]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -329,6 +354,15 @@ export default function CandidatosPage() {
 
     return () => clearTimeout(timeout);
   }, [searchTerm]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);
+      setDebouncedCpfSearchTerm(cpfSearchTerm);
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [cpfSearchTerm]);
 
   useEffect(() => {
     api.get<Filial[]>('/general/filial').then(({ data }) => {
@@ -356,10 +390,11 @@ export default function CandidatosPage() {
   useEffect(() => {
     let isCurrentRequest = true;
     const trimmedNome = debouncedSearchTerm.trim();
+    const trimmedCpf = debouncedCpfSearchTerm.replace(/\D/g, '');
     const cidadeVagaId = cidadeVagaFilter?.value;
     const filial = filialFilter?.value;
 
-    if (trimmedNome && trimmedNome.length < 3) {
+    if ((trimmedNome && trimmedNome.length < 3) || (trimmedCpf && trimmedCpf.length < 3)) {
       setCandidatos([]);
       setPagination({ total: 0, totalPages: 1, limit: pageSize });
       setCounts(emptyCounts);
@@ -372,8 +407,8 @@ export default function CandidatosPage() {
     setIsLoading(true);
     setError('');
     Promise.all([
-      fetchPaginatedCandidatos(page, trimmedNome, activeTab, cidadeVagaId, filial),
-      fetchCandidatosCounts(trimmedNome, cidadeVagaId, filial),
+      fetchPaginatedCandidatos(page, trimmedNome, trimmedCpf, activeTab, cidadeVagaId, filial),
+      fetchCandidatosCounts(trimmedNome, trimmedCpf, cidadeVagaId, filial),
     ])
       .then(([{ data }, { data: countsData }]) => {
         if (!isCurrentRequest) return;
@@ -391,7 +426,14 @@ export default function CandidatosPage() {
     return () => {
       isCurrentRequest = false;
     };
-  }, [page, debouncedSearchTerm, activeTab, cidadeVagaFilter?.value, filialFilter?.value]);
+  }, [
+    page,
+    debouncedSearchTerm,
+    debouncedCpfSearchTerm,
+    activeTab,
+    cidadeVagaFilter?.value,
+    filialFilter?.value,
+  ]);
 
   useEffect(
     () => () => {
@@ -406,19 +448,38 @@ export default function CandidatosPage() {
   }));
   const cidadesVagaOptions = cidadesVaga.map((cidade) => ({ value: String(cidade.id), label: cidade.nome }));
 
-  const removeCandidato = async (candidato: Candidato) => {
+  const openExclusaoModal = (candidato: Candidato) => {
     if (candidato.candidaturas.length > 0) return;
 
-    const title = candidato.nome ?? formatCpf(candidato.cpf);
-    const confirmed = window.confirm(`Excluir o candidato "${title}"?`);
-    if (!confirmed) return;
+    setCandidatoExclusao(candidato);
+    setConfirmacaoExclusao(false);
+    setExclusaoError('');
+    setError('');
+  };
+
+  const closeExclusaoModal = () => {
+    if (isExcluindoCandidato) return;
+    setCandidatoExclusao(null);
+    setConfirmacaoExclusao(false);
+    setExclusaoError('');
+  };
+
+  const removeCandidato = async () => {
+    if (!candidatoExclusao) return;
+
+    setIsExcluindoCandidato(true);
 
     setError('');
     try {
-      await api.delete(`/candidatos/${candidato.id}`);
+      await api.delete(`/candidatos/${candidatoExclusao.id}`);
+      setCandidatoExclusao(null);
+      setConfirmacaoExclusao(false);
+      setExclusaoError('');
       await reloadCurrentPage();
     } catch {
-      setError('Não foi possível excluir o candidato.');
+      setExclusaoError('Não foi possível excluir o candidato.');
+    } finally {
+      setIsExcluindoCandidato(false);
     }
   };
 
@@ -452,16 +513,18 @@ export default function CandidatosPage() {
   };
 
   const hasShortSearchTerm = Boolean(searchTerm.trim()) && searchTerm.trim().length < 3;
+  const hasShortCpfSearchTerm = Boolean(cpfSearchTerm.replace(/\D/g, '')) && cpfSearchTerm.replace(/\D/g, '').length < 3;
   const firstItem = pagination.total === 0 ? 0 : (page - 1) * pagination.limit + 1;
   const lastItem = Math.min(page * pagination.limit, pagination.total);
 
   const reloadCurrentPage = async () => {
     const trimmedNome = debouncedSearchTerm.trim();
+    const trimmedCpf = debouncedCpfSearchTerm.replace(/\D/g, '');
     const cidadeVagaId = cidadeVagaFilter?.value;
     const filial = filialFilter?.value;
     const [{ data }, { data: countsData }] = await Promise.all([
-      fetchPaginatedCandidatos(page, trimmedNome, activeTab, cidadeVagaId, filial),
-      fetchCandidatosCounts(trimmedNome, cidadeVagaId, filial),
+      fetchPaginatedCandidatos(page, trimmedNome, trimmedCpf, activeTab, cidadeVagaId, filial),
+      fetchCandidatosCounts(trimmedNome, trimmedCpf, cidadeVagaId, filial),
     ]);
     setCandidatos(data.data);
     setPagination({ total: data.total, totalPages: data.totalPages, limit: data.limit });
@@ -597,6 +660,15 @@ export default function CandidatosPage() {
                 }}
               />
             </div>
+            <div className="w-full sm:w-56">
+              <Input
+                value={cpfSearchTerm}
+                onChange={(event) => setCpfSearchTerm(formatCpf(event.target.value))}
+                placeholder="Buscar por CPF"
+                inputMode="numeric"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Digite ao menos 3 números.</p>
+            </div>
             <div className="w-full sm:flex-1">
               <Input
                 value={searchTerm}
@@ -614,6 +686,11 @@ export default function CandidatosPage() {
           {hasShortSearchTerm && (
             <p className="border-b px-5 py-3 text-sm text-muted-foreground">
               Digite ao menos 3 letras para buscar por nome.
+            </p>
+          )}
+          {hasShortCpfSearchTerm && (
+            <p className="border-b px-5 py-3 text-sm text-muted-foreground">
+              Digite ao menos 3 números para buscar por CPF.
             </p>
           )}
           {isLoading ? (
@@ -756,7 +833,7 @@ export default function CandidatosPage() {
                               variant="outline"
                               size="sm"
                               className="gap-1.5"
-                              onClick={() => removeCandidato(candidato)}
+                               onClick={() => openExclusaoModal(candidato)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                               Excluir
@@ -803,9 +880,71 @@ export default function CandidatosPage() {
         </CardContent>
       </Card>
 
+      {candidatoExclusao && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeExclusaoModal();
+          }}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border bg-background shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="excluir-candidato-titulo"
+          >
+            <div className="border-b p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-destructive">
+                Exclusão permanente
+              </p>
+              <h2 id="excluir-candidato-titulo" className="mt-1 font-display text-xl font-semibold">
+                Excluir candidato?
+              </h2>
+            </div>
+            <div className="space-y-4 p-5 text-sm">
+              <p>
+                Essa ação excluirá permanentemente o cadastro de{' '}
+                <strong>{candidatoExclusao.nome || formatCpf(candidatoExclusao.cpf)}</strong> e não poderá ser
+                desfeita.
+              </p>
+              <label className="flex items-start gap-3 rounded-lg border bg-muted/35 p-3">
+                <input
+                  type="checkbox"
+                  checked={confirmacaoExclusao}
+                  onChange={(event) => setConfirmacaoExclusao(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-destructive"
+                />
+                <span>Estou ciente de que os dados do candidato serão apagados permanentemente.</span>
+              </label>
+              {exclusaoError && <p className="text-sm text-destructive">{exclusaoError}</p>}
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t bg-muted/35 p-5 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={closeExclusaoModal} disabled={isExcluindoCandidato}>
+                Cancelar
+              </Button>
+              {!confirmacaoExclusao ? (
+                <Button type="button" disabled>
+                  Confirme acima para continuar
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={removeCandidato}
+                  disabled={isExcluindoCandidato}
+                >
+                  {isExcluindoCandidato ? 'Excluindo...' : 'Excluir definitivamente'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {linkModalCandidato && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <div className="w-full max-w-xl rounded-2xl border bg-background shadow-2xl">
+           <div className="w-full max-w-2xl rounded-2xl border bg-background shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b p-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
@@ -849,11 +988,19 @@ export default function CandidatosPage() {
                       ? 'Nenhuma requisição disponível encontrada'
                       : 'Nenhuma requisição aberta com vaga disponível'
                   }
-                  placeholder="Digite cargo, empresa, filial, setor ou nº da requisição"
-                  styles={selectStyles as unknown as StylesConfig<RequisicaoOption, false>}
-                  value={selectedRequisicao}
-                  onChange={setSelectedRequisicao}
-                />
+                   placeholder="Digite cargo, empresa, filial, setor ou nº da requisição"
+                   styles={selectStyles as unknown as StylesConfig<RequisicaoOption, false>}
+                   value={selectedRequisicao}
+                   onChange={setSelectedRequisicao}
+                   formatOptionLabel={(option) => (
+                     <div className="min-w-0">
+                       <div className="truncate font-medium">{option.label}</div>
+                       <div className="truncate text-xs text-muted-foreground">
+                         {formatHorarioRequisicao(option.requisicao)}
+                       </div>
+                     </div>
+                   )}
+                 />
               </label>
               {selectedRequisicao && (
                 <div className="rounded-xl border bg-muted/35 p-3 text-sm">

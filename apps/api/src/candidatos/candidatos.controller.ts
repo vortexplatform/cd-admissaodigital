@@ -40,8 +40,9 @@ export class CandidatosController {
     @Query('situacao') situacao?: string,
     @Query('filial') filial?: string,
     @Query('cidadeVagaId') cidadeVagaId?: string,
+    @Query('cpf') cpf?: string,
   ) {
-    return this.candidatos.findPaginated({ nome, page, limit, situacao, filial, cidadeVagaId });
+    return this.candidatos.findPaginated({ nome, cpf, page, limit, situacao, filial, cidadeVagaId });
   }
 
   @Get('search')
@@ -59,8 +60,9 @@ export class CandidatosController {
     @Query('nome') nome?: string,
     @Query('filial') filial?: string,
     @Query('cidadeVagaId') cidadeVagaId?: string,
+    @Query('cpf') cpf?: string,
   ) {
-    return this.candidatos.countByTab(nome, filial, cidadeVagaId);
+    return this.candidatos.countByTab(nome, filial, cidadeVagaId, cpf);
   }
 
   @Get('filiais')

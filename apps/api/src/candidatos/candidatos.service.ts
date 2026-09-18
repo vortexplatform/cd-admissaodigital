@@ -61,6 +61,7 @@ const normalizeNullableDigits = (value?: string | null): string | null | undefin
 };
 
 const normalizeSearchTerm = (value?: string) => value?.trim().replace(/\s+/g, ' ') || '';
+const normalizeCpfSearchTerm = (value?: string) => value?.replace(/\D/g, '') || '';
 
 const clampSearchLimit = (value?: string) => {
   const limit = Number(value);
@@ -366,6 +367,7 @@ export class CandidatosService {
 
   async findPaginated({
     nome,
+    cpf,
     page,
     limit,
     situacao,
@@ -373,6 +375,7 @@ export class CandidatosService {
     cidadeVagaId,
   }: {
     nome?: string;
+    cpf?: string;
     page?: string;
     limit?: string;
     situacao?: string;
@@ -380,18 +383,20 @@ export class CandidatosService {
     cidadeVagaId?: string;
   }) {
     const term = normalizeSearchTerm(nome);
+    const cpfTerm = normalizeCpfSearchTerm(cpf);
     const currentPage = normalizePage(page);
     const pageSize = clampSearchLimit(limit);
     const tab = normalizeTab(situacao);
     const filialNumero = normalizeFilial(filial);
     const cidadeVagaNumero = normalizePositiveId(cidadeVagaId);
 
-    if (term && term.length < 3) {
+    if ((term && term.length < 3) || (cpfTerm && cpfTerm.length < 3)) {
       return this.buildPaginatedResponse([], 0, currentPage, pageSize);
     }
 
     return this.findPaginatedFiltered(
       term,
+      cpfTerm,
       currentPage,
       pageSize,
       tab,
@@ -400,7 +405,7 @@ export class CandidatosService {
     );
   }
 
-  async countByTab(nome?: string, filial?: string, cidadeVagaId?: string) {
+  async countByTab(nome?: string, filial?: string, cidadeVagaId?: string, cpf?: string) {
     const counts: Record<'todos' | CandidatoTabKey, number> = {
       todos: 0,
       candidato: 0,
@@ -412,10 +417,12 @@ export class CandidatosService {
     };
 
     const term = normalizeSearchTerm(nome);
-    if (term && term.length < 3) return counts;
+    const cpfTerm = normalizeCpfSearchTerm(cpf);
+    if ((term && term.length < 3) || (cpfTerm && cpfTerm.length < 3)) return counts;
 
     const candidates = await this.findFilteredCandidateStatuses(
       term,
+      cpfTerm,
       normalizeFilial(filial),
       normalizePositiveId(cidadeVagaId),
     );
@@ -727,6 +734,7 @@ export class CandidatosService {
 
   private buildCandidateListFilters(
     term: string,
+    cpfTerm: string,
     filial?: number,
     situacao?: CandidatoTabKey,
     cidadeVagaId?: number,
@@ -741,6 +749,9 @@ export class CandidatosService {
           : Prisma.sql`c."nome" IS NOT NULL AND lower(c."nome") LIKE lower(${`%${term}%`})`,
       );
     }
+    if (cpfTerm) {
+      filters.push(Prisma.sql`c."cpf" LIKE ${`%${cpfTerm}%`}`);
+    }
     if (filial !== undefined) filters.push(Prisma.sql`r."filial" = ${filial}`);
     if (cidadeVagaId !== undefined) filters.push(Prisma.sql`c."cidade_vaga_id" = ${cidadeVagaId}`);
 
@@ -754,6 +765,7 @@ export class CandidatosService {
 
   private async findPaginatedFiltered(
     term: string,
+    cpfTerm: string,
     page: number,
     limit: number,
     situacao?: CandidatoTabKey,
@@ -763,6 +775,7 @@ export class CandidatosService {
     const query = async (useUnaccent: boolean) => {
       const where = this.buildCandidateListFilters(
         term,
+        cpfTerm,
         filial,
         situacao,
         cidadeVagaId,
@@ -811,12 +824,14 @@ export class CandidatosService {
 
   private async findFilteredCandidateStatuses(
     term: string,
+    cpfTerm: string,
     filial?: number,
     cidadeVagaId?: number,
   ) {
     const query = (useUnaccent: boolean) => {
       const where = this.buildCandidateListFilters(
         term,
+        cpfTerm,
         filial,
         undefined,
         cidadeVagaId,

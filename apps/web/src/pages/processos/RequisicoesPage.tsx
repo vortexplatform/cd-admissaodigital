@@ -439,6 +439,12 @@ export default function RequisicoesPage() {
                     <h2 className="truncate font-display text-base font-semibold tracking-tight sm:text-lg">
                       {formatRequisicaoResumo(requisicao)}
                     </h2>
+                    {(requisicao.escala || requisicao.descricaoEscala) && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">Horário:</span>{' '}
+                        {[requisicao.escala, requisicao.descricaoEscala].filter(Boolean).join(' — ')}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-2 lg:justify-end">
